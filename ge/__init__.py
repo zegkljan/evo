@@ -66,8 +66,7 @@ class CodonGenotypeIndividual(wopt.evo.Individual):
     def set_codon(self, index, new_codon):
         if not (0 <= new_codon < self.max_codon_value):
             raise ValueError(('Codon value must be in range [0, {0}) but was'
-                              ' {1}.'
-                              ).format(self.max_codon_value, new_codon))
+                              ' {1}.').format(self.max_codon_value, new_codon))
         self.genotype[index] = new_codon
 
     def get_codon_num(self):
@@ -476,7 +475,7 @@ class Ge(multiprocessing.context.Process):
             if individual.get_fitness() is None:
                 self.evaluate(individual)
 
-        #self.generator.shuffle(self.population)
+        # self.generator.shuffle(self.population)
         self.population.sort(key=lambda x: x.get_fitness(),
                              reverse=self.fitness.maximize())
         return self.population[0:self.elites_num]
@@ -552,9 +551,9 @@ class Ge(multiprocessing.context.Process):
             raise TypeError('Individual must be of type '
                             'CodonGenotypeIndividual.')
         if (individual.get_first_not_used() < individual.get_codon_num() and
-                    self.generator.random() < self.prune_prob):
+                self.generator.random() < self.prune_prob):
             individual.genotype = individual.genotype[:individual.
-                get_first_not_used()]
+                                                      get_first_not_used()]
 
     def duplicate(self, individual):
         if not isinstance(individual, CodonGenotypeIndividual):
@@ -602,10 +601,9 @@ class Ge(multiprocessing.context.Process):
             return
 
         l = 0
-        u = len(self.population) - 1
-        c = None
-        while l < u:
-            c = (l + u) // 2
+        u = len(self.population)
+        c = (l + u) // 2
+        while l < u and c != l and c != u:
             ci = self.population[c]
             if self.fitness.compare(ci.get_fitness(), o.get_fitness()):
                 l = c
@@ -613,4 +611,5 @@ class Ge(multiprocessing.context.Process):
                 u = c
             else:
                 break
+            c = (l + u) // 2
         self.population.insert(c + 1, o)

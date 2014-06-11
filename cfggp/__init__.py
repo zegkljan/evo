@@ -193,12 +193,19 @@ class Cfggp(multiprocessing.context.Process):
     def run(self):
         """Runs the CFG-GP algorithm.
         """
-        self.population = self.population_initializer.initialize(self.pop_size)
+        try:
+            self.population = self.population_initializer.initialize(
+                self.pop_size)
 
-        if self.mode == 'generational':
-            self._run_generational()
-        elif self.mode == 'steady-state':
-            self._run_steady_state()
+            if self.mode == 'generational':
+                self._run_generational()
+            elif self.mode == 'steady-state':
+                self._run_steady_state()
+        finally:
+            try:
+                self.stats.cleanup()
+            except AttributeError:
+                pass
 
     def _run_generational(self):
         while not self.stop(self):
@@ -374,10 +381,9 @@ class Cfggp(multiprocessing.context.Process):
             return
 
         l = 0
-        u = len(self.population) - 1
-        c = None
+        u = len(self.population)
+        c = (l + u) // 2
         while l < u and c != l and c != u:
-            c = (l + u) // 2
             ci = self.population[c]
             if self.fitness.compare(ci.get_fitness(), o.get_fitness()):
                 l = c
@@ -385,6 +391,7 @@ class Cfggp(multiprocessing.context.Process):
                 u = c
             else:
                 break
+            c = (l + u) // 2
         self.population.insert(c + 1, o)
 
     def codon_to_derivation(self, codon):

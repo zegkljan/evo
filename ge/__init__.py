@@ -9,6 +9,7 @@ import fractions
 import functools
 import multiprocessing.context
 import random
+import gc
 
 import wopt.evo
 import wopt.evo.support
@@ -395,6 +396,7 @@ class Ge(multiprocessing.context.Process):
             elif self.mode == 'steady-state':
                 self._run_steady_state()
         finally:
+            gc.collect()
             try:
                 self.stats.cleanup()
             except AttributeError:

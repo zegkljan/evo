@@ -3,6 +3,7 @@
 """
 import multiprocessing.context
 import random
+import gc
 
 import wopt.evo
 import wopt.evo.ge
@@ -202,6 +203,7 @@ class Cfggp(multiprocessing.context.Process):
             elif self.mode == 'steady-state':
                 self._run_steady_state()
         finally:
+            gc.collect()
             try:
                 self.stats.cleanup()
             except AttributeError:

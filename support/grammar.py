@@ -664,18 +664,15 @@ class Grammar(object):
         non-terminal symbol has only one possible expansion) are omitted.
 
         The produced sequence of choices with respect to the ``tree_root``
-        always behaves in the following way (assuming ``g`` is an instance
-        of :class:`Grammar` and ``tree_root`` is a derivation tree on this
-        grammar)::
+        always behaves in the following way::
 
-            >>>sequence, _ = g.derivation_tree_to_choice_squence(tree_root)
-            >>>(tree_root_2, _, _, _) = g.to_tree(decisions=sequence,
-            ...                                   max_wraps=0,
-            ...                                   max_depth=float('inf'))
-            >>>sequence_2 , _= g.derivation_tree_to_choice_squence(tree_root_2)
-            >>>sequence == sequence_2
-            True
-            >>>tree_root.__str__() == tree_root_2.__str__()
+            >>>g = ... # some Grammar
+            >>>choices = ... # sequence of choices producing a valid derivation
+            ...              # tree on ``g`` with no extra integers left
+            >>>(tree, _, _, _) = g.to_tree(decisions=choices, max_wraps=0,
+            ...                                      max_depth=float('inf'))
+            >>>choices2 , _= g.derivation_tree_to_choice_squence(tree)
+            >>>choices == choices2
             True
 
         The second returned value is a list of numbers of the same length as

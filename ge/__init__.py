@@ -545,7 +545,7 @@ class Ge(multiprocessing.context.Process):
                                                      get_max_codon_value())
                 individual.set_codon(i, new_codon)
                 mutated = True
-        if mutated is None:
+        if mutated:
             individual.set_fitness(None)
 
     def prune(self, individual):

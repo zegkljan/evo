@@ -509,8 +509,9 @@ class Grammar(object):
             choices that result in terminal-only symbols. If there are no such
             choices for a particular rule, normal decision is made and the
             terminas will be selected as soon as possible.
-        :param sequence: if not ``None`` then each generated decision will be
-            appended (using the ``append()`` method) to this sequence
+        :param sequence: if not ``None`` then each generated decision (before
+            taking the modulo value) will be appended (using the ``append()``
+            method) to this sequence
         :return: a 4-tuple as described above
         """
         tree = None
@@ -564,7 +565,7 @@ class Grammar(object):
                         choice_idx = rule.get_terminal_choice_index(choice_idx)
                     choice = rule.get_choice(choice_idx)
                     if sequence is not None:
-                        sequence.append(choice_idx)
+                        sequence.append(decision)
                 rules_stack = choice + rules_stack
 
                 node.children = []

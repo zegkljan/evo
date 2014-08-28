@@ -605,7 +605,7 @@ class Ge(multiprocessing.context.Process):
         l = 0
         u = len(self.population)
         c = (l + u) // 2
-        while l < u and c != l and c != u:
+        while l < u and l != c != u:
             ci = self.population[c]
             if self.fitness.compare(ci.get_fitness(), o.get_fitness()):
                 l = c

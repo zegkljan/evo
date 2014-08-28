@@ -5,6 +5,7 @@ import fractions
 import functools
 import random
 import multiprocessing.context
+import math
 
 import wopt.evo
 import wopt.evo.cfggp
@@ -30,6 +31,26 @@ class DerivationToCodonsPopulationInitializer(wopt.evo.PopulationInitializer):
         else:
             self.multiplier = 1
 
+        if 'extra_codons_fraction_min':
+            self.extra_codons_fraction_min = kwargs['extra_codons_fraction_min']
+            if self.extra_codons_fraction_min < 0:
+                raise ValueError('Argument extra_extra_codons_fraction_min '
+                                 'must be nonnegative.')
+        else:
+            self.extra_codons_fraction_min = 0
+
+        if 'extra_codons_fraction_max':
+            self.extra_codons_fraction_max = kwargs['extra_codons_fraction_max']
+            if self.extra_codons_fraction_max < 0:
+                raise ValueError('Argument extra_extra_codons_fraction_min '
+                                 'must be nonnegative.')
+        else:
+            self.extra_codons_fraction_max = 0
+
+        if self.extra_codons_fraction_min > self.extra_codons_fraction_max:
+            raise ValueError('Argument extra_extra_codons_fraction_min must '
+                             'be less than argument extra_codons_fraction_max')
+
         choice_nums = [r.get_choices_num() for r in grammar.get_rules()]
         m = functools.reduce(lambda a, b: a * b // fractions.gcd(a, b),
                              choice_nums)
@@ -44,17 +65,31 @@ class DerivationToCodonsPopulationInitializer(wopt.evo.PopulationInitializer):
 
     def derivation_to_codons(self, individual):
         if isinstance(individual, wopt.evo.ge.CodonGenotypeIndividual):
-            return individual
-        if not isinstance(individual, wopt.evo.cfggp.DerivationTreeIndividual):
-            raise TypeError('Individual must be of type '
-                            'wopt.evo.cfggp.DerivationTreeIndividual.')
+            genotype = individual.genotype
+        else:
+            if not isinstance(individual,
+                              wopt.evo.cfggp.DerivationTreeIndividual):
+                raise TypeError('Individual must be of type '
+                                'wopt.evo.cfggp.DerivationTreeIndividual.')
 
-        choices, max_choices = \
-            self.grammar.derivation_tree_to_choice_sequence(individual.tree)
-        genotype = self.randomize(choices, max_choices)
-        assert (self.grammar.generate(genotype, mode='tree')[0].__str__() ==
-                individual.tree.__str__())
-        return wopt.evo.ge.CodonGenotypeIndividual(genotype, self.max_choices)
+            choices, max_choices = \
+                self.grammar.derivation_tree_to_choice_sequence(individual.tree)
+            genotype = self.randomize(choices, max_choices)
+            assert (self.grammar.generate(genotype, mode='tree')[0].__str__() ==
+                    individual.tree.__str__())
+
+        extra_length_min = math.ceil(len(genotype) *
+                                     self.extra_codons_fraction_min)
+        extra_length_max = math.ceil(len(genotype) *
+                                     self.extra_codons_fraction_max)
+        n = self.generator.randint(extra_length_min, extra_length_max)
+
+        genotype.extend(self.generator.randrange(self.max_choices) for _ in
+                        range(n))
+        new_individual = wopt.evo.ge.CodonGenotypeIndividual(genotype,
+                                                             self.max_choices)
+        new_individual.set_fitness(individual.get_fitness())
+        return new_individual
 
     def randomize(self, choices, max_choices):
         randomized = []
@@ -197,6 +232,26 @@ class CfggpGe(multiprocessing.context.Process):
         :keyword duplicate_prob: (keyword argument) probability of performing a
             duplication; if it does not fit into interval [0, 1] it is set to 0
             if lower than 0 and to 1 if higher than 1; default value is 0.2
+        :keyword extra_fraction_min: (keyword argument) minimum length of
+            extra codons appended after switching from cfg-gp to ge,
+            expressed as a fraction of length of the translated genotype.
+            I.e. if the translated genotype has 4 codons and
+            ``extra_fraction_min`` is 0.5 then a minimum of 2 random codons
+            will be appended. The actual number of codons is chosen randomly
+            in range corresponding to this minimum and the maximum defined by
+            the ``extra_fraction_max`` argument.
+
+            Default value is 0.
+        :keyword extra_fraction_max: (keyword argument) maximum length of
+            extra codons appended after switching from cfg-gp to ge,
+            expressed as a fraction of length of the translated genotype.
+            I.e. if the translated genotype has 4 codons and
+            ``extra_fraction_min`` is 0.5 then a maximum of 2 random codons
+            will be appended. The actual number of codons is chosen randomly
+            in range corresponding to this maximum and the minimum defined by
+            the ``extra_fraction_min`` argument.
+
+            Default value is 0.
         :param stats: stats saving class
         :type stats: :class:`wopt.evo.support.Stats`
         :param callback: a callable which will be called at the end of every
@@ -275,6 +330,17 @@ class CfggpGe(multiprocessing.context.Process):
             self.duplicate_prob = max(0, self.duplicate_prob)
             self.duplicate_prob = min(1, self.duplicate_prob)
 
+        self.extra_fraction_min = 0
+        if 'extra_fraction_min' in kwargs:
+            self.extra_fraction_min = kwargs['extra_fraction_min']
+            self.extra_fraction_min = max(0, self.extra_fraction_min)
+
+        self.extra_fraction_max = 0
+        if 'extra_fraction_max' in kwargs:
+            self.extra_fraction_max = kwargs['extra_fraction_max']
+            self.extra_fraction_max = max(self.extra_fraction_min,
+                                          self.extra_fraction_max)
+
         self.stats = None
         if 'stats' in kwargs:
             self.stats = kwargs['stats']
@@ -305,7 +371,11 @@ class CfggpGe(multiprocessing.context.Process):
                                           stats=self.stats,
                                           callback=self.callback)
         self.transition_initializer = \
-            DerivationToCodonsPopulationInitializer(self.grammar)
+            DerivationToCodonsPopulationInitializer(self.grammar,
+                                                    extra_codons_fraction_min=
+                                                        self.extra_fraction_min,
+                                                    extra_codons_fraction_max=
+                                                        self.extra_fraction_max)
         self.ge = wopt.evo.ge.Ge(self.fitness,
                                  self.pop_size, self.transition_initializer,
                                  self.grammar, self.mode, self.ge_stop,

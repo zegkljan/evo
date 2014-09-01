@@ -36,7 +36,12 @@ class CodonGenotypeIndividual(wopt.evo.Individual):
         self.first_not_used = 0
 
     def __str__(self):
-        return '{0}: {1}'.format(self.fitness, str(self.genotype))
+        try:
+            return '{0}: {1} |=> {2}'.format(self.fitness,
+                                             str(self.genotype),
+                                             self.phenotype_str)
+        except AttributeError:
+            return '{0}: {1}'.format(self.fitness, str(self.genotype))
 
     def set_fitness(self, fitness):
         self.fitness = fitness

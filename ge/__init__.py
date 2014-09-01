@@ -457,7 +457,7 @@ class Ge(multiprocessing.context.Process):
             self.mutate(o2)
 
             self.duplicate(o1)
-            self.duplicate(o1)
+            self.duplicate(o2)
 
             self.steady_state_replace(o1, o2)
             self.iterations += 1

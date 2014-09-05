@@ -37,11 +37,9 @@ class CodonGenotypeIndividual(wopt.evo.Individual):
 
     def __str__(self):
         try:
-            return '{0}: {1} |=> {2}'.format(self.fitness,
-                                             str(self.genotype),
-                                             self.phenotype_str)
+            return '{0} |=> {1}'.format(str(self.genotype), self.phenotype_str)
         except AttributeError:
-            return '{0}: {1}'.format(self.fitness, str(self.genotype))
+            return '{1}'.format(str(self.genotype))
 
     def set_fitness(self, fitness):
         self.fitness = fitness

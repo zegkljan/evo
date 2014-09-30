@@ -11,19 +11,35 @@ class Individual(object):
     """
 
     def __init__(self):
-        pass
+        self.fitness = None
 
     def set_fitness(self, fitness):
-        """Sets the fitness of this individual."""
-        pass
+        """Sets the fitness of this individual.
+
+        :param dict fitness: the fitness object. It should be a :class:`dict`
+            with an entry with key ``'fitness'`` whose value is the
+            individual's fitness."""
+        self.fitness = fitness
 
     def get_fitness(self):
         """Returns the fitness of this individual.
 
         It should return ``None`` if and only if the individual has not been
         evaluated yet.
+
+        The base class implementation should not be modified if the objects
+        passed to :meth:`.set_fitness()` are as described in that method doc.
         """
-        pass
+        if self.fitness is None:
+            return None
+        return self.fitness['fitness']
+
+    def get_fitness_object(self):
+        """Returns the whole fitness object.
+
+        The whole object is returned, not only its the ``'fitness'`` field.
+        """
+        return self.fitness
 
     def copy(self, carry_evaluation):
         """Returns a copy of the individual.

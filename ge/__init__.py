@@ -10,6 +10,7 @@ import functools
 import multiprocessing.context
 import random
 import gc
+import copy
 
 import wopt.evo
 import wopt.evo.support
@@ -32,7 +33,6 @@ class CodonGenotypeIndividual(wopt.evo.Individual):
         wopt.evo.Individual.__init__(self)
         self.genotype = genotype
         self.max_codon_value = max_codon_value
-        self.fitness = None
         self.first_not_used = 0
 
     def __str__(self):
@@ -41,17 +41,11 @@ class CodonGenotypeIndividual(wopt.evo.Individual):
         except AttributeError:
             return '{0}'.format(str(self.genotype))
 
-    def set_fitness(self, fitness):
-        self.fitness = fitness
-
-    def get_fitness(self):
-        return self.fitness
-
     def copy(self, carry_evaluation=True):
         clone = CodonGenotypeIndividual(list(self.genotype),
                                         self.max_codon_value)
         if carry_evaluation:
-            clone.fitness = self.fitness
+            clone.fitness = copy.deepcopy(self.fitness)
             clone.first_not_used = self.first_not_used
         return clone
 

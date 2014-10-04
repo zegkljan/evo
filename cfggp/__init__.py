@@ -1,6 +1,5 @@
 # -*- coding: utf8 -*-
-"""An attepmt to mix cfg-gp with ge.
-"""
+
 import multiprocessing.context
 import random
 import gc

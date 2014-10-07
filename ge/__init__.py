@@ -44,8 +44,8 @@ class CodonGenotypeIndividual(wopt.evo.Individual):
     def copy(self, carry_evaluation=True):
         clone = CodonGenotypeIndividual(list(self.genotype),
                                         self.max_codon_value)
+        wopt.evo.Individual.copy_evaluation(self, clone, carry_evaluation)
         if carry_evaluation:
-            clone.fitness = copy.deepcopy(self.fitness)
             clone.first_not_used = self.first_not_used
         return clone
 
@@ -129,6 +129,7 @@ class RandomCodonGenotypeInitializer(wopt.evo.IndividualInitializer):
         else:
             self.generator = random
 
+    # noinspection PyUnresolvedReferences
     def initialize(self):
         genotype = []
         for _ in range(self.generator.randint(self.min_length,

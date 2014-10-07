@@ -1,4 +1,5 @@
 # -*- coding: utf8 -*-
+import copy
 
 
 class Individual(object):
@@ -51,6 +52,14 @@ class Individual(object):
     def __str__(self):
         return self.get_fitness()
 
+    @staticmethod
+    def copy_evaluation(from_individual, to_individual, do_copy):
+        """Copies the fitness value from `from_individual` to `to_individual` if
+        `do_copy` is `True` (and does nothing if it is `False`).
+        """
+        if do_copy:
+            to_individual.fitness = copy.deepcopy(from_individual.fitness)
+
 
 class Fitness(object):
     """Takes care of evaluating individuals and assigns their fitness.
@@ -99,8 +108,6 @@ class IndividualInitializer(object):
     """Base class for initializing individuals.
 
     Derive from this class to implement particular initializer.
-
-    :see: :class:`.RandomCodonGenotypeInitializer`
     """
 
     def __init__(self):

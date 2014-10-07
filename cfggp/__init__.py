@@ -33,8 +33,7 @@ class DerivationTreeIndividual(wopt.evo.Individual):
 
     def copy(self, carry_evaluation=True):
         clone = DerivationTreeIndividual(self.tree.clone())
-        if carry_evaluation:
-            clone.fitness = self.fitness
+        wopt.evo.Individual.copy_evaluation(self, clone, carry_evaluation)
         return clone
 
     def get_tree(self):

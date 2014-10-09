@@ -422,10 +422,10 @@ class Ge(multiprocessing.context.Process):
                 self.duplicate(o1)
                 self.duplicate(o2)
 
-                if len(self.population) - (len(others) + len(elites)) >= 2:
+                if self.pop_size - (len(others) + len(elites)) >= 2:
                     others.append(o1)
                     others.append(o2)
-                elif len(self.population) - (len(others) + len(elites)) >= 1:
+                elif self.pop_size - (len(others) + len(elites)) >= 1:
                     if self.generator.random() < 0.5:
                         o1 = o2
                     others.append(o1)

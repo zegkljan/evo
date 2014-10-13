@@ -17,9 +17,8 @@ class Individual(object):
     def set_fitness(self, fitness):
         """Sets the fitness of this individual.
 
-        :param dict fitness: the fitness object. It should be a :class:`dict`
-            with an entry with key ``'fitness'`` whose value is the
-            individual's fitness."""
+        :param fitness: the fitness object
+        """
         self.fitness = fitness
 
     def get_fitness(self):
@@ -31,8 +30,6 @@ class Individual(object):
         The base class implementation should not be modified if the objects
         passed to :meth:`.set_fitness()` are as described in that method doc.
         """
-        if self.fitness is None:
-            return None
         return self.fitness
 
     def copy(self, carry_evaluation, carry_data):

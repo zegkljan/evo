@@ -12,6 +12,7 @@ class Individual(object):
 
     def __init__(self):
         self.fitness = None
+        self.data = None
 
     def set_fitness(self, fitness):
         """Sets the fitness of this individual.
@@ -32,16 +33,9 @@ class Individual(object):
         """
         if self.fitness is None:
             return None
-        return self.fitness['fitness']
-
-    def get_fitness_object(self):
-        """Returns the whole fitness object.
-
-        The whole object is returned, not only its the ``'fitness'`` field.
-        """
         return self.fitness
 
-    def copy(self, carry_evaluation):
+    def copy(self, carry_evaluation, carry_data):
         """Returns a copy of the individual.
 
         :param bool carry_evaluation: specifies whtether to copy the evaluation
@@ -59,6 +53,14 @@ class Individual(object):
         """
         if do_copy:
             to_individual.fitness = copy.deepcopy(from_individual.fitness)
+
+    @staticmethod
+    def copy_data(from_individual, to_individual, do_copy):
+        """Copies the data from `from_individual` to `to_individual` if
+        `do_copy` is `True` (and does nothing if it is `False`).
+        """
+        if do_copy:
+            to_individual.data = copy.deepcopy(from_individual.data)
 
 
 class Fitness(object):

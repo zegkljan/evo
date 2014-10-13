@@ -79,20 +79,22 @@ class SimpleFileStats(ResourceHoldingStats):
     .. code-block:: none
 
         MSG:<iteration>|<message>
-        BSF:<iteration>|<fitness>|<bsf>
-        POP:<iteration>|<individual1.fitness>;<individual1>|...
-            ...<individual2.fitness><individual2>|...
+        BSF:<iteration>|<fitness>|<data>|<bsf>
+        POP:<iteration>|<individual1.fitness>;<individual1.data>;<individual1>|
+            ...<individual2.fitness>;<individual2.data>;<individual2>|...
 
     where ``MSG`` or``BSF`` or ``POP`` signals whether this line contains a
     message or the best-so-far individual or a population; ``<iteration>``
     stands for the iteration number, ``<fitness>`` stands for the fitness of
-    the best-so-far individual, ``<bsf>`` stands for the string reperesentation
-    of the best-so-far individual (its ``__str__()`` method is called) and
-    ``<individualX>`` and ``<individualX.fitness>`` stand for the Xth
-    individual of the population and its fitness.
+    the best-so-far individual, ``<bsf>`` stands for the string representation
+    of the best-so-far individual (its ``__str__()`` method is called),
+    ``<data>`` stands for the ``data`` attribute of the individual and
+    ``<individualX>``, ``<individualX.fitness>`` and ``<individualX.data>``
+    stand for the Xth individual of the population and its fitness and data.
     """
 
-    def __init__(self, stats_file, field_separator='|', manage=None):
+    def __init__(self, stats_file, field_separator='|', element_separator=';',
+                 manage=None):
         """
         :param stats_file: Either a string or a file-like object. If it is a
             string a file with a file name of this string will be created,
@@ -101,6 +103,8 @@ class SimpleFileStats(ResourceHoldingStats):
             directly and will not be closed in the :meth:`.cleanup()`. This
             behavior can be overriden by setting the ``manage`` argument.
         :param field_separator: set to use different separator than ``|``
+            (which is the default)
+        :param element_separator: set to use different separator than ``;``
             (which is the default)
         :param bool manage: If true, the file will always be closed in the
         :meth:`.cleanup()` method. If false, it will never be closed in that
@@ -119,7 +123,10 @@ class SimpleFileStats(ResourceHoldingStats):
         self.field_separator = field_separator
         self.msg_template = 'MSG:{0}' + field_separator + '{1}\n'
         self.bsf_template = ('BSF:{0}' + field_separator + '{1}' +
-                             field_separator + '{2}\n')
+                             field_separator + '{2}' + field_separator +
+                             '{3}\n')
+        self.pop_member_template = ('{0}' + element_separator + '{1}' +
+                                    element_separator + '{2}')
         self.pop_template = ('POP:{0}' + field_separator + '{1}\n')
 
     def save_message(self, iteration, message):
@@ -129,13 +136,16 @@ class SimpleFileStats(ResourceHoldingStats):
     def save_bsf(self, iteration, bsf):
         self.stats_file.write(self.bsf_template.format(iteration,
                                                        bsf.get_fitness(),
+                                                       bsf.data,
                                                        bsf.__str__()))
         self.stats_file.flush()
 
     def save_population(self, iteration, population):
         indivs = []
         for i in population:
-            indivs.append(i.__str__())
+            indivs.append(self.pop_member_template.format(i.get_fitness(),
+                                                          i.data,
+                                                          i.__str__()))
         pop_str = self.field_separator.join(indivs)
         self.stats_file.write(self.pop_template.format(iteration, pop_str))
         self.stats_file.flush()

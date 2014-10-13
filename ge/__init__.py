@@ -36,15 +36,13 @@ class CodonGenotypeIndividual(wopt.evo.Individual):
         self.first_not_used = 0
 
     def __str__(self):
-        try:
-            return '{0} |=> {1}'.format(str(self.genotype), self.phenotype_str)
-        except AttributeError:
-            return '{0}'.format(str(self.genotype))
+        return str(self.genotype)
 
-    def copy(self, carry_evaluation=True):
+    def copy(self, carry_evaluation=True, carry_data=True):
         clone = CodonGenotypeIndividual(list(self.genotype),
                                         self.max_codon_value)
         wopt.evo.Individual.copy_evaluation(self, clone, carry_evaluation)
+        wopt.evo.Individual.copy_data(self, clone, carry_data)
         if carry_evaluation:
             clone.first_not_used = self.first_not_used
         return clone
@@ -213,11 +211,6 @@ class RandomWalkInitializer(wopt.evo.IndividualInitializer):
 
 class Ge(multiprocessing.context.Process):
     """This class forms the whole GE algorithm.
-
-    This is a basic form of an algorithm using a generational scheme, elitism,
-    tournament selection, single-point crossover and codon-level mutation.
-
-    Derive from this class to implement custom algorithm structure.
     """
 
     class _GenerationsStop(object):
@@ -260,15 +253,15 @@ class Ge(multiprocessing.context.Process):
             values are ``'generational'`` and ``'steady-state'``.
         :param stop: Either a number or a callable. If it is number:
 
-                The number of generations the algorithm will run. One
+                The number of generations the algorithm will run for. One
                 generation is when ``pop_size`` number of individuals were
                 created and put back to the population. In other words,
                 if the algorithm runs in generational mode then one
                 generation is one iteration of the algorithm; if the
-                algorithm runs in steady-state then none generation is half
+                algorithm runs in steady-state then one generation is half
                 the ``pop_size`` iterations (because each iteration two
                 individuals are selected, possibly crossed over and put back
-                into the population.
+                into the population).
 
             If it is a callable:
 
@@ -476,8 +469,7 @@ class Ge(multiprocessing.context.Process):
                 self.evaluate(individual)
 
         # self.generator.shuffle(self.population)
-        self.population.sort(key=lambda x: x.get_fitness(),
-                             reverse=self.fitness.maximize())
+        self.fitness.sort(self.population, reverse=False)
         return self.population[0:self.elites_num]
 
     def select_tournament(self, population):

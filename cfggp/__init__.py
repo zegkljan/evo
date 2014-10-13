@@ -23,17 +23,12 @@ class DerivationTreeIndividual(wopt.evo.Individual):
         self.fitness = None
 
     def __str__(self):
-        return '{1}: {0}'.format(str(self.tree), self.fitness)
+        return str(self.tree)
 
-    def set_fitness(self, fitness):
-        self.fitness = fitness
-
-    def get_fitness(self):
-        return self.fitness
-
-    def copy(self, carry_evaluation=True):
+    def copy(self, carry_evaluation=True, carry_data=True):
         clone = DerivationTreeIndividual(self.tree.clone())
         wopt.evo.Individual.copy_evaluation(self, clone, carry_evaluation)
+        wopt.evo.Individual.copy_data(self, clone, carry_data)
         return clone
 
     def get_tree(self):

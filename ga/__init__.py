@@ -169,8 +169,9 @@ class Ga(multiprocessing.context.Process):
             module :mod:`random` will be performed instead
         :type generator: :class:`random.Random` , or ``None``
         :keyword int elites_num: (keyword argument) the number of best
-            individuals to be copied directly to the next generation; if it
-            is lower then 0 it is set to 0; default value is 0
+            individuals to be copied directly to the next generation (used
+            only in ``'generational'`` mode. If it is lower then 0 it is set
+            to 0. Default value is 0
         :keyword int tournament_size: (keyword argument) the size of
             tournament for tournament selection; if it is lower than 2 it is
             set to 2; default value is 2
@@ -425,8 +426,10 @@ class Ga(multiprocessing.context.Process):
         while not self.stop(self):
             if self.callback is not None:
                 self.callback(self)
-            o1 = self.select_tournament(self.population).copy()
-            o2 = self.select_tournament(self.population).copy()
+            o1 = self.select_tournament(self.population,
+                                        self.tournament_size).copy()
+            o2 = self.select_tournament(self.population,
+                                        self.tournament_size).copy()
 
             os = self.crossover(o1, o2)
 
@@ -628,5 +631,5 @@ class Ga(multiprocessing.context.Process):
 
         # else just remove the individual at replace_idx and do a regular
         # insert to the population
-        self.population.remove(replace_idx)
+        del self.population[replace_idx]
         self._pop_insert(indiv)

@@ -25,16 +25,19 @@ class VectorIndividual(wopt.evo.Individual):
         self.fitness = fitness
         self.data = data
 
+    def __repr__(self, *args, **kwargs):
+        return ('wopt.evo.ga.VectorIndividual(' + repr(self.genotype) + ', ' +
+                repr(self.fitness) + ', ' + repr(self.data) + ')')
+
+    def __str__(self):
+        return str(self.genotype)
+
     def copy(self, carry_evaluation=True, carry_data=True):
         clone = VectorIndividual(self.genotype)
 
         wopt.evo.Individual.copy_evaluation(self, clone, carry_evaluation)
         wopt.evo.Individual.copy_data(self, clone, carry_data)
         return clone
-
-    def __repr__(self, *args, **kwargs):
-        return ('wopt.evo.ga.VectorIndividual(' + repr(self.genotype) + ', ' +
-                repr(self.fitness) + ', ' + repr(self.data) + ')')
 
 
 class RandomRealVectorInitializer(wopt.evo.IndividualInitializer):

@@ -40,9 +40,6 @@ class Individual(object):
         """
         pass
 
-    def __str__(self):
-        return self.get_fitness()
-
     @staticmethod
     def copy_evaluation(from_individual, to_individual, do_copy):
         """Copies the fitness value from `from_individual` to `to_individual` if

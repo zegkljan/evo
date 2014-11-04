@@ -443,8 +443,10 @@ class Ga(multiprocessing.context.Process):
 
     def evaluate(self, individual):
         self.fitness.evaluate(individual)
-        if self.bsf is None or self.fitness.compare(individual.get_fitness(),
-                                                    self.bsf.get_fitness()):
+        if self.bsf is None or self.fitness.compare(individual,
+                                                    self.bsf,
+                                                    wopt.evo.Fitness.
+                                                    COMPARE_BSF):
             self.bsf = individual
             self.stats.save_bsf(self.iterations, self.bsf)
 
@@ -471,16 +473,15 @@ class Ga(multiprocessing.context.Process):
                 return max(candidates_idx)
             return min(candidates_idx)
         best_idx = None
-        best_f = None
         for candidate_idx in candidates_idx:
             candidate = population[candidate_idx]
             if candidate.get_fitness() is None:
                 self.evaluate(candidate)
 
-            better = self.fitness.compare(candidate.get_fitness(), best_f)
+            better = self.fitness.compare(candidate, population[best_idx],
+                                          wopt.evo.Fitness.COMPARE_TOURNAMENT)
             if best_idx is None or (bool(inverse) ^ bool(better)):
                 best_idx = candidate_idx
-                best_f = candidate.get_fitness()
         return best_idx
 
     def crossover(self, i1, i2):
@@ -570,7 +571,8 @@ class Ga(multiprocessing.context.Process):
         if participate:
             loser_idx = self.select_tournament_idx(self.population, n - 1, True)
             loser = self.population[loser_idx]
-            if self.fitness.compare(indiv.get_fitness(), loser.get_fitness()):
+            if self.fitness.compare(indiv, loser,
+                                    wopt.evo.Fitness.COMPARE_TOURNAMENT):
                 self._pop_replace(loser_idx, indiv)
         else:
             loser_idx = self.select_tournament_idx(self.population, n, True)
@@ -583,14 +585,14 @@ class Ga(multiprocessing.context.Process):
             self.evaluate(indiv)
 
         # is it worse than the worst?
-        if self.fitness.compare(self.population[-1].get_fitness(),
-                                indiv.get_fitness()):
+        if self.fitness.compare(self.population[-1], indiv,
+                                wopt.evo.Fitness.COMPARE_TOURNAMENT):
             self.population.append(indiv)
             return
 
         # is it better than the best?
-        if self.fitness.compare(indiv.get_fitness(),
-                                self.population[0].get_fitness()):
+        if self.fitness.compare(indiv, self.population[0],
+                                wopt.evo.Fitness.COMPARE_TOURNAMENT):
             self.population.insert(0, indiv)
             return
 
@@ -600,9 +602,11 @@ class Ga(multiprocessing.context.Process):
         c = (l + u) // 2
         while l < u and l != c != u:
             ci = self.population[c]
-            if self.fitness.compare(ci.get_fitness(), indiv.get_fitness()):
+            if self.fitness.compare(ci, indiv,
+                                    wopt.evo.Fitness.COMPARE_TOURNAMENT):
                 l = c
-            elif self.fitness.compare(indiv.get_fitness(), ci.get_fitness()):
+            elif self.fitness.compare(indiv, ci,
+                                      wopt.evo.Fitness.COMPARE_TOURNAMENT):
                 u = c
             else:
                 break
@@ -624,10 +628,12 @@ class Ga(multiprocessing.context.Process):
         if replace_idx < len(self.population) - 1:
             rn = self.population[replace_idx + 1]
 
-        left_fit = ln is not None and self.fitness.compare(ln.get_fitness(),
-                                                           indiv.get_fitness())
-        right_fit = rn is not None and self.fitness.compare(indiv.get_fitness(),
-                                                            rn.get_fitness())
+        left_fit = ln is not None and self.fitness.compare(ln, indiv,
+                                                           wopt.evo.Fitness.
+                                                           COMPARE_TOURNAMENT)
+        right_fit = rn is not None and self.fitness.compare(indiv, rn,
+                                                            wopt.evo.Fitness.
+                                                            COMPARE_TOURNAMENT)
         if left_fit and right_fit:
             self.population[replace_idx] = indiv
             return

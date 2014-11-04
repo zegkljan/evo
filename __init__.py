@@ -69,6 +69,9 @@ class Fitness(object):
     per-experiment basis.
     """
 
+    COMPARE_TOURNAMENT = 'tournament'
+    COMPARE_BSF = 'bsf'
+
     def evaluate(self, individual):
         """Evaluates the given individual and assigns the resulting fitness
         to the individual.
@@ -94,8 +97,12 @@ class Fitness(object):
         """
         pass
 
-    def compare(self, f1, f2):
-        """Returns ``True`` if fitness ``f1`` is "better" than fitness ``f2``.
+    def compare(self, i1, i2, *args):
+        """Returns ``True`` if individual ``i1`` is "better" than individual
+        ``i2``.
+
+        :param args: possible additional arguments for comparison. Can be
+          used to distinguish multiple comparison types.
         """
         pass
 

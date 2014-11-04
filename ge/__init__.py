@@ -10,7 +10,6 @@ import functools
 import multiprocessing.context
 import random
 import gc
-import copy
 
 import wopt.evo
 import wopt.evo.support
@@ -284,9 +283,21 @@ class Ge(multiprocessing.context.Process):
         :keyword crossover_prob: (keyword argument) probability of performing a
             crossover; if it does not fit into interval [0, 1] it is set to 0 if
             lower than 0 and to 1 if higher than 1; default value is 0.8
+        :keyword crossover_type: (keyword argument) the type of crossover;
+            possible values are
+
+                * ``'ripple'`` - the ripple crossover
+
+            The default value is ``'ripple'``.
         :keyword mutation_prob: (keyword argument) probability of performing
             a mutation; if it does not fit into interval [0, 1] it is set to
             0 if lower than 0 and to 1 if higher than 1; default value is 0.1
+        :keyword mutation_type: (keyword argument) the type of mutation;
+            possible values are
+
+                * ``'codon-change'`` - the codon-chagne mutation
+
+            The default value is ``'codon-change'``.
         :keyword prune_prob: (keyword argument) probability of performing a
             pruning; if it does not fit into interval [0, 1] it is set to 0 if
             lower than 0 and to 1 if higher than 1; default value is 0.2
@@ -343,11 +354,29 @@ class Ge(multiprocessing.context.Process):
             self.crossover_prob = max(0, self.crossover_prob)
             self.crossover_prob = min(1, self.crossover_prob)
 
+        self.crossover_method = self.single_point_crossover
+        if 'crossover_type' in kwargs and kwargs['crossover_type'] is not None:
+            ct = kwargs['crossover_type']
+            if ct == 'ripple':
+                self.crossover_method = self.single_point_crossover
+                self.crossover_method_args = ()
+            else:
+                raise ValueError('Invalid crossover type.')
+
         self.mutation_prob = 0.1
         if 'mutation_prob' in kwargs:
             self.mutation_prob = kwargs['mutation_prob']
             self.mutation_prob = max(0, self.mutation_prob)
             self.mutation_prob = min(1, self.mutation_prob)
+
+        self.mutate_method = self.mutate
+        if 'mutation_type' in kwargs and kwargs['mutation_type'] is not None:
+            mt = kwargs['mutation_type']
+            if mt == 'codon-change':
+                self.mutate_method = self.mutate
+                self.mutate_method_args = ()
+            else:
+                raise ValueError('Invalid mutation type.')
 
         self.prune_prob = 0.2
         if 'prune_prob' in kwargs:
@@ -360,6 +389,26 @@ class Ge(multiprocessing.context.Process):
             self.duplicate_prob = kwargs['duplicate_prob']
             self.duplicate_prob = max(0, self.duplicate_prob)
             self.duplicate_prob = min(1, self.duplicate_prob)
+
+        self.replace_method = self.random_replace
+        self.replace_method_args = ()
+        if 'steady_state_replace' in kwargs:
+            ssr = kwargs['steady_state_replace']
+            if ssr == 'random':
+                self.replace_method = self.random_replace
+                self.replace_method_args = ()
+            elif ssr == 'inverse-tournament':
+                self.replace_method = self.inverse_tournament_replace
+                self.replace_method_args = (self.tournament_size, False)
+            elif ssr[0] == 'inverse-tournament':
+                try:
+                    self.replace_method = self.inverse_tournament_replace
+                    self.replace_method_args = (int(ssr[1]), bool(ssr[2]))
+                except:
+                    raise ValueError('Invalid parameters for inverse '
+                                     'tournament replacement strategy.')
+            else:
+                raise ValueError('Invalid steady state replacement strategy.')
 
         self.stats = None
         if 'stats' in kwargs:
@@ -401,27 +450,21 @@ class Ge(multiprocessing.context.Process):
 
             others = []
             while True:
-                o1 = self.select_tournament(self.population).copy()
-                o2 = self.select_tournament(self.population).copy()
+                o1 = self.select_tournament(self.population,
+                                            self.tournament_size).copy()
+                o2 = self.select_tournament(self.population,
+                                            self.tournament_size).copy()
 
                 self.prune(o1)
                 self.prune(o2)
 
-                self.crossover(o1, o2)
+                os = self.crossover(o1, o2)
 
-                self.mutate(o1)
-                self.mutate(o2)
-
-                self.duplicate(o1)
-                self.duplicate(o2)
-
-                if self.pop_size - (len(others) + len(elites)) >= 2:
-                    others.append(o1)
-                    others.append(o2)
-                elif self.pop_size - (len(others) + len(elites)) >= 1:
-                    if self.generator.random() < 0.5:
-                        o1 = o2
-                    others.append(o1)
+                for o in os:
+                    self.mutate(o)
+                    self.duplicate(o)
+                    if self.pop_size - (len(others) + len(elites)) > 0:
+                        others.append(o)
                 else:
                     break
             self.population = elites + others
@@ -436,27 +479,28 @@ class Ge(multiprocessing.context.Process):
         while not self.stop(self):
             if self.callback is not None:
                 self.callback(self)
-            o1 = self.select_tournament(self.population).copy()
-            o2 = self.select_tournament(self.population).copy()
+            o1 = self.select_tournament(self.population,
+                                        self.tournament_size).copy()
+            o2 = self.select_tournament(self.population,
+                                        self.tournament_size).copy()
 
             self.prune(o1)
             self.prune(o2)
 
-            self.crossover(o1, o2)
+            os = self.crossover(o1, o2)
 
-            self.mutate(o1)
-            self.mutate(o2)
-
-            self.duplicate(o1)
-            self.duplicate(o2)
-
-            self.steady_state_replace(o1, o2)
+            for o in os:
+                self.mutate(o)
+                self.duplicate(o)
+                self.replace(o)
             self.iterations += 1
 
     def evaluate(self, individual):
         self.fitness.evaluate(individual)
-        if self.bsf is None or self.fitness.compare(individual.get_fitness(),
-                                                    self.bsf.get_fitness()):
+        if self.bsf is None or self.fitness.compare(individual,
+                                                    self.bsf,
+                                                    wopt.evo.Fitness.
+                                                    COMPARE_BSF):
             self.bsf = individual
             self.stats.save_bsf(self.iterations, self.bsf)
 
@@ -472,21 +516,34 @@ class Ge(multiprocessing.context.Process):
         self.fitness.sort(self.population, reverse=False)
         return self.population[0:self.elites_num]
 
-    def select_tournament(self, population):
-        candidates = self.generator.sample(population, self.tournament_size)
-        best = None
-        for candidate in candidates:
+    def select_tournament(self, population, size, inverse=False, sorted_=True):
+        return population[self.select_tournament_idx(population, size,
+                                                     inverse, sorted_)]
+
+    def select_tournament_idx(self, population, size,
+                              inverse=False, sorted_=True):
+        candidates_idx = self.generator.sample(range(len(population)), size)
+        if sorted_:
+            if inverse:
+                return max(candidates_idx)
+            return min(candidates_idx)
+        best_idx = None
+        for candidate_idx in candidates_idx:
+            candidate = population[candidate_idx]
             if candidate.get_fitness() is None:
                 self.evaluate(candidate)
 
-            if best is None or self.fitness.compare(candidate.get_fitness(),
-                                                    best.get_fitness()):
-                best = candidate
-        return best
+            better = self.fitness.compare(candidate, population[best_idx],
+                                          wopt.evo.Fitness.COMPARE_TOURNAMENT)
+            if best_idx is None or (bool(inverse) ^ bool(better)):
+                best_idx = candidate_idx
+        return best_idx
 
     def crossover(self, o1, o2):
-        if self.generator.random() < self.crossover_prob:
-            self.single_point_crossover(o1, o2)
+        if self.generator.random() >= self.crossover_prob:
+            return [o1, o2]
+        assert self.crossover_method is not None
+        return self.crossover_method(o1, o2, *self.crossover_method_args)
 
     def single_point_crossover(self, o1, o2):
         if not isinstance(o1, CodonGenotypeIndividual):
@@ -520,6 +577,7 @@ class Ge(multiprocessing.context.Process):
 
         o1.set_fitness(None)
         o2.set_fitness(None)
+        return [o1, o2]
 
     def mutate(self, individual):
         self.codon_change_mutate(individual)
@@ -560,15 +618,96 @@ class Ge(multiprocessing.context.Process):
                                    individual.genotype[-1:])
             individual.set_fitness(None)
 
+    def replace(self, indiv):
+        self.replace_method(indiv, *self.replace_method_args)
+
+    def random_replace(self, indiv):
+        self._pop_replace(self.generator.randrange(len(self.population)), indiv)
+
+    def inverse_tournament_replace(self, indiv, n, participate):
+        if participate:
+            loser_idx = self.select_tournament_idx(self.population, n - 1, True)
+            loser = self.population[loser_idx]
+            if self.fitness.compare(indiv, loser):
+                self._pop_replace(loser_idx, indiv)
+        else:
+            loser_idx = self.select_tournament_idx(self.population, n, True)
+            self._pop_replace(loser_idx, indiv)
+
+    def _pop_insert(self, indiv):
+        """Inserts an individual into the sorted population.
+        """
+        if indiv.get_fitness() is None:
+            self.evaluate(indiv)
+
+        # is it worse than the worst?
+        if self.fitness.compare(self.population[-1], indiv,
+                                wopt.evo.Fitness.COMPARE_TOURNAMENT):
+            self.population.append(indiv)
+            return
+
+        # is it better than the best?
+        if self.fitness.compare(indiv, self.population[0],
+                                wopt.evo.Fitness.COMPARE_TOURNAMENT):
+            self.population.insert(0, indiv)
+            return
+
+        # find the appropriate place by bisection
+        l = 0
+        u = len(self.population)
+        c = (l + u) // 2
+        while l < u and l != c != u:
+            ci = self.population[c]
+            if self.fitness.compare(ci, indiv,
+                                    wopt.evo.Fitness.COMPARE_TOURNAMENT):
+                l = c
+            elif self.fitness.compare(indiv, ci,
+                                      wopt.evo.Fitness.COMPARE_TOURNAMENT):
+                u = c
+            else:
+                break
+            c = (l + u) // 2
+        self.population.insert(c + 1, indiv)
+
+    def _pop_replace(self, replace_idx, indiv):
+        """Removes the individual at ``replace_idx`` and inserts ``indiv``
+        into the sorted population.
+        """
+        if indiv.get_fitness() is None:
+            self.evaluate(indiv)
+
+        # if the indiv fits to the place of replace_idx then put it there
+        ln = None  # left neighbor
+        rn = None  # right neighbor
+        if replace_idx > 0:
+            ln = self.population[replace_idx - 1]
+        if replace_idx < len(self.population) - 1:
+            rn = self.population[replace_idx + 1]
+
+        left_fit = ln is not None and self.fitness.compare(ln, indiv,
+                                                           wopt.evo.Fitness.
+                                                           COMPARE_TOURNAMENT)
+        right_fit = rn is not None and self.fitness.compare(indiv, rn,
+                                                            wopt.evo.Fitness.
+                                                            COMPARE_TOURNAMENT)
+        if left_fit and right_fit:
+            self.population[replace_idx] = indiv
+            return
+
+        # else just remove the individual at replace_idx and do a regular
+        # insert to the population
+        del self.population[replace_idx]
+        self._pop_insert(indiv)
+
     def steady_state_replace(self, o1, o2):
         if o1.get_fitness() is None:
             self.evaluate(o1)
         if o2.get_fitness() is None:
             self.evaluate(o2)
 
-        if self.fitness.compare(o1.get_fitness(), o2.get_fitness()):
+        if self.fitness.compare(o1, o2, wopt.evo.Fitness.COMPARE_TOURNAMENT):
             o = o1
-        elif self.fitness.compare(o2.get_fitness(), o1.get_fitness()):
+        elif self.fitness.compare(o2, o1, wopt.evo.Fitness.COMPARE_TOURNAMENT):
             o = o2
         else:
             if self.generator.random() < 0.5:
@@ -576,19 +715,19 @@ class Ge(multiprocessing.context.Process):
             else:
                 o = o2
 
-        if self.fitness.compare(self.population[-1].get_fitness(),
-                                o.get_fitness()):
+        if self.fitness.compare(self.population[-1], o,
+                                wopt.evo.Fitness.COMPARE_TOURNAMENT):
             return
 
         self.population.pop(-1)
 
-        if self.fitness.compare(self.population[-1].get_fitness(),
-                                o.get_fitness()):
+        if self.fitness.compare(self.population[-1], o,
+                                wopt.evo.Fitness.COMPARE_TOURNAMENT):
             self.population.append(o)
             return
 
-        if self.fitness.compare(o.get_fitness(),
-                                self.population[0].get_fitness()):
+        if self.fitness.compare(o, self.population[0],
+                                wopt.evo.Fitness.COMPARE_TOURNAMENT):
             self.population.insert(0, o)
             return
 
@@ -597,9 +736,10 @@ class Ge(multiprocessing.context.Process):
         c = (l + u) // 2
         while l < u and l != c != u:
             ci = self.population[c]
-            if self.fitness.compare(ci.get_fitness(), o.get_fitness()):
+            if self.fitness.compare(ci, o, wopt.evo.Fitness.COMPARE_TOURNAMENT):
                 l = c
-            elif self.fitness.compare(o.get_fitness(), ci.get_fitness()):
+            elif self.fitness.compare(o, ci,
+                                      wopt.evo.Fitness.COMPARE_TOURNAMENT):
                 u = c
             else:
                 break

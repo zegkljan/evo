@@ -208,7 +208,7 @@ class RandomWalkInitializer(wopt.evo.IndividualInitializer):
                                        self.max_choices)
 
 
-class Ge(multiprocessing.context.Process):
+class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
     """This class forms the whole GE algorithm.
     """
 
@@ -310,7 +310,8 @@ class Ge(multiprocessing.context.Process):
             generation with a single argument which is the algorithm instance
             itself (i.e. instance of this class)
         """
-        super().__init__(name=name)
+        wopt.evo.GeneticBase.__init__(self)
+        multiprocessing.context.Process.__init__(self, name=name)
 
         # Positional args
         self.fitness = fitness
@@ -355,6 +356,7 @@ class Ge(multiprocessing.context.Process):
             self.crossover_prob = min(1, self.crossover_prob)
 
         self.crossover_method = self.single_point_crossover
+        self.crossover_method_args = ()
         if 'crossover_type' in kwargs and kwargs['crossover_type'] is not None:
             ct = kwargs['crossover_type']
             if ct == 'ripple':
@@ -370,6 +372,7 @@ class Ge(multiprocessing.context.Process):
             self.mutation_prob = min(1, self.mutation_prob)
 
         self.mutate_method = self.mutate
+        self.mutate_method_args = ()
         if 'mutation_type' in kwargs and kwargs['mutation_type'] is not None:
             mt = kwargs['mutation_type']
             if mt == 'codon-change':
@@ -421,6 +424,7 @@ class Ge(multiprocessing.context.Process):
                 raise TypeError('Keyword argument callback is not a callable.')
 
         self.population = []
+        self.population_sorted = True
         self.bsf = None
         self.iterations = 0
 
@@ -451,9 +455,13 @@ class Ge(multiprocessing.context.Process):
             others = []
             while True:
                 o1 = self.select_tournament(self.population,
-                                            self.tournament_size).copy()
+                                            self.tournament_size,
+                                            sorted_=self.population_sorted).\
+                    copy()
                 o2 = self.select_tournament(self.population,
-                                            self.tournament_size).copy()
+                                            self.tournament_size,
+                                            sorted_=self.population_sorted).\
+                    copy()
 
                 self.prune(o1)
                 self.prune(o2)
@@ -464,25 +472,29 @@ class Ge(multiprocessing.context.Process):
                     self.mutate(o)
                     self.duplicate(o)
                     if self.pop_size - (len(others) + len(elites)) > 0:
+                        self.test_bsf(o)
                         others.append(o)
-                else:
+                    else:
+                        break
+                if self.pop_size - (len(others) + len(elites)) <= 0:
                     break
             self.population = elites + others
             self.iterations += 1
 
     def _run_steady_state(self):
-        for i in self.population:
-            self.evaluate(i)
-
-        self.fitness.sort(self.population)
+        self.population_sorted = self.fitness.sort(self.population, False,
+                                                   wopt.evo.Fitness.
+                                                   COMPARE_TOURNAMENT)
 
         while not self.stop(self):
             if self.callback is not None:
                 self.callback(self)
             o1 = self.select_tournament(self.population,
-                                        self.tournament_size).copy()
+                                        self.tournament_size,
+                                        sorted_=self.population_sorted).copy()
             o2 = self.select_tournament(self.population,
-                                        self.tournament_size).copy()
+                                        self.tournament_size,
+                                        sorted_=self.population_sorted).copy()
 
             self.prune(o1)
             self.prune(o2)
@@ -493,9 +505,10 @@ class Ge(multiprocessing.context.Process):
                 self.mutate(o)
                 self.duplicate(o)
                 self.replace(o)
+                self.test_bsf(o)
             self.iterations += 1
 
-    def evaluate(self, individual):
+    def test_bsf(self, individual):
         self.fitness.evaluate(individual)
         if self.bsf is None or self.fitness.compare(individual,
                                                     self.bsf,
@@ -508,20 +521,24 @@ class Ge(multiprocessing.context.Process):
         if self.elites_num == 0:
             return []
 
-        for individual in self.population:
-            if individual.get_fitness() is None:
-                self.evaluate(individual)
+        self.population_sorted = self.fitness.sort(self.population, False,
+                                                   wopt.evo.Fitness.
+                                                   COMPARE_TOURNAMENT)
+        if self.population_sorted:
+            return self.population[0:self.elites_num]
 
-        # self.generator.shuffle(self.population)
-        self.fitness.sort(self.population, reverse=False)
-        return self.population[0:self.elites_num]
+        cmp = lambda a, b: self.fitness.compare(a, b, wopt.evo.Fitness.
+                                                COMPARE_TOURNAMENT)
+        sorted_population = sorted(self.population,
+                                   key=functools.cmp_to_key(cmp))
+        return sorted_population[0:self.elites_num]
 
     def select_tournament(self, population, size, inverse=False, sorted_=True):
         return population[self.select_tournament_idx(population, size,
                                                      inverse, sorted_)]
 
     def select_tournament_idx(self, population, size,
-                              inverse=False, sorted_=True):
+                              inverse=False, sorted_=False):
         candidates_idx = self.generator.sample(range(len(population)), size)
         if sorted_:
             if inverse:
@@ -530,13 +547,15 @@ class Ge(multiprocessing.context.Process):
         best_idx = None
         for candidate_idx in candidates_idx:
             candidate = population[candidate_idx]
-            if candidate.get_fitness() is None:
-                self.evaluate(candidate)
 
-            better = self.fitness.compare(candidate, population[best_idx],
-                                          wopt.evo.Fitness.COMPARE_TOURNAMENT)
-            if best_idx is None or (bool(inverse) ^ bool(better)):
+            if best_idx is None:
                 best_idx = candidate_idx
+            else:
+                better = self.fitness.compare(candidate, population[best_idx],
+                                              wopt.evo.Fitness.
+                                              COMPARE_TOURNAMENT)
+                if bool(inverse) ^ bool(better):
+                    best_idx = candidate_idx
         return best_idx
 
     def crossover(self, o1, o2):
@@ -626,84 +645,24 @@ class Ge(multiprocessing.context.Process):
 
     def inverse_tournament_replace(self, indiv, n, participate):
         if participate:
-            loser_idx = self.select_tournament_idx(self.population, n - 1, True)
+            loser_idx = self.select_tournament_idx(self.population, n - 1, True,
+                                                   sorted_=self.
+                                                   population_sorted)
             loser = self.population[loser_idx]
-            if self.fitness.compare(indiv, loser):
+            if self.fitness.compare(indiv, loser,
+                                    wopt.evo.Fitness.COMPARE_TOURNAMENT):
                 self._pop_replace(loser_idx, indiv)
         else:
-            loser_idx = self.select_tournament_idx(self.population, n, True)
+            loser_idx = self.select_tournament_idx(self.population, n, True,
+                                                   sorted_=self.
+                                                   population_sorted)
             self._pop_replace(loser_idx, indiv)
-
-    def _pop_insert(self, indiv):
-        """Inserts an individual into the sorted population.
-        """
-        if indiv.get_fitness() is None:
-            self.evaluate(indiv)
-
-        # is it worse than the worst?
-        if self.fitness.compare(self.population[-1], indiv,
-                                wopt.evo.Fitness.COMPARE_TOURNAMENT):
-            self.population.append(indiv)
-            return
-
-        # is it better than the best?
-        if self.fitness.compare(indiv, self.population[0],
-                                wopt.evo.Fitness.COMPARE_TOURNAMENT):
-            self.population.insert(0, indiv)
-            return
-
-        # find the appropriate place by bisection
-        l = 0
-        u = len(self.population)
-        c = (l + u) // 2
-        while l < u and l != c != u:
-            ci = self.population[c]
-            if self.fitness.compare(ci, indiv,
-                                    wopt.evo.Fitness.COMPARE_TOURNAMENT):
-                l = c
-            elif self.fitness.compare(indiv, ci,
-                                      wopt.evo.Fitness.COMPARE_TOURNAMENT):
-                u = c
-            else:
-                break
-            c = (l + u) // 2
-        self.population.insert(c + 1, indiv)
-
-    def _pop_replace(self, replace_idx, indiv):
-        """Removes the individual at ``replace_idx`` and inserts ``indiv``
-        into the sorted population.
-        """
-        if indiv.get_fitness() is None:
-            self.evaluate(indiv)
-
-        # if the indiv fits to the place of replace_idx then put it there
-        ln = None  # left neighbor
-        rn = None  # right neighbor
-        if replace_idx > 0:
-            ln = self.population[replace_idx - 1]
-        if replace_idx < len(self.population) - 1:
-            rn = self.population[replace_idx + 1]
-
-        left_fit = ln is not None and self.fitness.compare(ln, indiv,
-                                                           wopt.evo.Fitness.
-                                                           COMPARE_TOURNAMENT)
-        right_fit = rn is not None and self.fitness.compare(indiv, rn,
-                                                            wopt.evo.Fitness.
-                                                            COMPARE_TOURNAMENT)
-        if left_fit and right_fit:
-            self.population[replace_idx] = indiv
-            return
-
-        # else just remove the individual at replace_idx and do a regular
-        # insert to the population
-        del self.population[replace_idx]
-        self._pop_insert(indiv)
 
     def steady_state_replace(self, o1, o2):
         if o1.get_fitness() is None:
-            self.evaluate(o1)
+            self.test_bsf(o1)
         if o2.get_fitness() is None:
-            self.evaluate(o2)
+            self.test_bsf(o2)
 
         if self.fitness.compare(o1, o2, wopt.evo.Fitness.COMPARE_TOURNAMENT):
             o = o1

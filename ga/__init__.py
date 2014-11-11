@@ -429,6 +429,8 @@ class Ga(wopt.evo.GeneticBase, multiprocessing.context.Process):
                     break
             self.population = elites + others
             self.iterations += 1
+        if self.callback is not None:
+            self.callback(self)
 
     def _run_steady_state(self):
         self.population_sorted = self.fitness.sort(self.population, False,
@@ -452,6 +454,8 @@ class Ga(wopt.evo.GeneticBase, multiprocessing.context.Process):
                 self.replace(o)
                 self.test_bsf(o)
             self.iterations += 1
+        if self.callback is not None:
+            self.callback(self)
 
     def test_bsf(self, individual):
         self.fitness.evaluate(individual)

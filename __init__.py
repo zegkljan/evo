@@ -38,7 +38,7 @@ class Individual(object):
         :param bool carry_evaluation: specifies whtether to copy the evaluation
             related data (most importantly the fitness value) too
         """
-        pass
+        raise NotImplementedError()
 
     @staticmethod
     def copy_evaluation(from_individual, to_individual, do_copy):
@@ -85,7 +85,7 @@ class Fitness(object):
         :param individual: individual to be evaluated
         :see: :class:`.Individual`
         """
-        pass
+        raise NotImplementedError()
 
     def sort(self, population, reverse=False, *args):
         """Sorts ``population`` (which is expected to be a list of individuals)
@@ -103,7 +103,7 @@ class Fitness(object):
             nature of the fitness function).
         :rtype: bool
         """
-        pass
+        raise NotImplementedError()
 
     def compare(self, i1, i2, *args):
         """Returns ``True`` if individual ``i1`` is "better" than individual
@@ -112,7 +112,7 @@ class Fitness(object):
         :param args: possible additional arguments for comparison. Can be
           used to distinguish multiple comparison types.
         """
-        pass
+        raise NotImplementedError()
 
 
 class IndividualInitializer(object):
@@ -122,14 +122,14 @@ class IndividualInitializer(object):
     """
 
     def __init__(self):
-        pass
+        raise NotImplementedError()
 
     def initialize(self):
         """Returns an initial individual.
 
         Override this method to implement your initialization mechanism.
         """
-        pass
+        raise NotImplementedError()
 
 
 class PopulationInitializer(object):
@@ -139,7 +139,7 @@ class PopulationInitializer(object):
     """
 
     def __init__(self):
-        pass
+        raise NotImplementedError()
 
     def initialize(self, pop_size):
         """Returns an initial population.
@@ -148,7 +148,7 @@ class PopulationInitializer(object):
 
         :param int pop_size: size of the population to initialize
         """
-        pass
+        raise NotImplementedError()
 
 
 class SimplePopulationInitializer(PopulationInitializer):
@@ -223,10 +223,10 @@ class GeneticBase(object):
             rn = self.population[replace_idx + 1]
 
         left_fit = ln is not None and self.fitness.compare(ln, indiv,
-                                                           wopt.evo.Fitness.
+                                                           Fitness.
                                                            COMPARE_TOURNAMENT)
         right_fit = rn is not None and self.fitness.compare(indiv, rn,
-                                                            wopt.evo.Fitness.
+                                                            Fitness.
                                                             COMPARE_TOURNAMENT)
         if left_fit and right_fit:
             self.population[replace_idx] = indiv

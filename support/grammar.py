@@ -1,7 +1,7 @@
 # -*- coding: utf8 -*-
 """Contains classes which can form a BNF grammar.
 """
-import wopt.utils as utils
+import wopt.utils
 
 
 class Rule(object):
@@ -43,11 +43,9 @@ class Rule(object):
             terminal = True
             for symbol in self._choices[individual]:
                 if isinstance(symbol, Rule):
-                    #pylint: disable=protected-access
-                    if not symbol._is_terminal_reachable(set([self.name])):
+                    if not symbol._is_terminal_reachable({self.name}):
                         terminal = False
                         break
-                    #pylint: enable=protected-access
             if terminal:
                 self._terminal_choices.append(individual)
                 changed = True
@@ -64,9 +62,8 @@ class Rule(object):
             for symbol in choice:
                 if isinstance(symbol, Terminal):
                     continue
-                #pylint: disable=protected-access
+                # noinspection PyProtectedMember
                 choice_reachable = symbol._is_terminal_reachable(closed)
-                #pylint: enable=protected-access
                 if not choice_reachable:
                     break
             if choice_reachable:
@@ -189,9 +186,7 @@ class Terminal(object):
         :param str text: The value of the terminal.
         """
         self.text = text
-        # pylint: disable=pointless-string-statement
         """(:class:`str`) Holds the actual terminal value."""
-        # pylint: enable=pointless-string-statement
 
     def __repr__(self):
         return "Terminal({0})".format(self.text)
@@ -284,8 +279,7 @@ class Grammar(object):
             for ci, choice in enumerate(rule_def):
                 terms = []
                 for ti, term in enumerate(choice):
-                    if (len(term) != 2
-                        or not (term[0] == "T" or term[0] == "N")):
+                    if len(term) != 2 or not (term[0] == "T" or term[0] == "N"):
                         raise GrammarBuildingError('Term No. {0} in choice No.'
                                                    ' {1} in rule {2} is '
                                                    ' invalid  (the tuple is '
@@ -307,9 +301,8 @@ class Grammar(object):
                         terms.append(rules_dict[term[1]])
                         used_rules.add(rules_dict[term[1]].name)
                 choices.append(terms)
-            # pylint: disable=protected-access
+            # noinspection PyProtectedMember
             rules_dict[rule_name]._choices = choices
-            # pylint: enable=protected-access
 
         self._rules = []
         self._rules_dict = {}
@@ -318,9 +311,8 @@ class Grammar(object):
         used_rules.sort()
         for rule_name in used_rules:
             rule = rules_dict[rule_name]
-            # pylint: disable=protected-access
+            # noinspection PyProtectedMember
             rule._collect_terminal_choices()
-            # pylint: enable=protected-access
             self._rules.append(rule)
             self._rules_dict[rule.name] = rule
 
@@ -431,54 +423,11 @@ class Grammar(object):
         """From the given input decisions generates an output in the form of a
         derivation tree.
 
-        The derivation tree is represented as a list in from ``['rule-name`,
-        child1, child2, ...]`` where ``rule-name`` is (surprisingly) the name
-        of the rule and ``childX`` is the Xth child of the rule and has the
-        same form if it is a rule and if it is a terminal, it's the terminal
-        itself.
-
-        Example: Let's suppose that we have
-        output expression ``12+107`` with the tree looking like this:
-        ::
-
-                      start-rule
-                           |
-                      expression
-                           |
-               ------------+---------
-               |           |        |
-             number     operator  number
-               |           |        |
-            ---+---        |     ---+---
-            |     |        |     |     |
-            1   number     +     1   number
-                  |                    |
-                  |                 ---+---
-                  |                 |     |
-                  2                 0   number
-                                          |
-                                          7
-
-        then the derivation tree is represented like this:
-
-        .. code-block:: python
-
-            ['start-rule',
-                ['expression',
-                    ['number',
-                        '1',
-                        ['number', 2]
-                    ],
-                    ['operator', '+'],
-                    ['number',
-                        '1',
-                        ['number',
-                            '0',
-                            ['number', '7']
-                        ]
-                    ]
-                ]
-            ]
+        The derivation tree is represented by a tree formed by
+        :class:`wopt.utils.TreeNode`s where the
+        :attr:`wopt.utils.TreeNode.data` attribute's value is set to the name of
+        the corresponding rule for inner nodes and for leaves the attribute
+        has the value of the corresponding terminal.
 
         Returns a tuple ``(output, finished, used_num, wraps)``:
 
@@ -525,10 +474,7 @@ class Grammar(object):
             rule = rules_stack.pop(0)
             if isinstance(rule, Rule):
                 if tree is None:
-                    node = utils.TreeNode(None,
-                                          None,
-                                          [],
-                                          rule.name)
+                    node = wopt.utils.TreeNode(None, None, [], rule.name)
                     tree = node
                     tree_stack = [[node, 0]]
                     depth = 1
@@ -540,8 +486,6 @@ class Grammar(object):
 
                     tree_stack.append([node, 0])
                     depth += 1
-
-                choice = None
 
                 deep = (depth >= max_depth and
                         rule.get_terminal_choices_num() > 0)
@@ -572,16 +516,16 @@ class Grammar(object):
                 for individual in range(len(choice)):
                     c = choice[individual]
                     if isinstance(c, Rule):
-                        node.children.append(utils.TreeNode(node,
-                                                            individual,
-                                                            [],
-                                                            c.name))
+                        node.children.append(wopt.utils.TreeNode(node,
+                                                                 individual,
+                                                                 [],
+                                                                 c.name))
                     else:
                         assert isinstance(c, Terminal)
-                        node.children.append(utils.TreeNode(node,
-                                                            individual,
-                                                            None,
-                                                            c.text))
+                        node.children.append(wopt.utils.TreeNode(node,
+                                                                 individual,
+                                                                 None,
+                                                                 c.text))
             else:
                 assert isinstance(rule, Terminal)
                 tree_stack[-1][1] += 1
@@ -594,7 +538,7 @@ class Grammar(object):
                         tree_stack[-1][1] += 1
 
         # empty tree_stack <=> empty rules_stack
-        return (tree, len(tree_stack) == 0, n, wraps)
+        return tree, len(tree_stack) == 0, n, wraps
 
     def to_text(self, decisions, max_wraps):
         """From the given input decisions generates an output in the form of a
@@ -635,7 +579,6 @@ class Grammar(object):
         while rules_stack and wraps <= max_wraps:
             rule = rules_stack.pop(0)
             if isinstance(rule, Rule):
-                choice = None
                 if rule.get_choices_num() == 1:
                     choice = rule.get_choice(0)
                 else:
@@ -655,7 +598,7 @@ class Grammar(object):
                 assert isinstance(rule, Terminal)
                 text.append(rule.text)
 
-        return (''.join(text), len(rules_stack) == 0, n, wraps)
+        return ''.join(text), len(rules_stack) == 0, n, wraps
 
     def derivation_tree_to_choice_sequence(self, tree_root):
         """Converts the given derivation tree on this grammar to a list of
@@ -700,7 +643,6 @@ class Grammar(object):
                     continue
                 fit = True
                 for child, term in zip(node.children, choice):
-                    data = None
                     if isinstance(term, Rule):
                         data = term.name
                     elif isinstance(term, Terminal):
@@ -729,6 +671,25 @@ class Grammar(object):
 
 
 class GrammarBuildingError(Exception):
-
     def __init__(self, *args, **kwargs):
         Exception.__init__(self, *args, **kwargs)
+
+
+def derivation_tree_to_text(root):
+    """Takes a derivation tree and returns the corresponding text.
+
+    The derivation tree is expected to be a :class:`wopt.utils.TreeNode`
+    where the inner nodes represent the rules and their
+    :attr:`wopt.utils.TreeNode.data` attribute is set to the name of the rule
+    and the leaves represent the terminals and their
+    :attr:`wopt.utils.TreeNode.data` attribute is set to the value of the
+    terminal.
+    """
+    assert isinstance(root, wopt.utils.TreeNode)
+    terminals = []
+
+    def extractor(node):
+        if node.is_leaf():
+            terminals.append(node.data)
+    root.preorder(extractor)
+    return "".join(terminals)

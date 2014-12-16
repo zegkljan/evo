@@ -13,6 +13,7 @@ import gc
 
 import wopt.evo
 import wopt.evo.support
+import wopt.evo.support.grammar
 import wopt.utils
 
 
@@ -708,3 +709,53 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
                 break
             c = (l + u) // 2
         self.population.insert(c + 1, o)
+
+
+# noinspection PyAbstractClass
+class GeTreeFitness(wopt.evo.Fitness):
+    """This class is a base class for fitness used with Grammatical Evolution.
+
+    This class takes care of the machinery regarding the individual decoding
+    process:
+
+        1. The genotype is decoded into derivation tree.
+        2. The derivation tree is passed to the method
+        :meth:`.parse_derivation_tree` which returns a *phenotype*.
+        3. The *phenotype* is passed to the method
+        :meth:`.evaluate_phenotype` which returns the *fitness* of the
+        phenotype.
+        4. The *fitness* is assigned to the original individual using it's
+        ``set_fitness`` method.
+
+    The individuals passed to the :meth:`.evaluate` method are expected to be of
+    class :class:`wopt.evo.ge.CodonGenotypeIndividual`.
+    """
+    def __init__(self, grammar, unfinished_fitness, wraps=0):
+        self.grammar = None
+        if isinstance(grammar, wopt.evo.support.grammar.Grammar):
+            self.grammar = grammar
+        else:
+            self.grammar = wopt.evo.support.grammar.Grammar(grammar)
+
+        self.unfinished_fitness = unfinished_fitness
+        self.wraps = wraps
+
+    def evaluate(self, individual):
+        derivation_tree, finished, used_num, wraps = self.grammar.to_tree(
+            individual.genotype, max_wraps=self.wraps)
+
+        individual.set_first_not_used(used_num)
+        if not finished:
+            individual.set_fitness(self.unfinished_fitness)
+            return
+
+        phenotype = self.parse_derivation_tree(derivation_tree)
+        fitness = self.evaluate_phenotype(phenotype)
+
+        individual.set_fitness(fitness)
+
+    def parse_derivation_tree(self, derivation_tree):
+        raise NotImplementedError()
+
+    def evaluate_phenotype(self, phenotype):
+        raise NotImplementedError()

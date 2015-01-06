@@ -723,7 +723,8 @@ class GeTreeFitness(wopt.evo.Fitness):
         :meth:`.parse_derivation_tree` which returns a *phenotype*.
         3. The *phenotype* is passed to the method
         :meth:`.evaluate_phenotype` which returns the *fitness* of the
-        phenotype.
+        phenotype. The *individual* is passed to this method too for the
+        subclasses to be able to store additional data to the individual.
         4. The *fitness* is assigned to the original individual using it's
         ``set_fitness`` method.
 
@@ -750,12 +751,12 @@ class GeTreeFitness(wopt.evo.Fitness):
             return
 
         phenotype = self.parse_derivation_tree(derivation_tree)
-        fitness = self.evaluate_phenotype(phenotype)
+        fitness = self.evaluate_phenotype(phenotype, individual)
 
         individual.set_fitness(fitness)
 
     def parse_derivation_tree(self, derivation_tree):
         raise NotImplementedError()
 
-    def evaluate_phenotype(self, phenotype):
+    def evaluate_phenotype(self, phenotype, individual):
         raise NotImplementedError()

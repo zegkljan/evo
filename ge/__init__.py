@@ -36,6 +36,8 @@ class CodonGenotypeIndividual(wopt.evo.Individual):
         self.first_not_used = 0
 
     def __str__(self):
+        if hasattr(self, 'str'):
+            return str(self.str)
         return str(self.genotype)
 
     def copy(self, carry_evaluation=True, carry_data=True):
@@ -90,14 +92,13 @@ class RandomCodonGenotypeInitializer(wopt.evo.IndividualInitializer):
         generation. If it is ``None`` or not present a standard generator is
         used which is the :mod:`random` module and its functions. If a
         generator is passed it is expected to have the corresponding methods
-        to the :mod:`random` module (individual.e. the class
-        :mod:`random`\\ .Random).
+        to the :mod:`random` module (i.e. the class :mod:`random`\\ .Random).
 
         .. warning::
 
-            If default generator is used (individual.e. the methods of
-            :mod:`random`) it is assumed that it is already seeded and no seed
-            is set inside this class.
+            If default generator is used (i.e. the methods of :mod:`random`)
+            it is assumed that it is already seeded and no seed is set inside
+            this class.
 
         :param int min_length: minimum length of the genotype
         :param int max_length: maximum length of the genotype
@@ -305,9 +306,9 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
         :keyword duplicate_prob: (keyword argument) probability of performing a
             duplication; if it does not fit into interval [0, 1] it is set to 0
             if lower than 0 and to 1 if higher than 1; default value is 0.2
-        :param stats: stats saving class
+        :keyword stats: stats saving class
         :type stats: :class:`wopt.evo.support.Stats`
-        :param callback: a callable which will be called at the end of every
+        :keyword callback: a callable which will be called at the end of every
             generation with a single argument which is the algorithm instance
             itself (i.e. instance of this class)
         """
@@ -731,7 +732,8 @@ class GeTreeFitness(wopt.evo.Fitness):
     The individuals passed to the :meth:`.evaluate` method are expected to be of
     class :class:`wopt.evo.ge.CodonGenotypeIndividual`.
     """
-    def __init__(self, grammar, unfinished_fitness, wraps=0):
+    def __init__(self, grammar, unfinished_fitness, wraps=0,
+                 skip_if_evaluated=True):
         self.grammar = None
         if isinstance(grammar, wopt.evo.support.grammar.Grammar):
             self.grammar = grammar
@@ -740,10 +742,14 @@ class GeTreeFitness(wopt.evo.Fitness):
 
         self.unfinished_fitness = unfinished_fitness
         self.wraps = wraps
+        self.skip_if_evaluated = skip_if_evaluated
 
     def evaluate(self, individual):
-        derivation_tree, finished, used_num, wraps = self.grammar.to_tree(
-            individual.genotype, max_wraps=self.wraps)
+        if self.skip_if_evaluated and individual.get_fitness() is not None:
+            return
+
+        derivation_tree, finished, used_num, wraps = self.grammar.generate(
+            individual.genotype, mode='tree', max_wraps=self.wraps)
 
         individual.set_first_not_used(used_num)
         if not finished:

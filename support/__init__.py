@@ -108,14 +108,16 @@ class SimpleFileStats(ResourceHoldingStats):
             (which is the default)
         :param bool manage: If true, the file will always be closed in the
         :meth:`.cleanup()` method. If false, it will never be closed in that
-        method. If ``None``...
+        method. If ``None`` (default) then it defaults to ``True`` if the
+        *stats_file* argument was a string and to ``False`` if it was a
+        file-like object.
         """
         if isinstance(stats_file, str):
             self.stats_file = open(stats_file, mode='w')
-            self.manage = False
+            self.manage = True
         else:
             self.stats_file = stats_file
-            self.manage = True
+            self.manage = False
 
         if manage is not None:
             self.manage = manage

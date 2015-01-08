@@ -121,9 +121,6 @@ class IndividualInitializer(object):
     Derive from this class to implement particular initializer.
     """
 
-    def __init__(self):
-        raise NotImplementedError()
-
     def initialize(self):
         """Returns an initial individual.
 
@@ -137,9 +134,6 @@ class PopulationInitializer(object):
 
     Derive from this class to implement particular initializer.
     """
-
-    def __init__(self):
-        raise NotImplementedError()
 
     def initialize(self, pop_size):
         """Returns an initial population.

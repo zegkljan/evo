@@ -33,7 +33,7 @@ class CodonGenotypeIndividual(wopt.evo.Individual):
         wopt.evo.Individual.__init__(self)
         self.genotype = genotype
         self.max_codon_value = max_codon_value
-        self.first_not_used = 0
+        self.first_not_used = None
 
     def __str__(self):
         if hasattr(self, 'str'):
@@ -426,7 +426,7 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
                 raise TypeError('Keyword argument callback is not a callable.')
 
         self.population = []
-        self.population_sorted = True
+        self.population_sorted = False
         self.bsf = None
         self.iterations = 0
 
@@ -458,11 +458,11 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
             while True:
                 o1 = self.select_tournament(self.population,
                                             self.tournament_size,
-                                            sorted_=self.population_sorted).\
+                                            sorted_=self.population_sorted). \
                     copy()
                 o2 = self.select_tournament(self.population,
                                             self.tournament_size,
-                                            sorted_=self.population_sorted).\
+                                            sorted_=self.population_sorted). \
                     copy()
 
                 self.prune(o1)
@@ -613,7 +613,8 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
                             'CodonGenotypeIndividual.')
         mutated = False
         for i in range(individual.get_codon_num()):
-            if self.generator.random() < self.mutation_prob:
+            r = self.generator.random()
+            if r < self.mutation_prob:
                 new_codon = self.generator.randrange(individual.
                                                      get_max_codon_value())
                 individual.set_codon(i, new_codon)
@@ -634,7 +635,8 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
         if not isinstance(individual, CodonGenotypeIndividual):
             raise TypeError('Individual must be of type '
                             'CodonGenotypeIndividual.')
-        if self.generator.random() < self.duplicate_prob:
+        r = self.generator.random()
+        if r < self.duplicate_prob:
             pos = self.generator.randrange(individual.get_codon_num())
             n = self.generator.randint(1, individual.get_codon_num() - pos)
 

@@ -308,9 +308,9 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
             if lower than 0 and to 1 if higher than 1; default value is 0.2
         :keyword stats: stats saving class
         :type stats: :class:`wopt.evo.support.Stats`
-        :keyword callback: a callable which will be called at the end of every
-            generation with a single argument which is the algorithm instance
-            itself (i.e. instance of this class)
+        :keyword callback: a callable which will be called at the beginning of
+            every generation with a single argument which is the algorithm
+            instance itself (i.e. instance of this class)
         """
         wopt.evo.GeneticBase.__init__(self)
         multiprocessing.context.Process.__init__(self, name=name)

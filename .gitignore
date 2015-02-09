@@ -1,6 +1,7 @@
 .idea/
 doc/
 doc-src/build
+doc-src/source/api/*
 *.pyc
 dist/
 playground.py

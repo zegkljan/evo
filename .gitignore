@@ -1,0 +1,6 @@
+.idea/
+doc/
+doc-src/build
+*.pyc
+dist/
+playground.py

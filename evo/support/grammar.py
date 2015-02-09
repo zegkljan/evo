@@ -676,8 +676,8 @@ def derivation_tree_to_text(root):
 
     The derivation tree is expected to be a :class:`evo.support.tree.TreeNode`
     where the inner nodes represent the rules and their
-    :attr:`evo.support.tree.TreeNode.data` attribute is set to the name of the rule
-    and the leaves represent the terminals and their
+    :attr:`evo.support.tree.TreeNode.data` attribute is set to the name of the
+    rule and the leaves represent the terminals and their
     :attr:`evo.support.tree.TreeNode.data` attribute is set to the value of the
     terminal.
     """

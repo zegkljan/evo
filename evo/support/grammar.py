@@ -97,7 +97,7 @@ class Rule(object):
         The result is equivalent to calling (supposing rule is an instance of
         Rule)::
 
-            list(rule.get_choices()[individual])
+            list(rule.get_choices()[i])
 
         :return: Returns a list of terms resulting by expansion of the i-th
             choice of this rule.
@@ -664,6 +664,20 @@ class Grammar(object):
                 ch.append(c)
                 max_ch.append(mc)
         return ch, max_ch
+
+    def __str__(self):
+        rules_length = max(map(lambda r: len(str(r)), self._rules))
+        line = '{: <' + str(rules_length) + '} ::= {}'
+        lines = []
+        for rn in self._rules_dict:
+            rule = self._rules_dict[rn]
+            choices = []
+            for ch in rule.get_choices():
+                choice = ''.join(map(lambda c: c.__str__(), ch))
+                choices.append(choice)
+            choices = ' | '.join(choices)
+            lines.append(line.format(str(rule), choices))
+        return '\n'.join(lines)
 
 
 class GrammarBuildingError(Exception):

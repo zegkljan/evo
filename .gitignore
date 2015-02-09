@@ -1,7 +1,10 @@
 .idea/
+*.pyc
+playground.py
+
 doc/
 doc-src/build
 doc-src/source/api/*
-*.pyc
+
 dist/
-playground.py
+evo.egg-info/

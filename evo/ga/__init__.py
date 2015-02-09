@@ -6,11 +6,11 @@ import multiprocessing.context
 import gc
 import functools
 
-import wopt.evo
-import wopt.utils
+import evo
+import evo.support.random
 
 
-class VectorIndividual(wopt.evo.Individual):
+class VectorIndividual(evo.Individual):
     """A class representing the individual as a list of elements.
     """
 
@@ -20,14 +20,14 @@ class VectorIndividual(wopt.evo.Individual):
         :param genotype: the genotype, i.e. an iterable of True/False values
             that will form the individual.
         """
-        wopt.evo.Individual.__init__(self)
+        evo.Individual.__init__(self)
 
         self.genotype = list(genotype)
         self.fitness = fitness
         self.data = data
 
     def __repr__(self, *args, **kwargs):
-        return ('wopt.evo.ga.VectorIndividual(' + repr(self.genotype) + ', ' +
+        return ('evo.ga.VectorIndividual(' + repr(self.genotype) + ', ' +
                 repr(self.fitness) + ', ' + repr(self.data) + ')')
 
     def __str__(self):
@@ -36,12 +36,12 @@ class VectorIndividual(wopt.evo.Individual):
     def copy(self, carry_evaluation=True, carry_data=True):
         clone = VectorIndividual(self.genotype)
 
-        wopt.evo.Individual.copy_evaluation(self, clone, carry_evaluation)
-        wopt.evo.Individual.copy_data(self, clone, carry_data)
+        evo.Individual.copy_evaluation(self, clone, carry_evaluation)
+        evo.Individual.copy_data(self, clone, carry_data)
         return clone
 
 
-class RandomRealVectorInitializer(wopt.evo.IndividualInitializer):
+class RandomRealVectorInitializer(evo.IndividualInitializer):
     """Generates a genotype of a fixed given width with random floating-point
     values from a given distribution.
     """
@@ -72,10 +72,10 @@ class RandomRealVectorInitializer(wopt.evo.IndividualInitializer):
             from and its parameters.
 
             The values of this parameter are expected to be obtained by
-            static methods of :class:`wopt.utils.Distribution`.
+            static methods of :class:`evo.support.random.Distribution`.
 
             The default value is the value of
-            :meth:`wopt.utils.Distribution.uniform(0, 1)` (i.e. uniform
+            :meth:`evo.support.random.Distribution.uniform(0, 1)` (i.e. uniform
             distribution with bounds 0 and 1).
         :keyword generator: a random number generator; if ``None`` or not
             present calls to the methods of standard python module
@@ -85,11 +85,11 @@ class RandomRealVectorInitializer(wopt.evo.IndividualInitializer):
         :rtype: :class:`VectorIndividual`
         """
 
-        wopt.evo.IndividualInitializer.__init__(self)
+        evo.IndividualInitializer.__init__(self)
 
         self.length = length
 
-        self.distribution = wopt.utils.Distribution.uniform(0, 1)
+        self.distribution = evo.support.random.Distribution.uniform(0, 1)
         if 'distribution' in kwargs:
             self.distribution = kwargs['distribution']
 
@@ -99,13 +99,13 @@ class RandomRealVectorInitializer(wopt.evo.IndividualInitializer):
 
     # noinspection PyUnresolvedReferences
     def initialize(self):
-        genotype = [wopt.utils.Distribution.generate(self.distribution,
-                                                     self.generator) for _ in
-                    range(self.length)]
+        genotype = [evo.support.random.Distribution.generate(self.distribution,
+                                                             self.generator)
+                    for _ in range(self.length)]
         return VectorIndividual(genotype)
 
 
-class Ga(wopt.evo.GeneticBase, multiprocessing.context.Process):
+class Ga(evo.GeneticBase, multiprocessing.context.Process):
     """This class forms the whole GA algorithm.
     """
 
@@ -136,13 +136,13 @@ class Ga(wopt.evo.GeneticBase, multiprocessing.context.Process):
             set inside this class.
 
         :param fitness: fitness used to evaluate individual performance
-        :type fitness: :class:`wopt.evo.Fitness`
+        :type fitness: :class:`evo.Fitness`
         :param int pop_size: size of the population; this value will be
             passed to the ``population_initializer``'s method ``initialize``()
         :param population_initializer: initializer used to initialize the
             initial population
         :type population_initializer:
-            :class:`wopt.ge.init.PopulationInitializer`
+            :class:`ge.init.PopulationInitializer`
         :param mode: Specifies which mode of genetic algorithm to use. Possible
             values are:
 
@@ -241,12 +241,12 @@ class Ga(wopt.evo.GeneticBase, multiprocessing.context.Process):
 
             The default value is ``'random'``.
         :param stats: stats saving class
-        :type stats: :class:`wopt.evo.support.Stats`
+        :type stats: :class:`evo.support.Stats`
         :param callback: a callable which will be called at the end of every
             generation with a single argument which is the algorithm instance
             itself (i.e. instance of this class)
         """
-        wopt.evo.GeneticBase.__init__(self)
+        evo.GeneticBase.__init__(self)
         multiprocessing.context.Process.__init__(self, name=name)
 
         # Positional args
@@ -434,7 +434,7 @@ class Ga(wopt.evo.GeneticBase, multiprocessing.context.Process):
 
     def _run_steady_state(self):
         self.population_sorted = self.fitness.sort(self.population, False,
-                                                   wopt.evo.Fitness.
+                                                   evo.Fitness.
                                                    COMPARE_TOURNAMENT)
 
         while not self.stop(self):
@@ -461,7 +461,7 @@ class Ga(wopt.evo.GeneticBase, multiprocessing.context.Process):
         self.fitness.evaluate(individual)
         if self.bsf is None or self.fitness.compare(individual,
                                                     self.bsf,
-                                                    wopt.evo.Fitness.
+                                                    evo.Fitness.
                                                     COMPARE_BSF):
             self.bsf = individual
             self.stats.save_bsf(self.iterations, self.bsf)
@@ -471,12 +471,12 @@ class Ga(wopt.evo.GeneticBase, multiprocessing.context.Process):
             return []
 
         self.population_sorted = self.fitness.sort(self.population, False,
-                                                   wopt.evo.Fitness.
+                                                   evo.Fitness.
                                                    COMPARE_TOURNAMENT)
         if self.population_sorted:
             return self.population[0:self.elites_num]
 
-        cmp = lambda a, b: self.fitness.compare(a, b, wopt.evo.Fitness.
+        cmp = lambda a, b: self.fitness.compare(a, b, evo.Fitness.
                                                 COMPARE_TOURNAMENT)
         sorted_population = sorted(self.population,
                                    key=functools.cmp_to_key(cmp))
@@ -501,7 +501,7 @@ class Ga(wopt.evo.GeneticBase, multiprocessing.context.Process):
                 best_idx = candidate_idx
             else:
                 better = self.fitness.compare(candidate, population[best_idx],
-                                              wopt.evo.Fitness.
+                                              evo.Fitness.
                                               COMPARE_TOURNAMENT)
                 if bool(inverse) ^ bool(better):
                     best_idx = candidate_idx
@@ -597,7 +597,7 @@ class Ga(wopt.evo.GeneticBase, multiprocessing.context.Process):
                                                    population_sorted)
             loser = self.population[loser_idx]
             if self.fitness.compare(indiv, loser,
-                                    wopt.evo.Fitness.COMPARE_TOURNAMENT):
+                                    evo.Fitness.COMPARE_TOURNAMENT):
                 self._pop_replace(loser_idx, indiv)
         else:
             loser_idx = self.select_tournament_idx(self.population, n, True,

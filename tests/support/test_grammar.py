@@ -5,8 +5,8 @@ Created on Apr 8, 2014
 .. moduleauthor:: Jan Žegklitz <zegkljan@gmail.com>
 """
 import unittest
-import wopt.evo.support.grammar as grammar
-import wopt.utils as utils
+import evo.support.grammar as grammar
+import evo.support.tree as tree
 
 
 class GrammarTest(unittest.TestCase):
@@ -220,20 +220,20 @@ class GrammarTest(unittest.TestCase):
         g = grammar.Grammar(grammar_dict)
 
         # 10+102
-        startNode = utils.TreeNode(None, None, [], "start")
-        exprNode = utils.TreeNode(startNode, 0, [], "expr")
-        numNode1 = utils.TreeNode(exprNode, 0, [], "num")
-        termNode1 = utils.TreeNode(numNode1, 0, [], "1")
-        numNode2 = utils.TreeNode(numNode1, 1, [], "num")
-        termNode2 = utils.TreeNode(numNode2, 0, [], "0")
-        opNode = utils.TreeNode(exprNode, 1, [], "op")
-        termNode3 = utils.TreeNode(opNode, 0, [], "+")
-        numNode3 = utils.TreeNode(exprNode, 2, [], "num")
-        termNode4 = utils.TreeNode(numNode3, 0, [], "1")
-        numNode4 = utils.TreeNode(numNode3, 1, [], "num")
-        termNode5 = utils.TreeNode(numNode4, 0, [], "0")
-        numNode5 = utils.TreeNode(numNode4, 1, [], "num")
-        termNode6 = utils.TreeNode(numNode5, 0, [], "2")
+        startNode = tree.TreeNode(None, None, [], "start")
+        exprNode = tree.TreeNode(startNode, 0, [], "expr")
+        numNode1 = tree.TreeNode(exprNode, 0, [], "num")
+        termNode1 = tree.TreeNode(numNode1, 0, [], "1")
+        numNode2 = tree.TreeNode(numNode1, 1, [], "num")
+        termNode2 = tree.TreeNode(numNode2, 0, [], "0")
+        opNode = tree.TreeNode(exprNode, 1, [], "op")
+        termNode3 = tree.TreeNode(opNode, 0, [], "+")
+        numNode3 = tree.TreeNode(exprNode, 2, [], "num")
+        termNode4 = tree.TreeNode(numNode3, 0, [], "1")
+        numNode4 = tree.TreeNode(numNode3, 1, [], "num")
+        termNode5 = tree.TreeNode(numNode4, 0, [], "0")
+        numNode5 = tree.TreeNode(numNode4, 1, [], "num")
+        termNode6 = tree.TreeNode(numNode5, 0, [], "2")
 
         startNode.children = [exprNode]
         exprNode.children = [numNode1, opNode, numNode3]
@@ -290,14 +290,14 @@ class GrammarTest(unittest.TestCase):
         g = grammar.Grammar(grammar_dict)
 
         # 10<op><num>
-        startNode = utils.TreeNode(None, None, [], "start")
-        exprNode = utils.TreeNode(startNode, 0, [], "expr")
-        numNode1 = utils.TreeNode(exprNode, 0, [], "num")
-        termNode1 = utils.TreeNode(numNode1, 0, [], "1")
-        numNode2 = utils.TreeNode(numNode1, 1, [], "num")
-        termNode2 = utils.TreeNode(numNode2, 0, [], "0")
-        opNode = utils.TreeNode(exprNode, 1, [], "op")
-        numNode3 = utils.TreeNode(exprNode, 2, [], "num")
+        startNode = tree.TreeNode(None, None, [], "start")
+        exprNode = tree.TreeNode(startNode, 0, [], "expr")
+        numNode1 = tree.TreeNode(exprNode, 0, [], "num")
+        termNode1 = tree.TreeNode(numNode1, 0, [], "1")
+        numNode2 = tree.TreeNode(numNode1, 1, [], "num")
+        termNode2 = tree.TreeNode(numNode2, 0, [], "0")
+        opNode = tree.TreeNode(exprNode, 1, [], "op")
+        numNode3 = tree.TreeNode(exprNode, 2, [], "num")
 
         startNode.children = [exprNode]
         exprNode.children = [numNode1, opNode, numNode3]
@@ -328,11 +328,11 @@ class GrammarTest(unittest.TestCase):
         g = grammar.Grammar(grammar_dict)
 
         # [3, 0] -> (<E> iffoodahead (<E> move) (<E>))
-        eNode1 = utils.TreeNode(None, None, [], "<E>")
-        iffoodaheadNode = utils.TreeNode(eNode1, 0, None, "iffoodahead")
-        eNode2 = utils.TreeNode(eNode1, 1, [], "<E>")
-        moveNode = utils.TreeNode(eNode1, 0, None, "move")
-        eNode3 = utils.TreeNode(eNode1, 2, [], "<E>")
+        eNode1 = tree.TreeNode(None, None, [], "<E>")
+        iffoodaheadNode = tree.TreeNode(eNode1, 0, None, "iffoodahead")
+        eNode2 = tree.TreeNode(eNode1, 1, [], "<E>")
+        moveNode = tree.TreeNode(eNode1, 0, None, "move")
+        eNode3 = tree.TreeNode(eNode1, 2, [], "<E>")
 
         eNode1.children = [iffoodaheadNode, eNode2, eNode3]
         iffoodaheadNode.children = None
@@ -388,20 +388,20 @@ class GrammarTest(unittest.TestCase):
 
     def test_derivation_tree_to_text(self):
         # 10+102
-        startNode = utils.TreeNode(None, None, [], "start")
-        exprNode = utils.TreeNode(startNode, 0, [], "expr")
-        numNode1 = utils.TreeNode(exprNode, 0, [], "num")
-        termNode1 = utils.TreeNode(numNode1, 0, [], "1")
-        numNode2 = utils.TreeNode(numNode1, 1, [], "num")
-        termNode2 = utils.TreeNode(numNode2, 0, [], "0")
-        opNode = utils.TreeNode(exprNode, 1, [], "op")
-        termNode3 = utils.TreeNode(opNode, 0, [], "+")
-        numNode3 = utils.TreeNode(exprNode, 2, [], "num")
-        termNode4 = utils.TreeNode(numNode3, 0, [], "1")
-        numNode4 = utils.TreeNode(numNode3, 1, [], "num")
-        termNode5 = utils.TreeNode(numNode4, 0, [], "0")
-        numNode5 = utils.TreeNode(numNode4, 1, [], "num")
-        termNode6 = utils.TreeNode(numNode5, 0, [], "2")
+        startNode = tree.TreeNode(None, None, [], "start")
+        exprNode = tree.TreeNode(startNode, 0, [], "expr")
+        numNode1 = tree.TreeNode(exprNode, 0, [], "num")
+        termNode1 = tree.TreeNode(numNode1, 0, [], "1")
+        numNode2 = tree.TreeNode(numNode1, 1, [], "num")
+        termNode2 = tree.TreeNode(numNode2, 0, [], "0")
+        opNode = tree.TreeNode(exprNode, 1, [], "op")
+        termNode3 = tree.TreeNode(opNode, 0, [], "+")
+        numNode3 = tree.TreeNode(exprNode, 2, [], "num")
+        termNode4 = tree.TreeNode(numNode3, 0, [], "1")
+        numNode4 = tree.TreeNode(numNode3, 1, [], "num")
+        termNode5 = tree.TreeNode(numNode4, 0, [], "0")
+        numNode5 = tree.TreeNode(numNode4, 1, [], "num")
+        termNode6 = tree.TreeNode(numNode5, 0, [], "2")
 
         startNode.children = [exprNode]
         exprNode.children = [numNode1, opNode, numNode3]

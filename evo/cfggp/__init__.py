@@ -4,12 +4,11 @@ import multiprocessing.context
 import random
 import gc
 
-import wopt.evo
-import wopt.evo.ge
-import wopt.utils
+import evo
+import evo.ge
 
 
-class DerivationTreeIndividual(wopt.evo.Individual):
+class DerivationTreeIndividual(evo.Individual):
     """A class representing an individual as a derivation tree.
     """
 
@@ -18,7 +17,7 @@ class DerivationTreeIndividual(wopt.evo.Individual):
 
         :param tree: the derivation tree of the individual
         """
-        wopt.evo.Individual.__init__(self)
+        evo.Individual.__init__(self)
         self.tree = tree
         self.fitness = None
 
@@ -27,8 +26,8 @@ class DerivationTreeIndividual(wopt.evo.Individual):
 
     def copy(self, carry_evaluation=True, carry_data=True):
         clone = DerivationTreeIndividual(self.tree.clone())
-        wopt.evo.Individual.copy_evaluation(self, clone, carry_evaluation)
-        wopt.evo.Individual.copy_data(self, clone, carry_data)
+        evo.Individual.copy_evaluation(self, clone, carry_evaluation)
+        evo.Individual.copy_data(self, clone, carry_data)
         return clone
 
     def get_tree(self):
@@ -67,15 +66,15 @@ class Cfggp(multiprocessing.context.Process):
             set inside this class.
 
         :param fitness: fitness used to evaluate individual performance
-        :type fitness: :class:`wopt.evo.Fitness`
+        :type fitness: :class:`evo.Fitness`
         :param int pop_size: size of the population; this value will be
             passed to the ``population_initializer``'s method ``initialize``()
         :param population_initializer: initializer used to initialize the
             initial population
         :type population_initializer:
-            :class:`wopt.ge.init.PopulationInitializer`
+            :class:`ge.init.PopulationInitializer`
         :param grammar: grammar this algorithm operates on
-        :type grammar: :class:`wopt.evo.support.grammar.Grammar`
+        :type grammar: :class:`evo.support.grammar.Grammar`
         :param mode: Specifies which mode of genetic algorithm to use. Possible
             values are ``'generational'`` and ``'steady-state'``.
         :param stop: Either a number or a callable. If it is number:
@@ -115,7 +114,7 @@ class Cfggp(multiprocessing.context.Process):
             a mutation; if it does not fit into interval [0, 1] it is set to
             0 if lower than 0 and to 1 if higher than 1; default value is 0.1
         :param stats: stats saving class
-        :type stats: :class:`wopt.evo.support.Stats`
+        :type stats: :class:`evo.support.Stats`
         :param callback: a callable which will be called at the end of every
             generation with a single argument which is the algorithm instance
             itself (i.e. instance of this class)
@@ -280,7 +279,7 @@ class Cfggp(multiprocessing.context.Process):
         candidates = self.generator.sample(population, self.tournament_size)
         best = None
         for candidate in candidates:
-            if isinstance(candidate, wopt.evo.ge.CodonGenotypeIndividual):
+            if isinstance(candidate, evo.ge.CodonGenotypeIndividual):
                 candidate = self.codon_to_derivation(candidate)
             if candidate.get_fitness() is None:
                 self.evaluate(candidate)
@@ -390,7 +389,7 @@ class Cfggp(multiprocessing.context.Process):
         self.population.insert(c + 1, o)
 
     def codon_to_derivation(self, codon):
-        if not isinstance(codon, wopt.evo.ge.CodonGenotypeIndividual):
+        if not isinstance(codon, evo.ge.CodonGenotypeIndividual):
             raise TypeError
 
         (tree, _, _, _) = self.grammar.to_tree(decisions=codon.genotype,
@@ -403,10 +402,10 @@ class Cfggp(multiprocessing.context.Process):
     def derivation_to_codon(self, derivation):
         if not isinstance(derivation, DerivationTreeIndividual):
             raise TypeError('Individual must be of type '
-                            'wopt.evo.cfggp.DerivationTreeIndividual.')
+                            'evo.cfggp.DerivationTreeIndividual.')
         choices, _ = \
             self.grammar.derivation_tree_to_choice_sequence(derivation.tree)
 
-        codon = wopt.evo.ge.CodonGenotypeIndividual(choices, None)
+        codon = evo.ge.CodonGenotypeIndividual(choices, None)
         codon.set_fitness(derivation.get_fitness())
         return codon

@@ -25,7 +25,7 @@ class Stats(object):
 
         :param int iteration: iteration of the algorithm to save the bsf for
         :param bsf: the individual to save
-        :type bsf: :class:`wopt.evo.Individual`
+        :type bsf: :class:`evo.Individual`
         """
         pass
 

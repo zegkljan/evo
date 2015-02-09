@@ -11,13 +11,13 @@ import multiprocessing.context
 import random
 import gc
 
-import wopt.evo
-import wopt.evo.support
-import wopt.evo.support.grammar
-import wopt.utils
+import evo
+import evo.support
+import evo.support.grammar
+import evo.support.random
 
 
-class CodonGenotypeIndividual(wopt.evo.Individual):
+class CodonGenotypeIndividual(evo.Individual):
     """A class representing an individual as a linear string of integers.
     """
 
@@ -30,7 +30,7 @@ class CodonGenotypeIndividual(wopt.evo.Individual):
             genotype (exclusive, i.e. a codon will have this value minus one or
             lower)
         """
-        wopt.evo.Individual.__init__(self)
+        evo.Individual.__init__(self)
         self.genotype = genotype
         self.max_codon_value = max_codon_value
         self.first_not_used = None
@@ -43,8 +43,8 @@ class CodonGenotypeIndividual(wopt.evo.Individual):
     def copy(self, carry_evaluation=True, carry_data=True):
         clone = CodonGenotypeIndividual(list(self.genotype),
                                         self.max_codon_value)
-        wopt.evo.Individual.copy_evaluation(self, clone, carry_evaluation)
-        wopt.evo.Individual.copy_data(self, clone, carry_data)
+        evo.Individual.copy_evaluation(self, clone, carry_evaluation)
+        evo.Individual.copy_data(self, clone, carry_data)
         if carry_evaluation:
             clone.first_not_used = self.first_not_used
         return clone
@@ -71,7 +71,7 @@ class CodonGenotypeIndividual(wopt.evo.Individual):
         return len(self.genotype)
 
 
-class RandomCodonGenotypeInitializer(wopt.evo.IndividualInitializer):
+class RandomCodonGenotypeInitializer(evo.IndividualInitializer):
     """Generates a genotype with a random length within a given range and
     random codons.
     """
@@ -113,7 +113,7 @@ class RandomCodonGenotypeInitializer(wopt.evo.IndividualInitializer):
         :return: a randomly generated individual
         :rtype: :class:`CodonGenotypeIndividual`
         """
-        wopt.evo.IndividualInitializer.__init__(self)
+        evo.IndividualInitializer.__init__(self)
 
         self.min_length = min_length
         self.max_length = max_length
@@ -137,7 +137,7 @@ class RandomCodonGenotypeInitializer(wopt.evo.IndividualInitializer):
         return CodonGenotypeIndividual(genotype, self.max_codon_value)
 
 
-class RandomWalkInitializer(wopt.evo.IndividualInitializer):
+class RandomWalkInitializer(evo.IndividualInitializer):
     """Generates a codon genotype by random walk through a grammar (i.e. the
     resulting genotypes encode exactly a complete derivation tree).
     """
@@ -159,7 +159,7 @@ class RandomWalkInitializer(wopt.evo.IndividualInitializer):
             and no seed is set inside this class.
 
         :param grammar: the grammar to generate
-        :type grammar: :class:`wopt.evo.support.grammar.Grammar`
+        :type grammar: :class:`evo.support.grammar.Grammar`
         :keyword generator: a random number generator; if ``None`` or not
             present calls to the methods of standard python module
             :mod:`random` will be performed instead
@@ -173,7 +173,7 @@ class RandomWalkInitializer(wopt.evo.IndividualInitializer):
         :return: a randomly generated individual
         :rtype: :class:`DerivationTreeIndividual`
         """
-        wopt.evo.IndividualInitializer.__init__(self)
+        evo.IndividualInitializer.__init__(self)
 
         self.grammar = grammar
 
@@ -198,9 +198,8 @@ class RandomWalkInitializer(wopt.evo.IndividualInitializer):
         self.max_choices = m * self.multiplier
 
     def initialize(self):
-        iterator = wopt.utils.RandomIntIterable(-1, -1,
-                                                0, self.max_choices - 1,
-                                                generator=self.generator)
+        iterator = evo.support.random.RandomIntIterable(
+            -1, -1, 0, self.max_choices - 1, generator=self.generator)
         sequence = []
         _ = self.grammar.to_tree(decisions=iterator,
                                  max_wraps=0,
@@ -210,7 +209,7 @@ class RandomWalkInitializer(wopt.evo.IndividualInitializer):
                                        self.max_choices)
 
 
-class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
+class Ge(evo.GeneticBase, multiprocessing.context.Process):
     """This class forms the whole GE algorithm.
     """
 
@@ -241,15 +240,15 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
             set inside this class.
 
         :param fitness: fitness used to evaluate individual performance
-        :type fitness: :class:`wopt.evo.Fitness`
+        :type fitness: :class:`evo.Fitness`
         :param int pop_size: size of the population; this value will be
             passed to the ``population_initializer``'s method ``initialize``()
         :param population_initializer: initializer used to initialize the
             initial population
         :type population_initializer:
-            :class:`wopt.ge.init.PopulationInitializer`
+            :class:`ge.init.PopulationInitializer`
         :param grammar: grammar this algorithm operates on
-        :type grammar: :class:`wopt.evo.support.grammar.Grammar`
+        :type grammar: :class:`evo.support.grammar.Grammar`
         :param mode: Specifies which mode of genetic algorithm to use. Possible
             values are ``'generational'`` and ``'steady-state'``.
         :param stop: Either a number or a callable. If it is number:
@@ -307,12 +306,12 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
             duplication; if it does not fit into interval [0, 1] it is set to 0
             if lower than 0 and to 1 if higher than 1; default value is 0.2
         :keyword stats: stats saving class
-        :type stats: :class:`wopt.evo.support.Stats`
+        :type stats: :class:`evo.support.Stats`
         :keyword callback: a callable which will be called at the beginning of
             every generation with a single argument which is the algorithm
             instance itself (i.e. instance of this class)
         """
-        wopt.evo.GeneticBase.__init__(self)
+        evo.GeneticBase.__init__(self)
         multiprocessing.context.Process.__init__(self, name=name)
 
         # Positional args
@@ -487,7 +486,7 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
 
     def _run_steady_state(self):
         self.population_sorted = self.fitness.sort(self.population, False,
-                                                   wopt.evo.Fitness.
+                                                   evo.Fitness.
                                                    COMPARE_TOURNAMENT)
 
         while not self.stop(self):
@@ -518,7 +517,7 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
         self.fitness.evaluate(individual)
         if self.bsf is None or self.fitness.compare(individual,
                                                     self.bsf,
-                                                    wopt.evo.Fitness.
+                                                    evo.Fitness.
                                                     COMPARE_BSF):
             self.bsf = individual
             self.stats.save_bsf(self.iterations, self.bsf)
@@ -528,12 +527,12 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
             return []
 
         self.population_sorted = self.fitness.sort(self.population, False,
-                                                   wopt.evo.Fitness.
+                                                   evo.Fitness.
                                                    COMPARE_TOURNAMENT)
         if self.population_sorted:
             return self.population[0:self.elites_num]
 
-        cmp = lambda a, b: self.fitness.compare(a, b, wopt.evo.Fitness.
+        cmp = lambda a, b: self.fitness.compare(a, b, evo.Fitness.
                                                 COMPARE_TOURNAMENT)
         sorted_population = sorted(self.population,
                                    key=functools.cmp_to_key(cmp))
@@ -558,7 +557,7 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
                 best_idx = candidate_idx
             else:
                 better = self.fitness.compare(candidate, population[best_idx],
-                                              wopt.evo.Fitness.
+                                              evo.Fitness.
                                               COMPARE_TOURNAMENT)
                 if bool(inverse) ^ bool(better):
                     best_idx = candidate_idx
@@ -658,7 +657,7 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
                                                    population_sorted)
             loser = self.population[loser_idx]
             if self.fitness.compare(indiv, loser,
-                                    wopt.evo.Fitness.COMPARE_TOURNAMENT):
+                                    evo.Fitness.COMPARE_TOURNAMENT):
                 self._pop_replace(loser_idx, indiv)
         else:
             loser_idx = self.select_tournament_idx(self.population, n, True,
@@ -672,9 +671,9 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
         if o2.get_fitness() is None:
             self.test_bsf(o2)
 
-        if self.fitness.compare(o1, o2, wopt.evo.Fitness.COMPARE_TOURNAMENT):
+        if self.fitness.compare(o1, o2, evo.Fitness.COMPARE_TOURNAMENT):
             o = o1
-        elif self.fitness.compare(o2, o1, wopt.evo.Fitness.COMPARE_TOURNAMENT):
+        elif self.fitness.compare(o2, o1, evo.Fitness.COMPARE_TOURNAMENT):
             o = o2
         else:
             if self.generator.random() < 0.5:
@@ -683,18 +682,18 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
                 o = o2
 
         if self.fitness.compare(self.population[-1], o,
-                                wopt.evo.Fitness.COMPARE_TOURNAMENT):
+                                evo.Fitness.COMPARE_TOURNAMENT):
             return
 
         self.population.pop(-1)
 
         if self.fitness.compare(self.population[-1], o,
-                                wopt.evo.Fitness.COMPARE_TOURNAMENT):
+                                evo.Fitness.COMPARE_TOURNAMENT):
             self.population.append(o)
             return
 
         if self.fitness.compare(o, self.population[0],
-                                wopt.evo.Fitness.COMPARE_TOURNAMENT):
+                                evo.Fitness.COMPARE_TOURNAMENT):
             self.population.insert(0, o)
             return
 
@@ -703,10 +702,10 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
         c = (l + u) // 2
         while l < u and l != c != u:
             ci = self.population[c]
-            if self.fitness.compare(ci, o, wopt.evo.Fitness.COMPARE_TOURNAMENT):
+            if self.fitness.compare(ci, o, evo.Fitness.COMPARE_TOURNAMENT):
                 l = c
             elif self.fitness.compare(o, ci,
-                                      wopt.evo.Fitness.COMPARE_TOURNAMENT):
+                                      evo.Fitness.COMPARE_TOURNAMENT):
                 u = c
             else:
                 break
@@ -715,7 +714,7 @@ class Ge(wopt.evo.GeneticBase, multiprocessing.context.Process):
 
 
 # noinspection PyAbstractClass
-class GeTreeFitness(wopt.evo.Fitness):
+class GeTreeFitness(evo.Fitness):
     """This class is a base class for fitness used with Grammatical Evolution.
 
     This class takes care of the machinery regarding the individual decoding
@@ -732,15 +731,15 @@ class GeTreeFitness(wopt.evo.Fitness):
         ``set_fitness`` method.
 
     The individuals passed to the :meth:`.evaluate` method are expected to be of
-    class :class:`wopt.evo.ge.CodonGenotypeIndividual`.
+    class :class:`evo.ge.CodonGenotypeIndividual`.
     """
     def __init__(self, grammar, unfinished_fitness, wraps=0,
                  skip_if_evaluated=True):
         self.grammar = None
-        if isinstance(grammar, wopt.evo.support.grammar.Grammar):
+        if isinstance(grammar, evo.support.grammar.Grammar):
             self.grammar = grammar
         else:
-            self.grammar = wopt.evo.support.grammar.Grammar(grammar)
+            self.grammar = evo.support.grammar.Grammar(grammar)
 
         self.unfinished_fitness = unfinished_fitness
         self.wraps = wraps

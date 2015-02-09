@@ -1,7 +1,7 @@
 # -*- coding: utf8 -*-
 """Contains classes which can form a BNF grammar.
 """
-import wopt.utils
+import evo.support.tree
 
 
 class Rule(object):
@@ -424,10 +424,10 @@ class Grammar(object):
         derivation tree.
 
         The derivation tree is represented by a tree formed by
-        :class:`wopt.utils.TreeNode`s where the
-        :attr:`wopt.utils.TreeNode.data` attribute's value is set to the name of
-        the corresponding rule for inner nodes and for leaves the attribute
-        has the value of the corresponding terminal.
+        :class:`evo.support.tree.TreeNode`s where the
+        :attr:`evo.support.tree.TreeNode.data` attribute's value is set to the
+        name of the corresponding rule for inner nodes and for leaves the
+        attribute has the value of the corresponding terminal.
 
         Returns a tuple ``(output, finished, used_num, wraps)``:
 
@@ -474,7 +474,7 @@ class Grammar(object):
             rule = rules_stack.pop(0)
             if isinstance(rule, Rule):
                 if tree is None:
-                    node = wopt.utils.TreeNode(None, None, [], rule.name)
+                    node = evo.support.tree.TreeNode(None, None, [], rule.name)
                     tree = node
                     tree_stack = [[node, 0]]
                     depth = 1
@@ -516,16 +516,12 @@ class Grammar(object):
                 for individual in range(len(choice)):
                     c = choice[individual]
                     if isinstance(c, Rule):
-                        node.children.append(wopt.utils.TreeNode(node,
-                                                                 individual,
-                                                                 [],
-                                                                 c.name))
+                        node.children.append(evo.support.tree.TreeNode(
+                            node, individual, [], c.name))
                     else:
                         assert isinstance(c, Terminal)
-                        node.children.append(wopt.utils.TreeNode(node,
-                                                                 individual,
-                                                                 None,
-                                                                 c.text))
+                        node.children.append(evo.support.tree.TreeNode(
+                            node, individual, None, c.text))
             else:
                 assert isinstance(rule, Terminal)
                 tree_stack[-1][1] += 1
@@ -626,7 +622,7 @@ class Grammar(object):
         greater than 1.
 
         :param tree_root: the root node of the derivation tree
-        :type tree_root: :class:`wopt.utils.TreeNode`
+        :type tree_root: :class:`evo.support.tree.TreeNode`
         """
         choices = []
         max_choices = []
@@ -678,14 +674,14 @@ class GrammarBuildingError(Exception):
 def derivation_tree_to_text(root):
     """Takes a derivation tree and returns the corresponding text.
 
-    The derivation tree is expected to be a :class:`wopt.utils.TreeNode`
+    The derivation tree is expected to be a :class:`evo.support.tree.TreeNode`
     where the inner nodes represent the rules and their
-    :attr:`wopt.utils.TreeNode.data` attribute is set to the name of the rule
+    :attr:`evo.support.tree.TreeNode.data` attribute is set to the name of the rule
     and the leaves represent the terminals and their
-    :attr:`wopt.utils.TreeNode.data` attribute is set to the value of the
+    :attr:`evo.support.tree.TreeNode.data` attribute is set to the value of the
     terminal.
     """
-    assert isinstance(root, wopt.utils.TreeNode)
+    assert isinstance(root, evo.support.tree.TreeNode)
     terminals = []
 
     def extractor(node):

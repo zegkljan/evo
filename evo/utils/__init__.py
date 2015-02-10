@@ -85,7 +85,7 @@ class SimpleFileStats(ResourceHoldingStats):
         POP:<iteration>|<individual1.fitness>;<individual1.data>;<individual1>|
             ...<individual2.fitness>;<individual2.data>;<individual2>|...
 
-    where ``MSG`` or``BSF`` or ``POP`` signals whether this line contains a
+    where ``MSG`` or ``BSF`` or ``POP`` signals whether this line contains a
     message or the best-so-far individual or a population; ``<iteration>``
     stands for the iteration number, ``<fitness>`` stands for the fitness of
     the best-so-far individual, ``<bsf>`` stands for the string representation
@@ -109,10 +109,10 @@ class SimpleFileStats(ResourceHoldingStats):
         :param element_separator: set to use different separator than ``;``
             (which is the default)
         :param bool manage: If true, the file will always be closed in the
-        :meth:`.cleanup()` method. If false, it will never be closed in that
-        method. If ``None`` (default) then it defaults to ``True`` if the
-        *stats_file* argument was a string and to ``False`` if it was a
-        file-like object.
+            :meth:`.cleanup()` method. If false, it will never be closed in that
+            method. If ``None`` (default) then it defaults to ``True`` if the
+            *stats_file* argument was a string and to ``False`` if it was a
+            file-like object.
         """
         if isinstance(stats_file, str):
             self.stats_file = open(stats_file, mode='w')

@@ -72,7 +72,7 @@ class Cfggp(multiprocessing.context.Process):
         :param fitness: fitness used to evaluate individual performance
         :type fitness: :class:`evo.Fitness`
         :param int pop_size: size of the population; this value will be
-            passed to the ``population_initializer``'s method ``initialize``()
+            passed to the ``population_initializer``'s method ``initialize``\ ()
         :param population_initializer: initializer used to initialize the
             initial population
         :type population_initializer:

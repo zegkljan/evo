@@ -445,7 +445,7 @@ class Grammar(object):
                 continue
             if isinstance(rule, Rule):
                 if tree is None:
-                    node = evo.support.tree.TreeNode(None, None, [], rule.name)
+                    node = evo.utils.tree.TreeNode(None, None, [], rule.name)
                     tree = node
                     tree_stack = [[node, 0]]
                     depth = 1
@@ -489,11 +489,11 @@ class Grammar(object):
                 for individual in range(len(choice)):
                     c = choice[individual]
                     if isinstance(c, Rule):
-                        node.children.append(evo.support.tree.TreeNode(
+                        node.children.append(evo.utils.tree.TreeNode(
                             node, individual, [], c.name))
                     else:
                         assert isinstance(c, Terminal)
-                        node.children.append(evo.support.tree.TreeNode(
+                        node.children.append(evo.utils.tree.TreeNode(
                             node, individual, None, c.text))
             else:
                 assert isinstance(rule, Terminal)
@@ -689,7 +689,7 @@ def derivation_tree_to_text(root):
     :attr:`evo.support.tree.TreeNode.data` attribute is set to the value of the
     terminal.
     """
-    assert isinstance(root, evo.support.tree.TreeNode)
+    assert isinstance(root, evo.utils.tree.TreeNode)
     terminals = []
 
     def extractor(node):

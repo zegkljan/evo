@@ -369,57 +369,7 @@ class Grammar(object):
             return self._terminals_dict[terminal_text]
         return None
 
-    def generate(self, decisions, mode='tree', max_wraps=0,
-                 max_depth=float('inf')):
-        """Generates the output from the given input decisions.
-
-        Returns a tuple ``(output, finished, used_num, wraps)``:
-
-        * ``output`` contains the output representation which is either in the
-          form of a parse tree (if ``mode == 'tree'``) or in the form of text
-          (if ``mode == 'text'``).
-        * ``finished`` is ``True`` if and only if all rules were expanded down
-          to terminals, individual.e. it is ``False`` if the mapping was ended
-          prematurely and some rules were left unexpanded
-        * ``used_num`` contains the number of elements from ``decisions`` that
-          were used for making expansion decision (equivalently it is the
-          number of how many times the ``decisions.__iter__()``'s
-          ``__next__()`` was called
-        * ``wraps`` indicates how many times the decisions wrapped from end to
-          start
-
-        :param decisions: an iterable containing numbers to make decisions on
-            multi-choice production rules.
-
-            The only requirement is that the numbers are positive integers.
-        :param str mode: defines the type of ``output``; can be either
-            ``'tree'`` (default) or ``'text'``
-
-            If equal to ``tree`` :meth:`.to_tree` is effectively called, if
-            equal to ``text`` :meth:`.to_text` is effectively called.
-        :param int max_wraps: how many times is the decisions allowed to be
-            reused if its end is reached without having completed the expansion
-
-            Default value is ``0``.
-        :param max_depth: the maximum depth of the derivation tree allowed
-            during generation of the output. Applicable only for
-            ``mode='tree'``.
-
-            If this depth is reached, the decisions will be made only on those
-            choices that result in terminal-only symbols. If there are no such
-            choices for a particular rule, normal decision is made and the
-            terminas will be selected as soon as possible.
-
-            Default value is infinity.
-        :return: a 4-tuple as described above
-        :see: :meth:`.to_tree`\\ , :meth:`.to_text`
-        """
-        if mode == 'tree':
-            return self.to_tree(decisions, max_wraps, max_depth)
-        elif mode == 'text':
-            return self.to_text(decisions, max_wraps)
-
-    def to_tree(self, decisions, max_wraps, max_depth, sequence=None):
+    def to_tree(self, decisions, max_wraps, max_depth=None, sequence=None):
         """From the given input decisions generates an output in the form of a
         derivation tree.
 
@@ -429,7 +379,7 @@ class Grammar(object):
         name of the corresponding rule for inner nodes and for leaves the
         attribute has the value of the corresponding terminal.
 
-        Returns a tuple ``(output, finished, used_num, wraps)``:
+        Returns a tuple ``(output, finished, used_num, wraps, annotations)``:
 
         * ``output`` contains the output representation which is either in the
           form of a parse tree (if ``mode == 'tree'``) or in the form of text
@@ -443,6 +393,12 @@ class Grammar(object):
           ``__next__()`` was called
         * ``wraps`` indicates how many times the decisions wrapped from end to
           start
+        * `annotations` is a list of 2-tuples where the the tuple at position
+          `n` specifies which rule (non-terminal) was expanded by the `n`-th
+          codon (the first element) and how many following codons were used to
+          fully expand this non-terminal including the `n`-th codon (the second
+          element); if the expansion was not finished (e.g. not enough
+          decisions) this field is `None`
 
         :param decisions: an iterable containing numbers to make decisions on
             multi-choice production rules.
@@ -457,21 +413,33 @@ class Grammar(object):
             If this depth is reached, the decisions will be made only on those
             choices that result in terminal-only symbols. If there are no such
             choices for a particular rule, normal decision is made and the
-            terminas will be selected as soon as possible.
+            terminals will be selected as soon as possible.
+
+            If `None` (default) then the depth is not limited at all.
         :param sequence: if not ``None`` then each generated decision (before
             taking the modulo value) will be appended (using the ``append()``
             method) to this sequence
-        :return: a 4-tuple as described above
+        :return: a 5-tuple as described above
         """
+        if max_depth is None:
+            max_depth = float('inf')
         tree = None
         tree_stack = None
         rules_stack = [self.get_start_rule()]
         it = decisions.__iter__()
+        annot_stack = []
+        annots = []
         n = 0
         wraps = 0
         depth = None
         while rules_stack and wraps <= max_wraps:
-            rule = rules_stack.pop(0)
+            rule = rules_stack.pop()
+            if rule is None:
+                r, pos = annot_stack.pop()
+                if len(annots) <= pos:
+                    annots.extend([None] * (pos - len(annots) + 1))
+                annots[pos] = (r, n - pos)
+                continue
             if isinstance(rule, Rule):
                 if tree is None:
                     node = evo.support.tree.TreeNode(None, None, [], rule.name)
@@ -493,6 +461,7 @@ class Grammar(object):
                 if choices_num == 1:
                     choice = rule.get_choice(0)
                 else:
+                    annot_stack.append((rule.name, n))
                     try:
                         decision = it.__next__()
                     except StopIteration:
@@ -501,7 +470,6 @@ class Grammar(object):
                         wraps += 1
                         it = decisions.__iter__()
                         decision = it.__next__()
-                    n += 1
                     if deep:
                         choices_num = rule.get_terminal_choices_num()
                     choice_idx = decision % choices_num
@@ -510,7 +478,9 @@ class Grammar(object):
                     choice = rule.get_choice(choice_idx)
                     if sequence is not None:
                         sequence.append(decision)
-                rules_stack = choice + rules_stack
+                    rules_stack.append(None)
+                    n += 1
+                rules_stack.extend(reversed(choice))
 
                 node.children = []
                 for individual in range(len(choice)):
@@ -533,8 +503,10 @@ class Grammar(object):
                     if tree_stack:
                         tree_stack[-1][1] += 1
 
-        # empty tree_stack <=> empty rules_stack
-        return tree, len(tree_stack) == 0, n, wraps
+        if len(tree_stack) == 0:
+            return tree, True, n, wraps, annots
+        else:
+            return tree, False, n, wraps, None
 
     def to_text(self, decisions, max_wraps):
         """From the given input decisions generates an output in the form of a
@@ -543,7 +515,7 @@ class Grammar(object):
         The output is in the form of a text defined by the grammar and the
         codon.
 
-        Returns a tuple ``(output, finished, used_num, wraps)``:
+        Returns a tuple ``(output, finished, used_num, wraps, annotations)``:
 
         * ``output`` contains the output representation which is either in the
           form of a parse tree (if ``mode == 'tree'``) or in the form of text
@@ -557,6 +529,12 @@ class Grammar(object):
           ``__next__()`` was called
         * ``wraps`` indicates how many times the decisions wrapped from end to
           start
+        * `annotations` is a list of 2-tuples where the the tuple at position
+          `n` specifies which rule (non-terminal) was expanded by the `n`-th
+          codon (the first element) and how many following codons were used to
+          fully expand this non-terminal including the `n`-th codon (the second
+          element); if the expansion was not finished (e.g. not enough
+          decisions) this field is `None`
 
         :param decisions: an iterable containing numbers to make decisions on
             multi-choice production rules.
@@ -565,19 +543,28 @@ class Grammar(object):
         :param int max_wraps: how many times is the decisions is allowed to be
             re-used if its end is reached without having the expansion
             completed
-        :return: a 4-tuple as described above
+        :return: a 5-tuple as described above
         """
         text = []
         rules_stack = [self.get_start_rule()]
         it = decisions.__iter__()
+        annot_stack = []
+        annots = []
         n = 0
         wraps = 0
         while rules_stack and wraps <= max_wraps:
-            rule = rules_stack.pop(0)
+            rule = rules_stack.pop()
+            if rule is None:
+                r, pos = annot_stack.pop()
+                if len(annots) <= pos:
+                    annots.extend([None] * (pos - len(annots) + 1))
+                annots[pos] = (r, n - pos)
+                continue
             if isinstance(rule, Rule):
                 if rule.get_choices_num() == 1:
                     choice = rule.get_choice(0)
                 else:
+                    annot_stack.append((rule.name, n))
                     try:
                         decision = it.__next__()
                     except StopIteration:
@@ -586,15 +573,19 @@ class Grammar(object):
                         wraps += 1
                         it = decisions.__iter__()
                         decision = it.__next__()
-                    n += 1
                     choice_idx = decision % rule.get_choices_num()
                     choice = rule.get_choice(choice_idx)
-                rules_stack = choice + rules_stack
+                    rules_stack.append(None)
+                    n += 1
+                rules_stack.extend(reversed(choice))
             else:
                 assert isinstance(rule, Terminal)
                 text.append(rule.text)
 
-        return ''.join(text), len(rules_stack) == 0, n, wraps
+        if len(rules_stack) == 0:
+            return ''.join(text), True, n, wraps, annots
+        else:
+            return ''.join(text), False, n, wraps, None
 
     def derivation_tree_to_choice_sequence(self, tree_root):
         """Converts the given derivation tree on this grammar to a list of

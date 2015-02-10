@@ -1,4 +1,6 @@
 # -*- coding: utf8 -*-
+""" TODO docstring
+"""
 
 import multiprocessing.context
 import random
@@ -6,6 +8,8 @@ import gc
 
 import evo
 import evo.ge
+
+__author__ = 'Jan Žegklitz'
 
 
 class DerivationTreeIndividual(evo.Individual):

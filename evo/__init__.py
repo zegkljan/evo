@@ -1,5 +1,10 @@
 # -*- coding: utf8 -*-
+""" TODO docstring
+"""
+
 import copy
+
+__author__ = 'Jan Žegklitz'
 
 
 class Individual(object):
@@ -168,7 +173,7 @@ class GeneticBase(object):
         """Inserts an individual into the sorted population.
         """
         if not self.population_sorted:
-            raise ValueError("Population must be sorted.")
+            raise ValueError('Population must be sorted.')
 
         # is it worse than the worst?
         if self.fitness.compare(self.population[-1], indiv,

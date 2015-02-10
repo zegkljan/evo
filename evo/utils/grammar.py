@@ -1,7 +1,10 @@
 # -*- coding: utf8 -*-
 """Contains classes which can form a BNF grammar.
 """
-import evo.support.tree
+
+import evo.utils.tree
+
+__author__ = 'Jan Žegklitz'
 
 
 class Rule(object):
@@ -24,10 +27,10 @@ class Rule(object):
         self._terminal_choices = []
 
     def __repr__(self):
-        return "Rule<%s>" % self.name
+        return 'Rule<{}>'.format(self.name)
 
     def __str__(self):
-        return "<%s>" % self.name
+        return '<{}>'.format(self.name)
 
     def _collect_terminal_choices(self):
         if len(self._choices) == 1:
@@ -170,9 +173,9 @@ class Rule(object):
             choice = []
             for term in c:
                 if type(term) is Rule:
-                    choice.append(("N", term.name))
+                    choice.append(('N', term.name))
                 elif type(term) is Terminal:
-                    choice.append(("T", term.text))
+                    choice.append(('T', term.text))
             choices.append(choice)
         return {self.name: choices}
 
@@ -189,7 +192,7 @@ class Terminal(object):
         """(:class:`str`) Holds the actual terminal value."""
 
     def __repr__(self):
-        return "Terminal({0})".format(self.text)
+        return 'Terminal({0})'.format(self.text)
 
     def __str__(self):
         return self.text
@@ -256,30 +259,30 @@ class Grammar(object):
         self._terminals = None
         self._terminals_dict = None
 
-        if "start-rule" not in grammar:
-            raise GrammarBuildingError("No \"start-rule\" present in input "
-                                       "dictionary")
+        if 'start-rule' not in grammar:
+            raise GrammarBuildingError('No "start-rule" present in input '
+                                       'dictionary')
 
-        if "rules" not in grammar:
-            raise GrammarBuildingError("No \"rules\" present in input "
-                                       "dictionary")
+        if 'rules' not in grammar:
+            raise GrammarBuildingError('No "rules" present in input '
+                                       'dictionary')
 
-        rules_dict = {name: Rule(name) for name in grammar["rules"]}
+        rules_dict = {name: Rule(name) for name in grammar['rules']}
         used_rules = set()
-        used_rules.add(rules_dict[grammar["start-rule"]].name)
+        used_rules.add(rules_dict[grammar['start-rule']].name)
         used_terminals = set()
         terminals = dict()
-        for _, choices in grammar["rules"].items():
+        for _, choices in grammar['rules'].items():
             for choice in choices:
                 for term in choice:
-                    if len(term) == 2 and term[0] == "T":
+                    if len(term) == 2 and term[0] == 'T':
                         terminals[term[1]] = Terminal(term[1])
-        for rule_name, rule_def in grammar["rules"].items():
+        for rule_name, rule_def in grammar['rules'].items():
             choices = []
             for ci, choice in enumerate(rule_def):
                 terms = []
                 for ti, term in enumerate(choice):
-                    if len(term) != 2 or not (term[0] == "T" or term[0] == "N"):
+                    if len(term) != 2 or not (term[0] == 'T' or term[0] == 'N'):
                         raise GrammarBuildingError('Term No. {0} in choice No.'
                                                    ' {1} in rule {2} is '
                                                    ' invalid  (the tuple is '
@@ -287,7 +290,7 @@ class Grammar(object):
                                                    ' first element is neither '
                                                    '"T" nor "N".'.
                                                    format(ti, ci, rule_name))
-                    if term[0] == "T":
+                    if term[0] == 'T':
                         terms.append(terminals[term[1]])
                         used_terminals.add(terminals[term[1]])
                     else:
@@ -325,7 +328,7 @@ class Grammar(object):
         for term in used_terminals:
             self._terminals_dict[term.text] = term
 
-        self._start_rule = rules_dict[grammar["start-rule"]]
+        self._start_rule = rules_dict[grammar['start-rule']]
 
     def get_start_rule(self):
         """Returns the starting rule of the grammar.
@@ -354,7 +357,7 @@ class Grammar(object):
         d = {}
         for rule in self._rules:
             d.update(rule.to_dict())
-        return {"start-rule": self._start_rule.name, "rules": d}
+        return {'start-rule': self._start_rule.name, 'rules': d}
 
     def get_rules(self):
         return self._rules
@@ -693,4 +696,4 @@ def derivation_tree_to_text(root):
         if node.is_leaf():
             terminals.append(node.data)
     root.preorder(extractor)
-    return "".join(terminals)
+    return ''.join(terminals)

@@ -5,6 +5,7 @@
 .. [ONeil2003] O'Neil, Michael, and Conor Ryan. `Grammatical evolution.`
     Grammatical Evolution. Springer US, 2003. 33-47.
 """
+
 import fractions
 import functools
 import multiprocessing.context
@@ -12,9 +13,11 @@ import random
 import gc
 
 import evo
-import evo.support
-import evo.support.grammar
-import evo.support.random
+import evo.utils
+import evo.utils.grammar
+import evo.utils.random
+
+__author__ = 'Jan Žegklitz'
 
 
 class CodonGenotypeIndividual(evo.Individual):

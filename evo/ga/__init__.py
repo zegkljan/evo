@@ -1,13 +1,16 @@
 # -*- coding: utf8 -*-
 """This package contains an implementation of a genetic algorithm.
 """
+
 import random
 import multiprocessing.context
 import gc
 import functools
 
 import evo
-import evo.support.random
+import evo.utils.random
+
+__author__ = 'Jan Žegklitz'
 
 
 class VectorIndividual(evo.Individual):

@@ -6,6 +6,8 @@ numbers and number generators.
 import random
 import enum
 
+__author__ = 'Jan Žegklitz'
+
 
 class RandomIntIterable(object):
     """An iterable that, when iterated, generates a sequence of random

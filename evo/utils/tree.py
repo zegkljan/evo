@@ -3,6 +3,8 @@
 with trees (data structure).
 """
 
+__author__ = 'Jan Žegklitz'
+
 
 class TreeNode(object):
     """A node in a tree. Similar to :class:`Node` but has only one predecessor
@@ -113,13 +115,13 @@ class TreeNode(object):
         if self.is_leaf():
             return self.self_str()
 
-        children_str = " ".join([x.__str__() for x in self.children])
+        children_str = ' '.join([x.__str__() for x in self.children])
         if len(self.children) > 0:
-            children_str = " " + children_str
-        return "({0}{1})".format(self.data, children_str)
+            children_str = ' ' + children_str
+        return '({0}{1})'.format(self.data, children_str)
 
     def self_str(self):
         """Returns the string representation of the node without the children
         (i.e. only the data).
         """
-        return "{0}".format(self.data)
+        return '{0}'.format(self.data)

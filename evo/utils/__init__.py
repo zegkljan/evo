@@ -2,6 +2,8 @@
 """This package contains support modules for evolutionary algorithms.
 """
 
+__author__ = 'Jan Žegklitz'
+
 
 class Stats(object):
     """A base class for saving statistics of a run of an evolutionary

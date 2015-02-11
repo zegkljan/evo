@@ -424,6 +424,50 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         o2.set_fitness(None)
         return [o1, o2]
 
+    # noinspection PyUnusedLocal
+    def subtree_crossover(self, o1, o2, *args):
+        if not isinstance(o1, evo.ge.support.CodonGenotypeIndividual):
+            raise TypeError('Parent must be of type CodonGenotypeIndividual.')
+        if not isinstance(o2, evo.ge.support.CodonGenotypeIndividual):
+            raise TypeError('Parent must be of type CodonGenotypeIndividual.')
+
+        g1 = o1.genotype
+        g2 = o2.genotype
+
+        a1 = list(enumerate(o1.get_annotations()))
+        a2 = list(enumerate(o2.get_annotations()))
+
+        if len(g1) == len(g2) == 1:
+            return
+
+        assert g1, g1
+        assert g2, g2
+        assert a1, a1
+        assert a2, a2
+
+        point1 = self.generator.randrange(len(a1))
+        _, (rule, l1) = a1[point1]
+        while True:
+            a2ok = [x for x in a2 if x[1][0] == rule]
+            if a2ok:
+                break
+            else:
+                point1 = self.generator.randrange(len(a1))
+                _, (rule, l1) = a1[point1]
+        # noinspection PyUnboundLocalVariable
+        point2 = self.generator.randrange(len(a2ok))
+        point2, (_, l2) = a2ok[point2]
+
+        o1.genotype = g1[:point1] + g2[point2:point2 + l2] + g1[point1 + l1:]
+        o2.genotype = g2[:point2] + g1[point1:point1 + l1] + g2[point2 + l2:]
+
+        assert o1.genotype, (o1.genotype, g1, g2, point1, point2)
+        assert o2.genotype, (o2.genotype, g1, g2, point1, point2)
+
+        o1.set_fitness(None)
+        o2.set_fitness(None)
+        return [o1, o2]
+
     def mutate(self, individual):
         self.codon_change_mutate(individual)
 

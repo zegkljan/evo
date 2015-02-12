@@ -594,27 +594,60 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
 
 
 # noinspection PyAbstractClass
-class GeTreeFitness(evo.Fitness):
+class GeFitness(evo.Fitness):
     """This class is a base class for fitness used with Grammatical Evolution.
 
     This class takes care of the machinery regarding the individual decoding
     process:
 
-        1. The genotype is decoded into derivation tree.
-        2. The derivation tree is passed to the method
-           :meth:`.parse_derivation_tree` which returns a *phenotype*.
+        1. The genotype is decoded using the :meth:`.decode` method.
+        2. The decoding output is passed to the method :meth:`.make_phenotype`
+           which turns the decoding output to a *phenotype*.
         3. The *phenotype* is passed to the method
            :meth:`.evaluate_phenotype` which returns the *fitness* of the
            phenotype. The *individual* is passed to this method too for the
            subclasses to be able to store additional data to the individual.
-        4. The *fitness* is assigned to the original individual using it's
-           ``set_fitness`` method.
+        4. The *fitness* and decoding annotations are assigned to the original
+           individual using the :meth:`evo.Individual.set_fitness` and
+           :meth:`evo.Ge.support.CodonGenotypeIndividual.set_annotations`
+           methods.
 
     The individuals passed to the :meth:`.evaluate` method are expected to be of
     class :class:`evo.ge.support.CodonGenotypeIndividual`.
+
+    The deriving classes are to implement the following methods:
+
+        * :meth:`.decode`
+        * :meth:`.make_phenotype`
+        * :meth:`.evaluate_phenotype`
+
+    .. seealso::
+
+        Class :class:`evo.ge.GeTreeFitness`
+            Decodes the individual to a derivation tree.
+        Class :class:`evo.ge.GeTextFitness`
+            Decodes the individual to text.
     """
+
+    class NotFinishedError(Exception):
+        pass
+
     def __init__(self, grammar, unfinished_fitness, wraps=0,
                  skip_if_evaluated=True):
+        """
+        :param grammar: a grammar to use for decoding
+        :type grammar: either :class:`evo.utils.grammar.Grammar` or an argument
+            for its constructor
+        :param unfinished_fitness: a fitness value to assign to individuals
+            which did were not able to decode completely (i.e. there were some
+            unexpanded non-terminals left after the decoding ended)
+        :param int wraps: number of wraps (i.e. reusing the codon sequence from
+            beginning after the end is reached); default is 0
+        :param bool skip_if_evaluated: If ``True`` (default) then the evaluation
+            process (incl. decoding) will not be performed at all, if the
+            individual's ``get_fitness`` method returns a non-\ ``None`` value.
+            If ``False`` then the evaluation will always be carried out.
+        """
         self.grammar = None
         if isinstance(grammar, evo.utils.grammar.Grammar):
             self.grammar = grammar
@@ -633,26 +666,85 @@ class GeTreeFitness(evo.Fitness):
         if self.skip_if_evaluated and individual.get_fitness() is not None:
             return
 
+        try:
+            decoded = self.decode(individual)
+        except GeFitness.NotFinishedError:
+            individual.set_fitness(self.unfinished_fitness)
+            return
+
+        phenotype = self.make_phenotype(decoded)
+        fitness = self.evaluate_phenotype(phenotype, individual)
+
+        individual.set_fitness(fitness)
+        pass
+
+    def decode(self, individual):
+        """Decodes the individual.
+
+        This method is to be implemented. Apart from encoding, this method must
+
+            * Raise a :class:`evo.ge.GeFitness.NotFinishedError` error if the
+              decoding process could not be finished.
+            * Set the decoding annotations back to the individual.
+
+        :param individual: the individual to decode
+        :type individual: :class:`evo.ge.support.CodonGenotypeIndividual`
+        :raises evo.ge.GeFitness.NotFinishedError: the decoding process could
+            not be finished
+        """
+        raise NotImplementedError()
+
+    def make_phenotype(self, decoded):
+        """Transforms the output of the decoding process to a *phenotype*\ .
+        """
+        raise NotImplementedError()
+
+    def evaluate_phenotype(self, phenotype, individual):
+        """Evaluates the phenotype.
+        """
+        raise NotImplementedError()
+
+
+# noinspection PyAbstractClass
+class GeTreeFitness(GeFitness):
+    """Base class for fitnesses that use a derivation as the decoding output.
+
+    Implement the :meth:`.parse_derivation_tree` method to transform the
+    derivation tree to the phenotype.
+    """
+    def decode(self, individual):
         (derivation_tree,
          finished,
          used_num,
          wraps,
-         annotations) = self.grammar.to_tree(individual.genotype,
-                                             max_wraps=self.wraps)
-
+         annotations) = self.grammar.to_tree(individual.genotype, self.wraps)
+        individual.set_annotations(annotations)
         individual.set_first_not_used(used_num)
         if not finished:
-            individual.set_fitness(self.unfinished_fitness)
-            return
+            raise GeFitness.NotFinishedError()
 
-        phenotype = self.parse_derivation_tree(derivation_tree)
-        fitness = self.evaluate_phenotype(phenotype, individual)
+        return derivation_tree
 
-        individual.set_fitness(fitness)
-        individual.set_annotations(annotations)
+    def make_phenotype(self, decoded):
+        return self.parse_derivation_tree(decoded)
 
     def parse_derivation_tree(self, derivation_tree):
         raise NotImplementedError()
 
-    def evaluate_phenotype(self, phenotype, individual):
-        raise NotImplementedError()
+
+# noinspection PyAbstractClass
+class GeTextFitness(GeFitness):
+    """Base class for fitnesses that use a text as the decoding output.
+    """
+    def decode(self, individual):
+        (text,
+         finished,
+         used_num,
+         wraps,
+         annotations) = self.grammar.to_text(individual.genotype, self.wraps)
+        individual.set_annotations(annotations)
+        individual.set_first_not_used(used_num)
+        if not finished:
+            raise GeFitness.NotFinishedError()
+
+        return text

@@ -426,6 +426,14 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
 
     # noinspection PyUnusedLocal
     def subtree_crossover(self, o1, o2, *args):
+        """Performs the subtree crossover on the two given parents.
+
+        First, a random point in ``o1`` is chosen. Then the codons in ``o2`` are
+        filtered to those with the same non-terminal label. If there are none a
+        new random point in ``o1`` is chosen. If there are some one of them is
+        chosen randomly. The subsequences starting at the chosen points and of
+        lengths defined by the annotations are swapped.
+        """
         if not isinstance(o1, evo.ge.support.CodonGenotypeIndividual):
             raise TypeError('Parent must be of type CodonGenotypeIndividual.')
         if not isinstance(o2, evo.ge.support.CodonGenotypeIndividual):
@@ -460,6 +468,13 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
 
         o1.genotype = g1[:point1] + g2[point2:point2 + l2] + g1[point1 + l1:]
         o2.genotype = g2[:point2] + g1[point1:point1 + l1] + g2[point2 + l2:]
+
+        a1 = o1.get_annotations()
+        a2 = o2.get_annotations()
+        o1.set_annotations(a1[:point1] + a2[point2:point2 + l2] +
+                           a1[point1 + l1:])
+        o2.set_annotations(a2[:point2] + a1[point1:point1 + l1] +
+                           a2[point2 + l2:])
 
         assert o1.genotype, (o1.genotype, g1, g2, point1, point2)
         assert o2.genotype, (o2.genotype, g1, g2, point1, point2)

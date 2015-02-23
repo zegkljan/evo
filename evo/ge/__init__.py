@@ -100,6 +100,7 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             possible values are
 
                 * ``'ripple'`` - the ripple crossover
+                * ``'subtree'`` - the subtree crossover
 
             The default value is ``'ripple'``\ .
         :keyword mutation_prob: (keyword argument) probability of performing
@@ -174,6 +175,9 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             ct = kwargs['crossover_type']
             if ct == 'ripple':
                 self.crossover_method = self.single_point_crossover
+                self.crossover_method_args = ()
+            elif ct == 'subtree':
+                self.crossover_method = self.subtree_crossover
                 self.crossover_method_args = ()
             else:
                 raise ValueError('Invalid crossover type.')

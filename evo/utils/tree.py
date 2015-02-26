@@ -74,6 +74,96 @@ class TreeNode(object):
                 o.extend(node.children)
         return None
 
+    def get_nodes_dfs(self, from_start=True, predicate=None):
+        """Returns a list of all nodes below this node (incl.) in depth-first
+        order.
+
+        If the optional ``from_start`` argument is ``True`` (default) then the
+        children of nodes are walked through in the natural order, if it is
+        ``False`` then they are walked through in the reversed order.
+
+        The optional ``predicate`` argument can be used to filter out the nodes
+        for which calling ``predicate(node)`` (``node`` is the tested node)
+        yields ``False``. If it is ``None`` (the default) then no filtering
+        is done, otherwise it must be a callable object.
+
+        Example:
+        Suppose that the tree looks like::
+
+               1
+            +--+-+
+            2    3
+               +-+-+
+               4   5
+            +--+   |
+            6  7   8
+
+        If ``from_start`` is ``True`` then the result is
+        ``[1, 2, 3, 4, 6, 7, 5, 8]``.
+        If ``from_start`` is ``False`` then the result is
+        ``[1, 3, 5, 8, 4, 7, 6, 2]``.
+        If ``from_start`` is ``True`` and
+        ``predicate = lambda node: node.is_leaf()`` (i.e. it is supposed to keep
+        only the leaf nodes) then the result is ``[2, 6, 7, 8]``.
+        """
+        o = [self]
+        ret = []
+        while o:
+            node = o.pop()
+            if predicate is None or predicate(node):
+                ret.append(node)
+            if node.children is not None:
+                if from_start:
+                    o.extend(reversed(node.children))
+                else:
+                    o.extend(node.children)
+        return ret
+
+    def get_nodes_bfs(self, from_start=True, predicate=None):
+        """Returns a list of all nodes below this node (incl.) in breadth-first
+        order.
+
+        If the optional ``from_start`` argument is ``True`` (default) then the
+        children of nodes are walked through in the natural order, if it is
+        ``False`` then they are walked through in the reversed order.
+
+        The optional ``predicate`` argument can be used to filter out the nodes
+        for which calling ``predicate(node)`` (``node`` is the tested node)
+        yields ``False``. If it is ``None`` (the default) then no filtering
+        is done, otherwise it must be a callable object.
+
+        Example:
+        Suppose that the tree looks like::
+
+               1
+            +--+-+
+            2    3
+               +-+-+
+               4   5
+            +--+   |
+            6  7   8
+
+        If ``from_start`` is ``True`` then the result is
+        ``[1, 2, 3, 4, 5, 6, 7, 8]``.
+        If ``from_start`` is ``False`` then the result is
+        ``[1, 3, 2, 5, 4, 8, 7, 6]``.
+        If ``from_start`` is ``True`` and
+        ``predicate = lambda node: node.is_leaf()`` (i.e. it is supposed to keep
+        only the leaf nodes) then the result is ``[2, 6, 7, 8]``.
+        """
+        o = [self]
+        ret = []
+        while o:
+            node = o.pop(0)
+            if predicate is None or predicate(node):
+                ret.append(node)
+            if node.children is not None:
+                if from_start:
+                    o.extend(node.children)
+                else:
+                    o.extend(reversed(node.children))
+        return ret
+
     def preorder(self, fn):
         """Goes through the tree in pre-order and calls ``fn(node)`` on each
         node.

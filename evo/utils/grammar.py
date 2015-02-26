@@ -225,8 +225,8 @@ class Grammar(object):
             .. code-block:: python
 
                 {
-                    "start-rule" : <name of the start rule>,
-                    "rules" : {
+                    'start-rule' : <name of the start rule>,
+                    'rules' : {
                         <name of the rule> : [
                             <first choice>,
                             <second choice>,
@@ -240,8 +240,8 @@ class Grammar(object):
                 }
 
             where <Xth choice> is a list of tuples where each tuple has
-            exactly two elements. The first one is a string "T" (meaning a
-            terminal) or "N" (meaning a non-terminal). The second element
+            exactly two elements. The first one is a string ``'T'`` (meaning a
+            terminal) or ``'N'`` (meaning a non-terminal). The second element
             is a string containing either a rule name (in case of
             non-terminal) or an arbitrary string (in case of terminal).
 

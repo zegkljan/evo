@@ -15,7 +15,8 @@ setup(
     version='0.0.1.dev1',
     packages=find_packages(exclude=('tests', 'tests.*')),
     install_requires=[
-        'setuptools'
+        'setuptools',
+        'numpy'
     ],
     package_data={
     },

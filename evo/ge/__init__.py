@@ -406,7 +406,7 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         g2 = o2.genotype
 
         if len(g1) == len(g2) == 1:
-            return
+            return [o1, o2]
 
         assert g1, g1
         assert g2, g2

@@ -678,7 +678,7 @@ class GeFitness(evo.Fitness):
             individual.set_fitness(self.unfinished_fitness)
             return
 
-        phenotype = self.make_phenotype(decoded)
+        phenotype = self.make_phenotype(decoded, individual)
         fitness = self.evaluate_phenotype(phenotype, individual)
 
         individual.set_fitness(fitness)
@@ -700,8 +700,12 @@ class GeFitness(evo.Fitness):
         """
         raise NotImplementedError()
 
-    def make_phenotype(self, decoded):
+    def make_phenotype(self, decoded, individual):
         """Transforms the output of the decoding process to a *phenotype*\ .
+
+        :param decoded: the result of :meth:`.decode`
+        :param individual: the base individual; may be useful to store
+            information about the phenotype creation
         """
         raise NotImplementedError()
 
@@ -731,7 +735,7 @@ class GeTreeFitness(GeFitness):
 
         return derivation_tree
 
-    def make_phenotype(self, decoded):
+    def make_phenotype(self, decoded, individual):
         return self.parse_derivation_tree(decoded)
 
     def parse_derivation_tree(self, derivation_tree):

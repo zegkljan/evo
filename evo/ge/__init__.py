@@ -259,7 +259,8 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         finally:
             gc.collect()
             try:
-                self.stats.cleanup()
+                if self.stats is not None:
+                    self.stats.cleanup()
             except AttributeError:
                 pass
 
@@ -338,7 +339,8 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
                                                     evo.Fitness.
                                                     COMPARE_BSF):
             self.bsf = individual
-            self.stats.save_bsf(self.iterations, self.bsf)
+            if self.stats is not None:
+                self.stats.save_bsf(self.iterations, self.bsf)
 
     def extract_elites(self):
         if self.elites_num == 0:

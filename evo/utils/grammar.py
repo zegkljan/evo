@@ -2,6 +2,9 @@
 """Contains classes which can form a BNF grammar.
 """
 
+import functools
+import fractions
+
 import evo.utils.tree
 
 __author__ = 'Jan Žegklitz'
@@ -672,6 +675,14 @@ class Grammar(object):
             choices = ' | '.join(choices)
             lines.append(line.format(str(rule), choices))
         return '\n'.join(lines)
+
+    def get_choice_nums_lcm(self):
+        """Returns the lowes common multiple of the numbers of choices of all
+        the rules in this grammar.
+        """
+        choice_nums = [r.get_choices_num() for r in self.get_rules()]
+        return functools.reduce(lambda a, b: a * b // fractions.gcd(a, b),
+                                choice_nums)
 
 
 class GrammarBuildingError(Exception):

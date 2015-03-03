@@ -296,3 +296,4 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
             initializer.min_depth = max_depth
             for _ in range(individuals_per_setup + f):
                 pop.append(initializer.initialize())
+        return pop

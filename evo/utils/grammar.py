@@ -485,7 +485,7 @@ class Grammar(object):
         :return: a 5-tuple as described above
         """
         if min_depth is None:
-            min_depth = 0
+            min_depth = 1
         if max_depth is None:
             max_depth = float('inf')
         if min_depth > max_depth:
@@ -536,7 +536,7 @@ class Grammar(object):
                         decision = it.__next__()
                     deep = (depth >= max_depth and
                             rule.get_terminal_choices_num() > 0)
-                    shallow = (depth <= min_depth and
+                    shallow = (depth < min_depth and
                                rule.get_nonterminal_choices_num() > 0)
                     if deep:
                         choice_idx = decision % rule.get_terminal_choices_num()

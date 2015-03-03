@@ -161,7 +161,7 @@ class RandomWalkInitializer(evo.IndividualInitializer):
             and no seed is set inside this class.
 
         :param grammar: the grammar to generate
-        :type grammar: :class:`evo.support.grammar.Grammar`
+        :type grammar: :class:`evo.utils.grammar.Grammar`
         :keyword generator: a random number generator; if ``None`` or not
             present calls to the methods of standard python module
             :mod:`random` will be performed instead
@@ -172,7 +172,7 @@ class RandomWalkInitializer(evo.IndividualInitializer):
             tree; if ``None`` or not set default value of infinity is used
         :keyword multiplier: number which will be used to multiply the LCM of
             all choices numbers to get a higher maximum codon value (default
-            is 1, i.e. maximum codon value will be a LCM of numbers of all
+            is 1, i.e. maximum codon value will be the LCM of numbers of all
             choices in the grammar)
         :return: a randomly generated individual
         :rtype: :class:`DerivationTreeIndividual`
@@ -213,3 +213,86 @@ class RandomWalkInitializer(evo.IndividualInitializer):
                                  sequence=sequence)
         return CodonGenotypeIndividual(sequence,
                                        self.max_choices)
+
+
+class RampedHalfHalfInitializer(evo.PopulationInitializer):
+    """This population initializer initializes the population using the ramped
+    half-and-half method: for each depth from 1 up to maximal depth, half of
+    individuals will be crated using the "grow" method and the other half using
+    the "full" method.
+
+    If the number of individuals is not divisible by the number of
+    initialization setups (which is double the number of depth levels - the
+    "full" and "grow" for each level) then the remainder individuals will be
+    initialized using randomly chosen setups (but each of them in a unique
+    setup).
+    """
+    def __init__(self, grammar, max_depth, **kwargs):
+        """Creates the initializer.
+
+        The optional ``min_depth`` keyword argument can be used to generate
+        trees from this depth instead of 1.
+
+        :param grammar: grammar to generate from
+        :type grammar: :class:`evo.utils.grammar.Grammar`
+        :param int max_depth: maximum depth of the derivation trees; must be
+            finite
+        :keyword generator: a random number generator; if ``None`` or not set
+            calls to the methods of standard python module :mod:`random` will be
+            performed instead
+        :type generator: :class:`random.Random` or ``None``
+        :keyword int min_depth: starting minimum depth of the derivation
+            trees; if ``None`` or not set default value of 1 is used
+        :keyword multiplier: number which will be used to multiply the LCM of
+            all choices numbers to get a higher maximum codon value (default
+            is 1, i.e. maximum codon value will be the LCM of numbers of all
+            choices in the grammar)
+        """
+        super().__init__()
+
+        self.grammar = grammar
+        self.max_depth = max_depth
+
+        self.generator = random
+        if 'generator' in kwargs:
+            self.generator = kwargs['generator']
+
+        self.min_depth = 1
+        if 'min_depth' in kwargs:
+            self.min_depth = kwargs['min_depth']
+            if self.min_depth > self.max_depth:
+                raise ValueError('min_depth must not be greater than max_depth')
+
+        self.multiplier = 1
+        if 'multiplier' in kwargs:
+            self.multiplier = kwargs['multiplier']
+
+    def initialize(self, pop_size):
+        initializer = RandomWalkInitializer(self.grammar,
+                                            generator=self.generator,
+                                            multiplier=self.multiplier)
+        levels_num = self.max_depth - self.min_depth + 1
+        individuals_per_setup = pop_size // (2 * levels_num)
+        remainder = pop_size - individuals_per_setup * 2 * levels_num
+        remainder_setups = self.generator.sample(
+            [(d // 2, d % 2, (d + 1) % 2) for d in range(2 * levels_num)],
+            remainder)
+        remainder_setups.sort(reverse=True)
+
+        pop = []
+        for d in range(levels_num):
+            max_depth = self.min_depth + d
+            initializer.max_depth = max_depth
+            g, f = 0, 0
+            if remainder_setups and remainder_setups[-1][0] == d:
+                _, g, f = remainder_setups.pop()
+
+            # grow
+            initializer.min_depth = 0
+            for _ in range(individuals_per_setup + g):
+                pop.append(initializer.initialize())
+
+            # full
+            initializer.min_depth = max_depth
+            for _ in range(individuals_per_setup + f):
+                pop.append(initializer.initialize())

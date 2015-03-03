@@ -28,6 +28,7 @@ class Rule(object):
         self.name = name
         self._choices = []
         self._terminal_choices = []
+        self._nonterminal_choices = []
 
     def __repr__(self):
         return 'Rule<{}>'.format(self.name)
@@ -43,20 +44,23 @@ class Rule(object):
             return
         changed = False
         done = set(self._terminal_choices)
-        for individual in range(len(self._choices)):
-            if individual in done:
+        for i in range(len(self._choices)):
+            if i in done:
                 continue
             terminal = True
-            for symbol in self._choices[individual]:
+            for symbol in self._choices[i]:
                 if isinstance(symbol, Rule):
                     if not symbol._is_terminal_reachable({self.name}):
                         terminal = False
                         break
             if terminal:
-                self._terminal_choices.append(individual)
+                self._terminal_choices.append(i)
                 changed = True
         if changed:
             self._terminal_choices.sort()
+        self._nonterminal_choices = [c for c in range(len(self._choices))
+                                     if c not in self._terminal_choices]
+        self._nonterminal_choices.sort()
 
     def _is_terminal_reachable(self, closed):
         if self.name in closed:
@@ -148,7 +152,7 @@ class Rule(object):
         The result is equivalent to calling (supposing rule is an instance of
         Rule)::
 
-            list(rule.get_terminal_choices()[individual])
+            list(rule.get_terminal_choices()[i])
 
         :return: Returns a list of terms resulting by expansion of the i-th
             choice of this rule that results in terminal-only symbols.
@@ -160,6 +164,51 @@ class Rule(object):
         :rtype: list of :class:`.Rule`\\ s and/or :class:`.Terminal`\\ s
         """
         return list(self._choices[self._terminal_choices[i]])
+
+    def get_nonterminal_choices_num(self):
+        """Returns the number of choices for this rule that do not result in
+        terminal-only symbols (either directly or through other rules).
+        """
+        return len(self._nonterminal_choices)
+
+    def get_nonterminal_choices(self):
+        """Returns a list of choices for this rule that do not result in
+        terminal-only symbols (either directly or through other rules).
+
+        :return: A list of possible choices for expansion of this rule.
+
+            .. note::
+
+                The returned list is a copy of the internal list so it can be
+                modified, but the elements inside the list are not a copy.
+        :rtype: list of lists of :class:`.Rule`\\ s and/or :class:`.Terminal`\\
+            s
+        """
+        return [self._choices[i] for i in self._nonterminal_choices]
+
+    def get_nonterminal_choice_index(self, i):
+        """Returns the full index of the i-th nonterminal choice.
+        """
+        return self._nonterminal_choices[i]
+
+    def get_nonterminal_choice(self, i):
+        """Returns an i-th choice that does not result in terminal-only symbols.
+
+        The result is equivalent to calling (supposing rule is an instance of
+        Rule)::
+
+            list(rule.get_nonterminal_choices()[i])
+
+        :return: Returns a list of terms resulting by expansion of the i-th
+            choice of this rule that does not result in terminal-only symbols.
+
+            .. note::
+
+                The list is a copy of the internal list so it can be modified
+                but the elements inside the list are not a copy.
+        :rtype: list of :class:`.Rule`\\ s and/or :class:`.Terminal`\\ s
+        """
+        return list(self._choices[self._nonterminal_choices[i]])
 
     def to_dict(self):
         """Returns a dictionary representation of the rule.
@@ -218,8 +267,8 @@ class Grammar(object):
         """Constructs a grammar object from the passed dictionary describing
         the grammar structure.
 
-        Orphan rules (individual.e. rules that cannot be reached by expanding
-        rules starting from the starting rule) are ignored.
+        Orphan rules (i.e. rules that cannot be reached by expanding rules
+        starting from the starting rule) are ignored.
 
         :param grammar: A dictionary with the structure of the rules and
             terminals. The structure of the dictionary is required to be the
@@ -375,7 +424,8 @@ class Grammar(object):
             return self._terminals_dict[terminal_text]
         return None
 
-    def to_tree(self, decisions, max_wraps, max_depth=None, sequence=None):
+    def to_tree(self, decisions, max_wraps, min_depth=None, max_depth=None,
+                sequence=None):
         """From the given input decisions generates an output in the form of a
         derivation tree.
 
@@ -391,7 +441,7 @@ class Grammar(object):
           form of a parse tree (if ``mode == 'tree'``) or in the form of text
           (if ``mode == 'text'``).
         * ``finished`` is ``True`` if and only if all rules were expanded down
-          to terminals, individual.e. it is ``False`` if the mapping was ended
+          to terminals, i.e. it is ``False`` if the mapping was ended
           prematurely and some rules were left unexpanded
         * ``used_num`` contains the number of elements from ``decisions`` that
           were used for making expansion decision (equivalently it is the
@@ -413,22 +463,33 @@ class Grammar(object):
         :param int max_wraps: how many times is the decisions is allowed to be
             re-used if its end is reached without having the expansion
             completed
-        :param max_depth: the maximum depth of the derivation tree allowed
+        :param int min_depth: the minimum depth of the derivation tree allowed
+            during generation of the output.
+
+            Until this depth is reached, the decisions will be made only on
+            those choices that do not inevitably lead to terminal-only symbols.
+
+            If ``None`` (default) then there is no lower bound on the depth.
+        :param int max_depth: the maximum depth of the derivation tree allowed
             during generation of the output.
 
             If this depth is reached, the decisions will be made only on those
-            choices that result in terminal-only symbols. If there are no such
-            choices for a particular rule, normal decision is made and the
-            terminals will be selected as soon as possible.
+            choices that inevitably lead to terminal-only symbols. If there are
+            no such choices for a particular rule, normal decision is made and
+            the terminals will be selected as soon as possible.
 
-            If `None` (default) then the depth is not limited at all.
+            If ``None`` (default) then there is no upper bound on the depth.
         :param sequence: if not ``None`` then each generated decision (before
             taking the modulo value) will be appended (using the ``append()``
             method) to this sequence
         :return: a 5-tuple as described above
         """
+        if min_depth is None:
+            min_depth = 0
         if max_depth is None:
             max_depth = float('inf')
+        if min_depth > max_depth:
+            raise ValueError('min_depth must not be greater than max_depth')
         tree = None
         tree_stack = None
         rules_stack = [self.get_start_rule()]
@@ -461,10 +522,7 @@ class Grammar(object):
                     tree_stack.append([node, 0])
                     depth += 1
 
-                deep = (depth >= max_depth and
-                        rule.get_terminal_choices_num() > 0)
-                choices_num = rule.get_choices_num()
-                if choices_num == 1:
+                if rule.get_choices_num() == 1:
                     choice = rule.get_choice(0)
                 else:
                     annot_stack.append((rule.name, n))
@@ -476,11 +534,20 @@ class Grammar(object):
                         wraps += 1
                         it = decisions.__iter__()
                         decision = it.__next__()
+                    deep = (depth >= max_depth and
+                            rule.get_terminal_choices_num() > 0)
+                    shallow = (depth <= min_depth and
+                               rule.get_nonterminal_choices_num() > 0)
                     if deep:
-                        choices_num = rule.get_terminal_choices_num()
-                    choice_idx = decision % choices_num
-                    if deep:
+                        choice_idx = decision % rule.get_terminal_choices_num()
                         choice_idx = rule.get_terminal_choice_index(choice_idx)
+                    elif shallow:
+                        choice_idx = (decision %
+                                      rule.get_nonterminal_choices_num())
+                        choice_idx = rule.get_nonterminal_choice_index(
+                            choice_idx)
+                    else:
+                        choice_idx = decision % rule.get_choices_num()
                     choice = rule.get_choice(choice_idx)
                     if sequence is not None:
                         sequence.append(decision)
@@ -489,15 +556,15 @@ class Grammar(object):
                 rules_stack.extend(reversed(choice))
 
                 node.children = []
-                for individual in range(len(choice)):
-                    c = choice[individual]
+                for i in range(len(choice)):
+                    c = choice[i]
                     if isinstance(c, Rule):
                         node.children.append(evo.utils.tree.TreeNode(
-                            node, individual, [], c.name))
+                            node, i, [], c.name))
                     else:
                         assert isinstance(c, Terminal)
                         node.children.append(evo.utils.tree.TreeNode(
-                            node, individual, None, c.text))
+                            node, i, None, c.text))
             else:
                 assert isinstance(rule, Terminal)
                 tree_stack[-1][1] += 1
@@ -527,7 +594,7 @@ class Grammar(object):
           form of a parse tree (if ``mode == 'tree'``) or in the form of text
           (if ``mode == 'text'``).
         * ``finished`` is ``True`` if and only if all rules were expanded down
-          to terminals, individual.e. it is ``False`` if the mapping was ended
+          to terminals, i.e. it is ``False`` if the mapping was ended
           prematurely and some rules were left unexpanded
         * ``used_num`` contains the number of elements from ``decisions`` that
           were used for making expansion decision (equivalently it is the
@@ -606,8 +673,8 @@ class Grammar(object):
             >>>g = ... # some Grammar
             >>>choices = ... # sequence of choices producing a valid derivation
             ...              # tree on ``g`` with no extra integers left
-            >>>(tree, _, _, _) = g.to_tree(decisions=choices, max_wraps=0,
-            ...                                      max_depth=float('inf'))
+            >>>(tree, _, _, _, _) = g.to_tree(decisions=choices, max_wraps=0,
+            ...                               max_depth=float('inf'))
             >>>choices2 , _= g.derivation_tree_to_choice_squence(tree)
             >>>choices == choices2
             True

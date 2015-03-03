@@ -166,8 +166,10 @@ class RandomWalkInitializer(evo.IndividualInitializer):
             present calls to the methods of standard python module
             :mod:`random` will be performed instead
         :type generator: :mod:`random`\\ .Random or ``None``
-        :keyword max_depth: maximum depth of the corresponding derivation tree;
-            if ``None`` or not present default value of infinity is used
+        :keyword int min_depth: minimum depth of the corresponding derivation
+            tree; if ``None`` or not set default value of 0 is used
+        :keyword int max_depth: maximum depth of the corresponding derivation
+            tree; if ``None`` or not set default value of infinity is used
         :keyword multiplier: number which will be used to multiply the LCM of
             all choices numbers to get a higher maximum codon value (default
             is 1, i.e. maximum codon value will be a LCM of numbers of all
@@ -179,20 +181,21 @@ class RandomWalkInitializer(evo.IndividualInitializer):
 
         self.grammar = grammar
 
+        self.generator = random
         if 'generator' in kwargs:
             self.generator = kwargs['generator']
-        else:
-            self.generator = random
 
+        self.min_depth = 0
+        if 'min_depth' in kwargs:
+            self.min_depth = kwargs['min_depth']
+
+        self.max_depth = float('inf')
         if 'max_depth' in kwargs:
             self.max_depth = kwargs['max_depth']
-        else:
-            self.max_depth = float('inf')
 
+        self.multiplier = 1
         if 'multiplier' in kwargs:
             self.multiplier = kwargs['multiplier']
-        else:
-            self.multiplier = 1
 
         choice_nums = [r.get_choices_num() for r in grammar.get_rules()]
         m = functools.reduce(lambda a, b: a * b // fractions.gcd(a, b),
@@ -205,6 +208,7 @@ class RandomWalkInitializer(evo.IndividualInitializer):
         sequence = []
         _ = self.grammar.to_tree(decisions=iterator,
                                  max_wraps=0,
+                                 min_depth=self.min_depth,
                                  max_depth=self.max_depth,
                                  sequence=sequence)
         return CodonGenotypeIndividual(sequence,

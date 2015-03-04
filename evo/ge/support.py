@@ -39,6 +39,9 @@ class CodonGenotypeIndividual(evo.Individual):
     def copy(self, carry_evaluation=True, carry_data=True):
         clone = CodonGenotypeIndividual(list(self.genotype),
                                         self.max_codon_value)
+        if self.annotations is not None:
+            # noinspection PyTypeChecker
+            clone.annotations = list(self.annotations)
         evo.Individual.copy_evaluation(self, clone, carry_evaluation)
         evo.Individual.copy_data(self, clone, carry_data)
         if carry_evaluation:

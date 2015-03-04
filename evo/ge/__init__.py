@@ -439,20 +439,29 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         new random point in ``o1`` is chosen. If there are some one of them is
         chosen randomly. The subsequences starting at the chosen points and of
         lengths defined by the annotations are swapped.
+
+        If one of the individuals does not have any annotations (it was too
+        short to fully expand) the method returns an empty list (i.e. the
+        crossover failed - no offsprings were generated).
         """
         if not isinstance(o1, evo.ge.support.CodonGenotypeIndividual):
             raise TypeError('Parent must be of type CodonGenotypeIndividual.')
         if not isinstance(o2, evo.ge.support.CodonGenotypeIndividual):
             raise TypeError('Parent must be of type CodonGenotypeIndividual.')
 
+        if not o1.get_annotations() or not o2.get_annotations():
+            return []
+
         g1 = o1.genotype
         g2 = o2.genotype
 
         a1 = list(enumerate(o1.get_annotations()))
         a2 = list(enumerate(o2.get_annotations()))
+        a1 = list(filter(lambda x: x[1] is not None, a1))
+        a2 = list(filter(lambda x: x[1] is not None, a2))
 
         if len(g1) == len(g2) == 1:
-            return
+            return [o1, o2]
 
         assert g1, g1
         assert g2, g2

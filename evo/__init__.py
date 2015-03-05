@@ -17,7 +17,7 @@ class Individual(object):
 
     def __init__(self):
         self.fitness = None
-        self.data = None
+        self._data = dict()
 
     def set_fitness(self, fitness):
         """Sets the fitness of this individual.
@@ -45,6 +45,21 @@ class Individual(object):
         """
         raise NotImplementedError()
 
+    def set_data(self, key, value):
+        """Sets a data with the given key.
+        """
+        self._data[key] = value
+
+    def get_data(self, key=None):
+        """Returns the data under the given key or ``None`` if there is none.
+
+        If the key is not specified (or set to ``None``) the whole dictionary
+        will be returned.
+        """
+        if key is None:
+            return self._data
+        return self._data.get(key)
+
     @staticmethod
     def copy_evaluation(from_individual, to_individual, do_copy):
         """Copies the fitness value from `from_individual` to `to_individual` if
@@ -59,7 +74,8 @@ class Individual(object):
         `do_copy` is `True` (and does nothing if it is `False`).
         """
         if do_copy:
-            to_individual.data = copy.deepcopy(from_individual.data)
+            # noinspection PyProtectedMember
+            to_individual._data = copy.deepcopy(from_individual._data)
 
 
 class Fitness(object):

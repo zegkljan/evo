@@ -82,8 +82,9 @@ class SimpleFileStats(ResourceHoldingStats):
 
         MSG:<iteration>|<message>
         BSF:<iteration>|<fitness>|<data>|<bsf>
-        POP:<iteration>|<individual1.fitness>;<individual1.data>;<individual1>|
-            ...<individual2.fitness>;<individual2.data>;<individual2>|...
+        POP:<iteration>|<individual1.fitness>;<individual1.get_data()>;
+            ...<individual1>|<individual2.fitness>;<individual2.get_data()>;
+            ...<individual2>|...
 
     where ``MSG`` or ``BSF`` or ``POP`` signals whether this line contains a
     message or the best-so-far individual or a population; ``<iteration>``
@@ -91,8 +92,9 @@ class SimpleFileStats(ResourceHoldingStats):
     the best-so-far individual, ``<bsf>`` stands for the string representation
     of the best-so-far individual (its ``__str__()`` method is called),
     ``<data>`` stands for the ``data`` attribute of the individual and
-    ``<individualX>``, ``<individualX.fitness>`` and ``<individualX.data>``
-    stand for the Xth individual of the population and its fitness and data.
+    ``<individualX>``, ``<individualX.fitness>`` and
+    ``<individualX.get_data()>`` stand for the Xth individual of the population
+    and its fitness and data.
     """
 
     def __init__(self, stats_file, field_separator='|', element_separator=';',
@@ -140,7 +142,7 @@ class SimpleFileStats(ResourceHoldingStats):
     def save_bsf(self, iteration, bsf):
         self.stats_file.write(self.bsf_template.format(iteration,
                                                        bsf.get_fitness(),
-                                                       bsf.data,
+                                                       bsf.get_data(),
                                                        bsf.__str__()))
         self.stats_file.flush()
 
@@ -148,7 +150,7 @@ class SimpleFileStats(ResourceHoldingStats):
         indivs = []
         for i in population:
             indivs.append(self.pop_member_template.format(i.get_fitness(),
-                                                          i.data,
+                                                          i.get_data(),
                                                           i.__str__()))
         pop_str = self.field_separator.join(indivs)
         self.stats_file.write(self.pop_template.format(iteration, pop_str))

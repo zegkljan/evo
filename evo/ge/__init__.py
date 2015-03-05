@@ -10,6 +10,7 @@ import functools
 import multiprocessing.context
 import random
 import gc
+import math
 
 import evo
 import evo.utils
@@ -101,6 +102,11 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
 
                 * ``'ripple'`` - the ripple crossover
                 * ``'subtree'`` - the subtree crossover
+                * ``('variable', pref_change_prob, (method1, method2, ...))`` -
+                  the variable crossover; ``pref_change_prob`` is then the
+                  probability of changing the preferred crossover method in the
+                  children, ``method1``... are the particular methods which can
+                  be one of the previous ones (in the same form)
 
             The default value is ``'ripple'``\ .
         :keyword mutation_prob: (keyword argument) probability of performing
@@ -179,6 +185,17 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             elif ct == 'subtree':
                 self.crossover_method = self.subtree_crossover
                 self.crossover_method_args = ()
+            elif ct[0] == 'variable':
+                self.crossover_method = self.variable_crossover
+                scs = []
+                for subcrossover in ct[2]:
+                    if subcrossover == 'ripple':
+                        scs.append((self.single_point_crossover, ()))
+                    elif subcrossover == 'subtree':
+                        scs.append((self.subtree_crossover, ()))
+                    else:
+                        raise ValueError('Invalid crossover type.')
+                self.crossover_method_args = (ct[1], tuple(scs))
             else:
                 raise ValueError('Invalid crossover type.')
 
@@ -395,6 +412,22 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         # noinspection PyArgumentList
         return self.crossover_method(o1, o2, *self.crossover_method_args)
 
+    def variable_crossover(self, o1, o2, crossover_pref_change_prob,
+                           crossover_methods):
+        xover_pref = o1.get_data('xover-pref')
+        if xover_pref is None:
+            xover_pref = self.generator.randrange(len(crossover_methods))
+
+        xover_method, args = crossover_methods[xover_pref]
+        offsprings = xover_method(o1, o2, *args)
+        for o in offsprings:
+            if self.generator.random() < crossover_pref_change_prob:
+                o.set_data('xover-pref',
+                           self.generator.randrange(len(crossover_methods)))
+            else:
+                o.set_data('xover-pref', xover_pref)
+        return offsprings
+
     # noinspection PyUnusedLocal
     def single_point_crossover(self, o1, o2, *args):
         if not isinstance(o1, evo.ge.support.CodonGenotypeIndividual):
@@ -505,14 +538,25 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         if not isinstance(individual, evo.ge.support.CodonGenotypeIndividual):
             raise TypeError('Individual must be of type '
                             'CodonGenotypeIndividual.')
-        mutated = False
-        for i in range(individual.get_codon_num()):
-            r = self.generator.random()
-            if r < self.mutation_prob:
+        if self.mutation_prob == 0:
+            return
+        if self.mutation_prob == 1:
+            for i in range(individual.get_codon_num()):
                 new_codon = self.generator.randrange(individual.
                                                      get_max_codon_value())
                 individual.set_codon(i, new_codon)
-                mutated = True
+            individual.set_fitness(None)
+
+        mutated = False
+        k = math.floor(math.log10(1 - self.generator.random()) /
+                       math.log10(1 - self.mutation_prob))
+        while k < individual.get_codon_num():
+            new_codon = self.generator.randrange(individual.
+                                                 get_max_codon_value())
+            individual.set_codon(k, new_codon)
+            mutated = True
+            k += math.floor(math.log10(1 - self.generator.random()) /
+                            math.log10(1 - self.mutation_prob))
         if mutated:
             individual.set_fitness(None)
 

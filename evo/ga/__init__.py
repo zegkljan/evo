@@ -27,11 +27,11 @@ class VectorIndividual(evo.Individual):
 
         self.genotype = list(genotype)
         self.fitness = fitness
-        self.data = data
+        self._data = data
 
     def __repr__(self, *args, **kwargs):
         return ('evo.ga.VectorIndividual(' + repr(self.genotype) + ', ' +
-                repr(self.fitness) + ', ' + repr(self.data) + ')')
+                repr(self.fitness) + ', ' + repr(self._data) + ')')
 
     def __str__(self):
         return str(self.genotype)

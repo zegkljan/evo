@@ -367,12 +367,14 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
                                                    evo.Fitness.
                                                    COMPARE_TOURNAMENT)
         if self.population_sorted:
+            self.test_bsf(self.population[0])
             return self.population[0:self.elites_num]
 
         cmp = lambda a, b: self.fitness.compare(a, b, evo.Fitness.
                                                 COMPARE_TOURNAMENT)
         sorted_population = sorted(self.population,
                                    key=functools.cmp_to_key(cmp))
+        self.test_bsf()
         return sorted_population[0:self.elites_num]
 
     def select_tournament(self, population, size, inverse=False, sorted_=True):

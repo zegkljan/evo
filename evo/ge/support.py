@@ -7,6 +7,7 @@ import random
 import fractions
 
 import evo
+import evo.utils.grammar
 import evo.utils.random
 
 __author__ = 'Jan Žegklitz'
@@ -214,8 +215,10 @@ class RandomWalkInitializer(evo.IndividualInitializer):
                                  min_depth=self.min_depth,
                                  max_depth=self.max_depth,
                                  sequence=sequence)
-        return CodonGenotypeIndividual(sequence,
-                                       self.max_choices)
+        individual = CodonGenotypeIndividual(sequence, self.max_choices)
+        # individual.set_data('init-text',
+        #                     evo.utils.grammar.derivation_tree_to_text(_[0]))
+        return individual
 
 
 class RampedHalfHalfInitializer(evo.PopulationInitializer):

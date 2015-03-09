@@ -425,7 +425,7 @@ class Grammar(object):
         return None
 
     def to_tree(self, decisions, max_wraps, min_depth=None, max_depth=None,
-                sequence=None):
+                sequence=None, adapt_sequence=True):
         """From the given input decisions generates an output in the form of a
         derivation tree.
 
@@ -482,6 +482,9 @@ class Grammar(object):
         :param sequence: if not ``None`` then each generated decision (before
             taking the modulo value) will be appended (using the ``append()``
             method) to this sequence
+        :param bool adapt_sequence: specifies whether the decisions should be
+            adapted to fit the chosen expansion in case of rescricted choice set
+            (i.e. when under ``min_depth`` of above ``max_depth``)
         :return: a 5-tuple as described above
         """
         if min_depth is None:
@@ -550,6 +553,16 @@ class Grammar(object):
                         choice_idx = decision % rule.get_choices_num()
                     choice = rule.get_choice(choice_idx)
                     if sequence is not None:
+                        if (choice_idx != decision % rule.get_choices_num() and
+                                adapt_sequence):
+                            correction = (decision % rule.get_choices_num() -
+                                          choice_idx)
+                            if correction < 0:
+                                correction += rule.get_choices_num()
+                            decision -= correction
+                            if decision < 0:
+                                decision += rule.get_choices_num()
+
                         sequence.append(decision)
                     rules_stack.append(None)
                     n += 1

@@ -260,7 +260,12 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         self.population = []
         self.population_sorted = False
         self.bsf = None
+
         self.iterations = 0
+        """
+        The number of elapsed iterations of the algorithm (either generations
+        in the generational mode or just iterations in the steady-state mode).
+        """
 
     def run(self):
         """Runs the GE algorithm.

@@ -12,7 +12,6 @@ import evo.ge
 import evo.utils.tree
 import evo.utils.grammar
 
-
 __author__ = 'Jan Žegklitz'
 
 
@@ -34,17 +33,13 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
     MULTIGENE_START = 'multigene-start'
     GENE = 'gene'
 
-    def __init__(self, grammar, max_genes, unfinished_fitness, features, target,
-                 wraps=0, skip_if_evaluated=True):
+    def __init__(self, grammar, max_genes, unfinished_fitness, target, wraps=0,
+                 skip_if_evaluated=True):
         """
         :param grammar: the base grammar
         :param max_genes: maximum number of genes
         :param unfinished_fitness: fitness to assign to individuals that did not
             finished transcription
-        :param features: feature values of the datapoints: an N x M matrix where
-            N is the number of datapoints and M is the number of features of the
-            datapoints
-        :type features: :class:`numpy.ndarray` or :class:`numpy.matrix`
         :param target: target values of the datapoints: an N x 1 matrix where N
             is the number of datapoints
         :param wraps: number of times the wrapping (reusing the codon sequence
@@ -55,18 +50,19 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
         evo.ge.GeTreeFitness.__init__(
             self, MultiGeneGeSrFitness.encapsulate_grammar(grammar, max_genes),
             unfinished_fitness, wraps, skip_if_evaluated)
-        self.features = numpy.matrix(features, copy=False)
         self.target = numpy.matrix(target, copy=False)
 
     def evaluate_phenotype(self, phenotype, individual):
-        # noinspection PyTypeChecker
-        metafeatures = numpy.matlib.ones((self.features.shape[0],
-                                          len(phenotype) + 1))
+        metafeatures = None
         gene_trees = []
         i = 1
         for gene_tree, subphenotype in phenotype:
             gene_trees.append(gene_tree)
-            result = numpy.apply_along_axis(subphenotype, 1, self.features)
+            result = self.apply_gene_phenotype(subphenotype)
+            if metafeatures is None:
+                # noinspection PyTypeChecker
+                metafeatures = numpy.matlib.ones((result.shape[0],
+                                                  len(phenotype) + 1))
             metafeatures[:, i] = numpy.asmatrix(result).T
             i += 1
 
@@ -82,8 +78,19 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
         #                                                         weights2[0])
         # target_estimate2 = numpy.apply_along_axis(compound_phenotype, 1,
         #                                           self.features)
-        individual.data = {'weights': list(weights)}
+        individual.set_data('weights', list(numpy.asarray(weights).squeeze()))
         return (error.T * error)[0, 0]
+
+    def apply_gene_phenotype(self, phenotype):
+        """Applies the given phenotype to get its "metafeature".
+
+        This method is responsible for applying the given phenotype of one gene
+        to some data and return the output.
+
+        :param phenotype: the phenotype to apply
+        :return: a column vector of computed values
+        """
+        raise NotImplementedError()
 
     def parse_derivation_tree(self, derivation_tree):
         assert derivation_tree.data == MultiGeneGeSrFitness.MULTIGENE_START

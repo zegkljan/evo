@@ -5,6 +5,8 @@
 import functools
 import random
 import fractions
+import numbers
+import math
 
 import evo
 import evo.utils.grammar
@@ -178,8 +180,20 @@ class RandomWalkInitializer(evo.IndividualInitializer):
             all choices numbers to get a higher maximum codon value (default
             is 1, i.e. maximum codon value will be the LCM of numbers of all
             choices in the grammar)
+        :keyword extra_codons: The number of how many (randomly generated)
+            codons should be appended to the genotype after those needed for
+            full expansion (a tail).
+
+            If the number is an integral number then it specifies the tail size
+            absolutely. If the number is a decimal number then the tail size is
+            determined by multiplying the length of the effective part of the
+            genotype by this number (rounded up). E.g. the value of ``10``
+            produces tails of length 10, the value of ``0.3`` and the effective
+            genotype length of 10 produces a tail of length 3.
+
+            Default value is 0.
         :return: a randomly generated individual
-        :rtype: :class:`DerivationTreeIndividual`
+        :rtype: :class:`CodonGenotypeIndividual`
         """
         evo.IndividualInitializer.__init__(self)
 
@@ -201,6 +215,15 @@ class RandomWalkInitializer(evo.IndividualInitializer):
         if 'multiplier' in kwargs:
             self.multiplier = kwargs['multiplier']
 
+        self.extra_codons = 0
+        if 'extra_codons' in kwargs:
+            self.extra_codons = kwargs['extra_codons']
+
+        if isinstance(self.extra_codons, numbers.Integral):
+            self.tail_length = lambda _: self.extra_codons
+        else:
+            self.tail_length = lambda l: math.ceil(l * self.extra_codons)
+
         choice_nums = [r.get_choices_num() for r in grammar.get_rules()]
         m = functools.reduce(lambda a, b: a * b // fractions.gcd(a, b),
                              choice_nums)
@@ -210,12 +233,16 @@ class RandomWalkInitializer(evo.IndividualInitializer):
         iterator = evo.utils.random.RandomIntIterable(
             -1, -1, 0, self.max_choices - 1, generator=self.generator)
         sequence = []
-        _ = self.grammar.to_tree(decisions=iterator,
-                                 max_wraps=0,
-                                 min_depth=self.min_depth,
-                                 max_depth=self.max_depth,
-                                 sequence=sequence)
+        (_, _, _, _,
+         annotations) = self.grammar.to_tree(decisions=iterator,
+                                             max_wraps=0,
+                                             min_depth=self.min_depth,
+                                             max_depth=self.max_depth,
+                                             sequence=sequence)
+        for _ in range(self.tail_length(len(sequence))):
+            sequence.append(iterator.__next__())
         individual = CodonGenotypeIndividual(sequence, self.max_choices)
+        individual.set_annotations(annotations)
         # individual.set_data('init-text',
         #                     evo.utils.grammar.derivation_tree_to_text(_[0]))
         return individual
@@ -249,10 +276,25 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
         :type generator: :class:`random.Random` or ``None``
         :keyword int min_depth: starting minimum depth of the derivation
             trees; if ``None`` or not set default value of 1 is used
-        :keyword multiplier: number which will be used to multiply the LCM of
-            all choices numbers to get a higher maximum codon value (default
+        :keyword int multiplier: number which will be used to multiply the LCM
+            of all choices numbers to get a higher maximum codon value (default
             is 1, i.e. maximum codon value will be the LCM of numbers of all
             choices in the grammar)
+        :keyword extra_codons: The number of how many (randomly generated)
+            codons should be appended to the genotype after those needed for
+            full expansion (a tail).
+
+            If the number is an integral number then it specifies the tail size
+            absolutely. If the number is a decimal number then the tail size is
+            determined by multiplying the length of the effective part of the
+            genotype by this number (rounded up). E.g. the value of ``10``
+            produces tails of length 10, the value of ``0.3`` and the effective
+            genotype length of 10 produces a tail of length 3.
+
+            Default value is 0.
+        :keyword int max_tries: the maximum number of attempts to recreate a new
+            individual if an identical one (in the dervivation tree, not the
+            codons) is already in the population (default is 100)
         """
         super().__init__()
 
@@ -273,10 +315,19 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
         if 'multiplier' in kwargs:
             self.multiplier = kwargs['multiplier']
 
+        self.extra_codons = 0
+        if 'extra_codons' in kwargs:
+            self.extra_codons = kwargs['extra_codons']
+
+        self.max_tries = 100
+        if 'max_tries' in kwargs:
+            self.max_tries = kwargs['max_tries']
+
     def initialize(self, pop_size):
         initializer = RandomWalkInitializer(self.grammar,
                                             generator=self.generator,
-                                            multiplier=self.multiplier)
+                                            multiplier=self.multiplier,
+                                            extra_codons=self.extra_codons)
         levels_num = self.max_depth - self.min_depth + 1
         individuals_per_setup = pop_size // (2 * levels_num)
         remainder = pop_size - individuals_per_setup * 2 * levels_num
@@ -286,6 +337,7 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
         remainder_setups.sort(reverse=True)
 
         pop = []
+        annotations_set = set()
         for d in range(levels_num):
             max_depth = self.min_depth + d
             initializer.max_depth = max_depth
@@ -296,10 +348,22 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
             # grow
             initializer.min_depth = 0
             for _ in range(individuals_per_setup + g):
-                pop.append(initializer.initialize())
+                ind = initializer.initialize()
+                tries = self.max_tries
+                while ind.get_annotations() in annotations_set and tries >= 0:
+                    ind = initializer.initialize()
+                    tries -= 1
+                annotations_set.add(ind.get_annotations())
+                pop.append(ind)
 
             # full
             initializer.min_depth = max_depth
             for _ in range(individuals_per_setup + f):
-                pop.append(initializer.initialize())
+                ind = initializer.initialize()
+                tries = self.max_tries
+                while ind.get_annotations() in annotations_set and tries >= 0:
+                    ind = initializer.initialize()
+                    tries -= 1
+                annotations_set.add(ind.get_annotations())
+                pop.append(ind)
         return pop

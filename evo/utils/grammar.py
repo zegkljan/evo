@@ -589,10 +589,7 @@ class Grammar(object):
                     if tree_stack:
                         tree_stack[-1][1] += 1
 
-        if len(tree_stack) == 0:
-            return tree, True, n, wraps, annots
-        else:
-            return tree, False, n, wraps, annots
+        return tree, len(tree_stack) == 0, n, wraps, tuple(annots)
 
     def to_text(self, decisions, max_wraps):
         """From the given input decisions generates an output in the form of a
@@ -668,10 +665,7 @@ class Grammar(object):
                 assert isinstance(rule, Terminal)
                 text.append(rule.text)
 
-        if len(rules_stack) == 0:
-            return ''.join(text), True, n, wraps, annots
-        else:
-            return ''.join(text), False, n, wraps, annots
+        return ''.join(text), len(rules_stack) == 0, n, wraps, tuple(annots)
 
     def derivation_tree_to_choice_sequence(self, tree_root):
         """Converts the given derivation tree on this grammar to a list of

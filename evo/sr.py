@@ -6,6 +6,7 @@ import numpy
 import numpy.linalg
 import numpy.matlib
 import copy
+import functools
 
 import evo
 import evo.ge
@@ -33,8 +34,8 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
     MULTIGENE_START = 'multigene-start'
     GENE = 'gene'
 
-    def __init__(self, grammar, max_genes, unfinished_fitness, target, wraps=0,
-                 skip_if_evaluated=True):
+    def __init__(self, grammar, max_genes, unfinished_fitness, error_fitness,
+                 handled_errors, target, wraps=0, skip_if_evaluated=True):
         """
         :param grammar: the base grammar
         :param max_genes: maximum number of genes
@@ -50,7 +51,10 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
         evo.ge.GeTreeFitness.__init__(
             self, MultiGeneGeSrFitness.encapsulate_grammar(grammar, max_genes),
             unfinished_fitness, wraps, skip_if_evaluated)
+        self.error_fitness = error_fitness
         self.target = numpy.matrix(target, copy=False)
+        self.errors = tuple([ZeroDivisionError, FloatingPointError] +
+                            handled_errors)
 
     def evaluate_phenotype(self, phenotype, individual):
         metafeatures = None
@@ -58,7 +62,10 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
         i = 1
         for gene_tree, subphenotype in phenotype:
             gene_trees.append(gene_tree)
-            result = self.apply_gene_phenotype(subphenotype)
+            try:
+                result = self.apply_gene_phenotype(subphenotype)
+            except self.errors as e:
+                return self.error_fitness
             if metafeatures is None:
                 # noinspection PyTypeChecker
                 metafeatures = numpy.matlib.ones((result.shape[0],
@@ -66,8 +73,14 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
             metafeatures[:, i] = numpy.asmatrix(result).T
             i += 1
 
-        weights = (numpy.linalg.pinv(metafeatures.T * metafeatures) *
-                   metafeatures.T * self.target)
+        if numpy.any(numpy.logical_or(numpy.isinf(metafeatures),
+                                      numpy.isnan(metafeatures))):
+            return self.error_fitness
+        try:
+            weights = (numpy.linalg.pinv(metafeatures.T * metafeatures) *
+                       metafeatures.T * self.target)
+        except numpy.linalg.linalg.LinAlgError:
+            return self.error_fitness
         target_estimate = metafeatures * weights
         error = self.target - target_estimate
         # just in case we need to check whether the target estimate corresponds
@@ -125,11 +138,8 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
         raise NotImplementedError()
 
     def sort(self, population, reverse=False, *args):
-        return False
-        # def compare(i1, i2):
-        #     return
-        #
-        # compare = lambda i1, i2: i2.get_fitness()!!!!
+        population.sort(key=functools.cmp_to_key(self.compare))
+        return True
 
     def compare(self, i1, i2, *args):
         f1 = i1.get_fitness()
@@ -220,3 +230,185 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
         grammar_dict['start-rule'] = MultiGeneGeSrFitness.MULTIGENE_START
 
         return grammar_dict
+
+
+class MultiGeneGe(evo.ge.Ge):
+    """This class represents the GE algorithm modified to work in the multi-gene
+    genetic programming (MGGP) fashion.
+    """
+    def __init__(self, fitness, pop_size, population_initializer, grammar, mode,
+                 stop, name=None, **kwargs):
+        """The constructor is identical to the one of :class:`evo.ge.Ge` except
+        for the ``crossover_type`` keyword argument which is extended as
+        described below.
+
+        The ``crossover_type`` keyword argument can have these additional
+        values:
+
+            * ``('cr-high-level', gene_rule, crossover_rate, g_max)`` - the
+              rate-based high-level crossover (exchanges whole genes between
+              individuals); ``gene_rule`` is expected to be the name of the rule
+              which encapsulates the genes, ``crossover_rate`` is expected to be
+              the probability of a gene being selected for crossover and
+              ``g_max`` is the maximum number of genes
+            * ``('low-level', hl_rules)`` - the low-level crossover (exchanges
+              parts of two genes); the ``hl_rules`` is expected to be an
+              iterable of names of rules which are on the "high" level
+            * ``('probabilistic', (prob, method1), (prob, method2), ...)`` -
+              a so-called probabilistic crossover - it is composed of multiple
+              crossover methods (``method1``, ``method2`` etc.), exactly as
+              described by other possible values of the ``crossover_type``
+              argument (including those in the superclass' constructor), where
+              each of the particular crossover methods as a probability
+              (``prob``) of being performed. If the probabilities do not sum up
+              to 1 they will be scaled so that they do.
+
+        .. seealso: :class:`evo.ge.Ge`
+        """
+        super().__init__(fitness, pop_size, population_initializer, grammar,
+                         mode, stop, name, **kwargs)
+
+    def setup_crossover(self, crossover_type):
+        if crossover_type[0] == 'cr-high-level':
+            return self.cr_high_level_crossover, (crossover_type[1],
+                                                  crossover_type[2],
+                                                  crossover_type[3])
+        elif crossover_type[0] == 'low-level':
+            return self.low_level_crossover, (crossover_type[1], )
+        elif crossover_type[0] == 'probabilistic':
+            crossover_method = self.probabilistic_crossover
+            probs_methods = []
+            for prob, subcrossover in crossover_type[1:]:
+                cm, cma = self.setup_crossover(subcrossover)
+                if not probs_methods:
+                    probs_methods.append([prob, (cm, cma)])
+                else:
+                    probs_methods.append([probs_methods[-1][0] + prob,
+                                          (cm, cma)])
+            for i in range(len(probs_methods)):
+                probs_methods[i][0] = probs_methods[i][0] / probs_methods[-1][0]
+
+            crossover_method_args = (tuple(probs_methods), )
+            return crossover_method, crossover_method_args
+        else:
+            return super().setup_crossover(crossover_type)
+
+    def cr_high_level_crossover(self, o1, o2, gene_rule, crossover_rate, g_max):
+        """Performs the rate based high level crossover between the two parents.
+        """
+        if not isinstance(o1, evo.ge.support.CodonGenotypeIndividual):
+            raise TypeError('Parent must be of type CodonGenotypeIndividual.')
+        if not isinstance(o2, evo.ge.support.CodonGenotypeIndividual):
+            raise TypeError('Parent must be of type CodonGenotypeIndividual.')
+
+        if not o1.get_annotations() or not o2.get_annotations():
+            return []
+
+        g1 = o1.genotype
+        g2 = o2.genotype
+
+        if len(g1) == len(g2) == 1:
+            return [o1, o2]
+
+        a1 = list(enumerate(o1.get_annotations()))
+        a2 = list(enumerate(o2.get_annotations()))
+        fa1 = list(filter(lambda x: self._cr_hl_xover_filter(gene_rule,
+                                                             crossover_rate, x),
+                          a1))
+        fa2 = list(filter(lambda x: self._cr_hl_xover_filter(gene_rule,
+                                                             crossover_rate, x),
+                          a2))
+
+        if not fa1 and not fa2:
+            return [o1, o2]
+
+        assert g1, g1
+        assert g2, g2
+
+        g1_num = g1[0] % g_max + 1
+        g2_num = g2[0] % g_max + 1
+        g1_num_diff = len(fa2) - len(fa1)
+        g2_num_diff = len(fa1) - len(fa2)
+
+        g1_genes = []
+        g1_annots = []
+        for i, a in reversed(fa1):
+            g1_genes = g1[i:i + a[1]] + g1_genes
+            g1_annots = a1[i:i + a[1]] + g1_annots
+            del g1[i:i + a[1]]
+            del a1[i:i + a[1]]
+
+        g2_genes = []
+        g2_annots = []
+        for i, a in reversed(fa2):
+            g2_genes = g2[i:i + a[1]] + g2_genes
+            g2_annots = a2[i:i + a[1]] + g2_annots
+            del g2[i:i + a[1]]
+            del a2[i:i + a[1]]
+
+        g1 += g2_genes
+        g2 += g1_genes
+
+        a1 += g2_annots
+        a2 += g1_annots
+
+        g1_delete = max(0, g1_num + g1_num_diff - g_max)
+        g2_delete = max(0, g2_num + g2_num_diff - g_max)
+
+        ga1 = list(filter(lambda x: x[1] is not None and x[1][0] == gene_rule,
+                          a1))
+        ga2 = list(filter(lambda x: x[1] is not None and x[1][0] == gene_rule,
+                          a2))
+
+        for i, a in self.generator.sample(ga1, g1_delete):
+            del g1[i:i + a[1]]
+            del a1[i:i + a[1]]
+
+        for i, a in self.generator.sample(ga2, g2_delete):
+            del g2[i:i + a[1]]
+            del a2[i:i + a[1]]
+
+        g1[0] += g1_num_diff - g1_delete + g_max
+        if g1[0] > o1.get_max_codon_value():
+            g1[0] -= g_max
+
+        g2[0] += g2_num_diff - g2_delete + g_max
+        if g2[0] > o2.get_max_codon_value():
+            g2[0] -= g_max
+
+        o1.set_annotations(None)
+        o2.set_annotations(None)
+
+        o1.set_fitness(None)
+        o2.set_fitness(None)
+        return [o1, o2]
+
+    def _cr_hl_xover_filter(self, gene_rule, crossover_rate, i_annot):
+        return (i_annot[1] is not None and i_annot[1][0] == gene_rule and
+                self.generator.random() < crossover_rate)
+
+    def low_level_crossover(self, o1, o2, hl_rules):
+        if not isinstance(o1, evo.ge.support.CodonGenotypeIndividual):
+            raise TypeError('Parent must be of type CodonGenotypeIndividual.')
+        if not isinstance(o2, evo.ge.support.CodonGenotypeIndividual):
+            raise TypeError('Parent must be of type CodonGenotypeIndividual.')
+
+        a1 = list(map(lambda x: (None if x is not None and x[0] in hl_rules
+                                 else x),
+                      o1.get_annotations()))
+        a2 = list(map(lambda x: (None if x is not None and x[0] in hl_rules
+                                 else x),
+                      o2.get_annotations()))
+        o1.set_annotations(None)
+        o2.set_annotations(None)
+
+        return super().subtree_crossover(o1, o2)
+
+    def probabilistic_crossover(self, o1, o2, probs_methods):
+        r = self.generator.random()
+        method = None
+        for p, m in probs_methods:
+            method = m
+            if p >= r:
+                break
+        return method[0](o1, o2, *method[1])

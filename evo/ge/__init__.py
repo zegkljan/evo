@@ -178,26 +178,8 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         self.crossover_method = self.single_point_crossover
         self.crossover_method_args = ()
         if 'crossover_type' in kwargs and kwargs['crossover_type'] is not None:
-            ct = kwargs['crossover_type']
-            if ct == 'ripple':
-                self.crossover_method = self.single_point_crossover
-                self.crossover_method_args = ()
-            elif ct == 'subtree':
-                self.crossover_method = self.subtree_crossover
-                self.crossover_method_args = ()
-            elif ct[0] == 'variable':
-                self.crossover_method = self.variable_crossover
-                scs = []
-                for subcrossover in ct[2]:
-                    if subcrossover == 'ripple':
-                        scs.append((self.single_point_crossover, ()))
-                    elif subcrossover == 'subtree':
-                        scs.append((self.subtree_crossover, ()))
-                    else:
-                        raise ValueError('Invalid crossover type.')
-                self.crossover_method_args = (ct[1], tuple(scs))
-            else:
-                raise ValueError('Invalid crossover type.')
+            self.crossover_method, self.crossover_method_args =\
+                self.setup_crossover(kwargs['crossover_type'])
 
         self.mutation_prob = 0.1
         if 'mutation_prob' in kwargs:
@@ -266,6 +248,26 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         The number of elapsed iterations of the algorithm (either generations
         in the generational mode or just iterations in the steady-state mode).
         """
+
+    def setup_crossover(self, crossover_type):
+        """Helper method for the constructor which sets up the crossover method.
+        """
+        if crossover_type == 'ripple':
+            crossover_method = self.single_point_crossover
+            crossover_method_args = ()
+        elif crossover_type == 'subtree':
+            crossover_method = self.subtree_crossover
+            crossover_method_args = ()
+        elif crossover_type[0] == 'variable':
+            crossover_method = self.variable_crossover
+            scs = []
+            for subcrossover in crossover_type[2]:
+                cm, cma = self.setup_crossover(subcrossover)
+                scs.append((cm, cma))
+            crossover_method_args = (crossover_type[1], tuple(scs))
+        else:
+            raise ValueError('Invalid crossover type.')
+        return crossover_method, crossover_method_args
 
     def run(self):
         """Runs the GE algorithm.
@@ -466,6 +468,9 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         assert o1.genotype, (o1.genotype, g1, g2, point1, point2)
         assert o2.genotype, (o2.genotype, g1, g2, point1, point2)
 
+        o1.set_annotations(None)
+        o2.set_annotations(None)
+
         o1.set_fitness(None)
         o2.set_fitness(None)
         return [o1, o2]
@@ -526,10 +531,12 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
 
         a1 = o1.get_annotations()
         a2 = o2.get_annotations()
-        o1.set_annotations(a1[:point1] + a2[point2:point2 + l2] +
-                           a1[point1 + l1:])
-        o2.set_annotations(a2[:point2] + a1[point1:point1 + l1] +
-                           a2[point2 + l2:])
+        # o1.set_annotations(a1[:point1] + a2[point2:point2 + l2] +
+        #                    a1[point1 + l1:])
+        # o2.set_annotations(a2[:point2] + a1[point1:point1 + l1] +
+        #                    a2[point2 + l2:])
+        o1.set_annotations(None)
+        o2.set_annotations(None)
 
         assert o1.genotype, (o1.genotype, g1, g2, point1, point2)
         assert o2.genotype, (o2.genotype, g1, g2, point1, point2)

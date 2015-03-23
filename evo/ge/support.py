@@ -343,7 +343,13 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
             initializer.max_depth = max_depth
             g, f = 0, 0
             if remainder_setups and remainder_setups[-1][0] == d:
-                _, g, f = remainder_setups.pop()
+                _, g_, f_ = remainder_setups.pop()
+                g += g_
+                f += f_
+            if remainder_setups and remainder_setups[-1][0] == d:
+                _, g_, f_ = remainder_setups.pop()
+                g += g_
+                f += f_
 
             # grow
             initializer.min_depth = 0

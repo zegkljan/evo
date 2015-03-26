@@ -250,18 +250,20 @@ class GrammarTest(unittest.TestCase):
         numNode5.children = [termNode6]
         termNode6.children = None
 
-        out = g.to_tree([0, 1, 3, 0, 1, 0, 5, 11], max_wraps=0)
-        self.assertEqual(startNode.__str__(), out[0].__str__())
-        self.assertEqual(True, out[1])
-        self.assertEqual(7, out[2])
-        self.assertEqual(0, out[3])
-        self.assertEqual([('expr', 7),
+        (derivation_tree, finished,
+         used_num, wraps, annotations) = g.to_tree([0, 1, 3, 0, 1, 0, 5, 11],
+                                                   max_wraps=0)
+        self.assertEqual(startNode.__str__(), derivation_tree.__str__())
+        self.assertEqual(True, finished)
+        self.assertEqual(7, used_num)
+        self.assertEqual(0, wraps)
+        self.assertEqual((('expr', 7),
                           ('num', 2),
                           ('num', 1),
                           ('op', 1),
                           ('num', 3),
                           ('num', 2),
-                          ('num', 1)], out[4])
+                          ('num', 1)), annotations)
 
     def test_to_tree2(self):
         grammar_dict = {'start-rule': 'start',
@@ -313,12 +315,13 @@ class GrammarTest(unittest.TestCase):
         opNode.children = []
         numNode3.children = []
 
-        out = g.to_tree([0, 1, 3], max_wraps=0)
-        self.assertEqual(startNode.__str__(), out[0].__str__())
-        self.assertEqual(False, out[1])
-        self.assertEqual(3, out[2])
-        self.assertEqual(0, out[3])
-        self.assertIsNone(out[4])
+        (derivation_tree, finished,
+         used_num, wraps, annotations) = g.to_tree([0, 1, 3], max_wraps=0)
+        self.assertEqual(startNode.__str__(), derivation_tree.__str__())
+        self.assertEqual(False, finished)
+        self.assertEqual(3, used_num)
+        self.assertEqual(0, wraps)
+        self.assertEqual((None, ('num', 2), ('num', 1)), annotations)
 
     def test_to_tree3(self):
         grammar_dict = {'start-rule': '<E>',
@@ -344,12 +347,13 @@ class GrammarTest(unittest.TestCase):
         moveNode.children = None
         eNode3.children = []
 
-        out = g.to_tree([3, 0], max_wraps=0)
-        self.assertEqual(eNode1.__str__(), out[0].__str__())
-        self.assertEqual(False, out[1])
-        self.assertEqual(2, out[2])
-        self.assertEqual(0, out[3])
-        self.assertIsNone(out[4])
+        (derivation_tree, finished,
+         used_num, wraps, annotations) = g.to_tree([3, 0], max_wraps=0)
+        self.assertEqual(eNode1.__str__(), derivation_tree.__str__())
+        self.assertEqual(False, finished)
+        self.assertEqual(2, used_num)
+        self.assertEqual(0, wraps)
+        self.assertEqual((None, ('<E>', 1)), annotations)
 
     def test_to_text(self):
         grammar_dict = {'start-rule': 'start',
@@ -382,18 +386,20 @@ class GrammarTest(unittest.TestCase):
                         }
         g = grammar.Grammar(grammar_dict)
 
-        out = g.to_text([0, 1, 3, 0, 1, 0, 5, 11], max_wraps=0)
-        self.assertEqual('10+102', out[0])
-        self.assertEqual(True, out[1])
-        self.assertEqual(7, out[2])
-        self.assertEqual(0, out[3])
-        self.assertEqual([('expr', 7),
+        (text, finished,
+         used_num, wraps, annotations) = g.to_text([0, 1, 3, 0, 1, 0, 5, 11],
+                                                   max_wraps=0)
+        self.assertEqual('10+102', text)
+        self.assertEqual(True, finished)
+        self.assertEqual(7, used_num)
+        self.assertEqual(0, wraps)
+        self.assertEqual((('expr', 7),
                           ('num', 2),
                           ('num', 1),
                           ('op', 1),
                           ('num', 3),
                           ('num', 2),
-                          ('num', 1)], out[4])
+                          ('num', 1)), annotations)
 
     def test_derivation_tree_to_text(self):
         # 10+102

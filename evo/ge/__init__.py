@@ -560,6 +560,7 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
                                                      get_max_codon_value())
                 individual.set_codon(i, new_codon)
             individual.set_fitness(None)
+            return
 
         mutated = False
         k = math.floor(math.log10(1 - self.generator.random()) /

@@ -804,9 +804,9 @@ class GeTreeFitness(GeFitness):
         return derivation_tree
 
     def make_phenotype(self, decoded, individual):
-        return self.parse_derivation_tree(decoded)
+        return self.parse_derivation_tree(decoded, individual)
 
-    def parse_derivation_tree(self, derivation_tree):
+    def parse_derivation_tree(self, derivation_tree, individual):
         raise NotImplementedError()
 
 

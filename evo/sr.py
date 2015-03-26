@@ -105,19 +105,21 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
         """
         raise NotImplementedError()
 
-    def parse_derivation_tree(self, derivation_tree):
+    def parse_derivation_tree(self, derivation_tree, individual):
         assert derivation_tree.data == MultiGeneGeSrFitness.MULTIGENE_START
         genes = [None] * len(derivation_tree.children)
         for i in range(len(derivation_tree.children)):
             gene_tree = derivation_tree.children[i]
-            genes[i] = (gene_tree, self.parse_gene_derivation_tree(gene_tree))
+            genes[i] = (gene_tree, self.parse_gene_derivation_tree(gene_tree,
+                                                                   individual))
         return genes
 
-    def parse_gene_derivation_tree(self, derivation_tree):
+    def parse_gene_derivation_tree(self, derivation_tree, individual):
         """Should return a callable object that takes the number of variables
         equal to the number of features and returns a scalar.
 
         :param derivation_tree: a derivation tree of a single gene
+        :param individual: a reference to the original individual
         """
         raise NotImplementedError()
 

@@ -435,5 +435,38 @@ class GrammarTest(unittest.TestCase):
 
         self.assertEqual('10+102', grammar.derivation_tree_to_text(startNode))
 
+    def test_get_minimum_expansion_depth(self):
+        with self.subTest('N -> terminal'):
+            grammar_dict = {'start-rule': 'N',
+                            'rules': {'N': [[('T', 'T')],
+                                            [('N', 'N')]]
+                                      }
+                            }
+            g = grammar.Grammar(grammar_dict)
+            self.assertEqual(1, g.get_minimum_expansion_depth())
+        with self.subTest('N1 -> N2 -> terminal'):
+            grammar_dict = {'start-rule': 'N1',
+                            'rules': {'N1': [[('N', 'N1')],
+                                             [('N', 'N2')]],
+                                      'N2': [[('N', 'N1')],
+                                             [('N', 'N2')],
+                                             [('T', 'T')]],
+                                      }
+                            }
+            g = grammar.Grammar(grammar_dict)
+            self.assertEqual(2, g.get_minimum_expansion_depth())
+        with self.subTest('N1 -> N2 + terminal -> terminal'):
+            grammar_dict = {'start-rule': 'N1',
+                            'rules': {'N1': [[('N', 'N1')],
+                                             [('T', 'T'), ('N', 'N2')]],
+                                      'N2': [[('N', 'N1')],
+                                             [('N', 'N2')],
+                                             [('T', 'T')]],
+                                      }
+                            }
+            g = grammar.Grammar(grammar_dict)
+            self.assertEqual(2, g.get_minimum_expansion_depth())
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -758,6 +758,33 @@ class Grammar(object):
         return functools.reduce(lambda a, b: a * b // fractions.gcd(a, b),
                                 choice_nums)
 
+    def get_minimum_expansion_depth(self):
+        """Returns the minimum depth of a derivation tree for an expansion to be
+        complete (i.e. all nonterminals were expanded to terminals)
+
+        :rtype: int
+        """
+        g_dict = self.to_dict()
+        closed = set()
+
+        def rule_min_depth(rule):
+            if rule in closed:
+                return float('inf')
+
+            closed.add(rule)
+            min_depths = []
+            for choice in rule.get_choices():
+                term_min_depths = []
+                for term in choice:
+                    if isinstance(term, Rule):
+                        term_min_depths.append(rule_min_depth(term) + 1)
+                    else:
+                        term_min_depths.append(1)
+                min_depths.append(max(term_min_depths))
+            return min(min_depths)
+
+        return rule_min_depth(self._start_rule)
+
 
 class GrammarBuildingError(Exception):
     def __init__(self, *args, **kwargs):

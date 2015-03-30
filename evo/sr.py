@@ -265,7 +265,7 @@ class MultiGeneGe(evo.ge.Ge):
               (``prob``) of being performed. If the probabilities do not sum up
               to 1 they will be scaled so that they do.
 
-        .. seealso: :class:`evo.ge.Ge`
+        .. seealso:: :class:`evo.ge.Ge`
         """
         super().__init__(fitness, pop_size, population_initializer, grammar,
                          mode, stop, name, **kwargs)

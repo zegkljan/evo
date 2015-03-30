@@ -104,7 +104,8 @@ class Fitness(object):
         returns ``None``.
 
         :param individual: individual to be evaluated
-        :see: :class:`.Individual`
+
+        .. seealso:: :class:`.Individual`
         """
         raise NotImplementedError()
 

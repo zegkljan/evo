@@ -275,7 +275,8 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
             performed instead
         :type generator: :class:`random.Random` or ``None``
         :keyword int min_depth: starting minimum depth of the derivation
-            trees; if ``None`` or not set default value of 1 is used
+            trees; if ``None`` or not set the
+            ``grammar.get_minimum_expansion_depth()`` is used
         :keyword int multiplier: number which will be used to multiply the LCM
             of all choices numbers to get a higher maximum codon value (default
             is 1, i.e. maximum codon value will be the LCM of numbers of all
@@ -293,8 +294,12 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
 
             Default value is 0.
         :keyword int max_tries: the maximum number of attempts to recreate a new
-            individual if an identical one (in the dervivation tree, not the
+            individual if an identical one (in the derivation tree, not the
             codons) is already in the population (default is 100)
+
+        .. seealso::
+
+            :meth:`evo.utils.grammar.Grammar.get_minimum_expansion_depth`
         """
         super().__init__()
 
@@ -305,7 +310,7 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
         if 'generator' in kwargs:
             self.generator = kwargs['generator']
 
-        self.min_depth = 1
+        self.min_depth = grammar.get_minimum_expansion_depth()
         if 'min_depth' in kwargs:
             self.min_depth = kwargs['min_depth']
             if self.min_depth > self.max_depth:

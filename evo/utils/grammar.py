@@ -216,9 +216,7 @@ class Rule(object):
         The representation is identical to an item in the "rules" dictionary
         described in :class:`.Grammar`.
 
-        .. seealso::
-
-            Constructor :class:`.Grammar`.
+        .. seealso:: Constructor of :class:`.Grammar`.
         """
         choices = []
         for c in self._choices:
@@ -404,7 +402,8 @@ class Grammar(object):
 
         :return: Dictionary describing the grammar.
         :rtype: :class:`dict`
-        :see: Constructor :class:`.Grammar`.
+
+        .. seealso:: Constructor of :class:`.Grammar`.
         """
         d = {}
         for rule in self._rules:
@@ -430,8 +429,8 @@ class Grammar(object):
         derivation tree.
 
         The derivation tree is represented by a tree formed by
-        :class:`evo.support.tree.TreeNode`s where the
-        :attr:`evo.support.tree.TreeNode.data` attribute's value is set to the
+        :class:`evo.utils.tree.TreeNode`\ s where the
+        :attr:`evo.utils.tree.TreeNode.data` attribute's value is set to the
         name of the corresponding rule for inner nodes and for leaves the
         attribute has the value of the corresponding terminal.
 
@@ -693,7 +692,7 @@ class Grammar(object):
         greater than 1.
 
         :param tree_root: the root node of the derivation tree
-        :type tree_root: :class:`evo.support.tree.TreeNode`
+        :type tree_root: :class:`evo.utils.tree.TreeNode`
         """
         choices = []
         max_choices = []

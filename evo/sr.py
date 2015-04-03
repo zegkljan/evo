@@ -7,6 +7,7 @@ import numpy.linalg
 import numpy.matlib
 import copy
 import functools
+import logging
 
 import evo
 import evo.ge
@@ -34,6 +35,8 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
     MULTIGENE_START = 'multigene-start'
     GENE = 'gene'
 
+    LOG = logging.getLogger(__name__ + '.MultiGeneGeSrFitness')
+
     def __init__(self, grammar, max_genes, unfinished_fitness, error_fitness,
                  handled_errors, target, wraps=0, skip_if_evaluated=True):
         """
@@ -57,14 +60,24 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
                             handled_errors)
 
     def evaluate_phenotype(self, phenotype, individual):
+        MultiGeneGeSrFitness.LOG.debug('Evaluating phenotype of individual %s',
+                                       individual.__str__())
         metafeatures = None
         gene_trees = []
         i = 1
         for gene_tree, subphenotype in phenotype:
+            MultiGeneGeSrFitness.LOG.debug(
+                'Evaluating subphenotype %s',
+                individual.get_data('expressions')[i - 1])
             gene_trees.append(gene_tree)
             try:
                 result = self.apply_gene_phenotype(subphenotype)
             except self.errors as e:
+                MultiGeneGeSrFitness.LOG.info('Error %s computing %d-th '
+                                              'metafeature of individual %s. '
+                                              'Setting fitness: %f', str(e),
+                                              i, individual.__str__(),
+                                              self.error_fitness)
                 return self.error_fitness
             if metafeatures is None:
                 # noinspection PyTypeChecker
@@ -75,11 +88,23 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
 
         if numpy.any(numpy.logical_or(numpy.isinf(metafeatures),
                                       numpy.isnan(metafeatures))):
+            MultiGeneGeSrFitness.LOG.info('NaN or inf in meatafeatures, '
+                                          'assigning fitness: %f',
+                                          self.error_fitness)
+            return self.error_fitness
+        MultiGeneGeSrFitness.LOG.debug('Computing weights.')
+        mult = metafeatures.T * metafeatures
+        if numpy.any(numpy.logical_or(numpy.isinf(mult),
+                                      numpy.isnan(mult))):
+            MultiGeneGeSrFitness.LOG.info('NaN or inf in meatafeatures.T * '
+                                          'metafeatures, assigning '
+                                          'fitness: %f', self.error_fitness)
             return self.error_fitness
         try:
             weights = (numpy.linalg.pinv(metafeatures.T * metafeatures) *
                        metafeatures.T * self.target)
-        except numpy.linalg.linalg.LinAlgError:
+        except numpy.linalg.linalg.LinAlgError as e:
+            MultiGeneGeSrFitness.LOG.exception(e)
             return self.error_fitness
         target_estimate = metafeatures * weights
         error = self.target - target_estimate
@@ -238,6 +263,9 @@ class MultiGeneGe(evo.ge.Ge):
     """This class represents the GE algorithm modified to work in the multi-gene
     genetic programming (MGGP) fashion.
     """
+
+    LOG = logging.getLogger(__name__ + '.MultiGeneGe')
+
     def __init__(self, fitness, pop_size, population_initializer, grammar, mode,
                  stop, name=None, **kwargs):
         """The constructor is identical to the one of :class:`evo.ge.Ge` except
@@ -302,6 +330,8 @@ class MultiGeneGe(evo.ge.Ge):
             raise TypeError('Parent must be of type CodonGenotypeIndividual.')
         if not isinstance(o2, evo.ge.support.CodonGenotypeIndividual):
             raise TypeError('Parent must be of type CodonGenotypeIndividual.')
+        MultiGeneGe.LOG.debug('CR high level crossover of individuals %s, %s',
+                              o1.__str__(), o2.__str__())
 
         if not o1.get_annotations() or not o2.get_annotations():
             return []
@@ -394,6 +424,8 @@ class MultiGeneGe(evo.ge.Ge):
             raise TypeError('Parent must be of type CodonGenotypeIndividual.')
         if not isinstance(o2, evo.ge.support.CodonGenotypeIndividual):
             raise TypeError('Parent must be of type CodonGenotypeIndividual.')
+        MultiGeneGe.LOG.debug('Low level crossover of individuals %s, %s',
+                              o1.__str__(), o2.__str__())
 
         a1 = list(map(lambda x: (None if x is not None and x[0] in hl_rules
                                  else x),
@@ -407,6 +439,8 @@ class MultiGeneGe(evo.ge.Ge):
         return super().subtree_crossover(o1, o2)
 
     def probabilistic_crossover(self, o1, o2, probs_methods):
+        MultiGeneGe.LOG.debug('Probabilistic crossover of individuals %s, %s',
+                              o1.__str__(), o2.__str__())
         r = self.generator.random()
         method = None
         for p, m in probs_methods:

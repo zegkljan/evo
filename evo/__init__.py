@@ -3,6 +3,7 @@
 """
 
 import copy
+import logging
 
 __author__ = 'Jan Žegklitz'
 
@@ -168,15 +169,19 @@ class PopulationInitializer(object):
 
 
 class SimplePopulationInitializer(PopulationInitializer):
+    LOG = logging.getLogger(__name__ + '.SimplePopulationInitializer')
 
     def __init__(self, individual_initializer):
         PopulationInitializer.__init__(self)
         self.individual_initializer = individual_initializer
 
     def initialize(self, pop_size):
+        SimplePopulationInitializer.LOG.info('Initializing population of size '
+                                              '%d', pop_size)
         population = []
         for _ in range(pop_size):
             population.append(self.individual_initializer.initialize())
+        SimplePopulationInitializer.LOG.info('Population initialized.')
         return population
 
 

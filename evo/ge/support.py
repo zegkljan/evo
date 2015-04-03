@@ -7,6 +7,7 @@ import random
 import fractions
 import numbers
 import math
+import logging
 
 import evo
 import evo.utils.grammar
@@ -260,6 +261,8 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
     initialized using randomly chosen setups (but each of them in a unique
     setup).
     """
+    LOG = logging.getLogger(__name__ + '.RampedHalfHalfInitializer')
+
     def __init__(self, grammar, max_depth, **kwargs):
         """Creates the initializer.
 
@@ -329,6 +332,8 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
             self.max_tries = kwargs['max_tries']
 
     def initialize(self, pop_size):
+        RampedHalfHalfInitializer.LOG.info('Initializing population of size '
+                                           '%d', pop_size)
         initializer = RandomWalkInitializer(self.grammar,
                                             generator=self.generator,
                                             multiplier=self.multiplier,
@@ -341,10 +346,18 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
             remainder)
         remainder_setups.sort(reverse=True)
 
+        RampedHalfHalfInitializer.LOG.info('%d levels', levels_num)
+        RampedHalfHalfInitializer.LOG.info('%d regular individuals per level',
+                                           individuals_per_setup)
+        RampedHalfHalfInitializer.LOG.info('%d remaining individuals',
+                                           len(remainder_setups))
+
         pop = []
         annotations_set = set()
         for d in range(levels_num):
             max_depth = self.min_depth + d
+            RampedHalfHalfInitializer.LOG.debug('Initializing %d. level; '
+                                                'max. depth = %d', d, max_depth)
             initializer.max_depth = max_depth
             g, f = 0, 0
             if remainder_setups and remainder_setups[-1][0] == d:
@@ -357,6 +370,9 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
                 f += f_
 
             # grow
+            RampedHalfHalfInitializer.LOG.debug('Initializing %d individuals '
+                                                'with grow method.',
+                                                individuals_per_setup + g)
             initializer.min_depth = 0
             for _ in range(individuals_per_setup + g):
                 ind = initializer.initialize()
@@ -368,6 +384,9 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
                 pop.append(ind)
 
             # full
+            RampedHalfHalfInitializer.LOG.debug('Initializing %d individuals '
+                                                'with full method.',
+                                                individuals_per_setup + g)
             initializer.min_depth = max_depth
             for _ in range(individuals_per_setup + f):
                 ind = initializer.initialize()

@@ -11,6 +11,7 @@ import multiprocessing.context
 import random
 import gc
 import math
+import logging
 
 import evo
 import evo.utils
@@ -24,6 +25,8 @@ __author__ = 'Jan Žegklitz'
 class Ge(evo.GeneticBase, multiprocessing.context.Process):
     """This class forms the whole GE algorithm.
     """
+
+    LOG = logging.getLogger(__name__ + '.Ge')
 
     class _GenerationsStop(object):
 
@@ -178,7 +181,7 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         self.crossover_method = self.single_point_crossover
         self.crossover_method_args = ()
         if 'crossover_type' in kwargs and kwargs['crossover_type'] is not None:
-            self.crossover_method, self.crossover_method_args =\
+            self.crossover_method, self.crossover_method_args = \
                 self.setup_crossover(kwargs['crossover_type'])
 
         self.mutation_prob = 0.1
@@ -272,6 +275,7 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
     def run(self):
         """Runs the GE algorithm.
         """
+        Ge.LOG.info('Starting algorithm.')
         try:
             self.population = self.population_initializer.initialize(
                 self.pop_size)
@@ -281,6 +285,7 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             elif self.mode == 'steady-state':
                 self._run_steady_state()
         finally:
+            Ge.LOG.info('Performing garbage collection.')
             gc.collect()
             try:
                 if self.stats is not None:
@@ -289,11 +294,14 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
                 pass
 
     def _run_generational(self):
+        Ge.LOG.info('Starting generational evolution.')
         while not self.stop(self):
+            Ge.LOG.info('Starting iteration %d', self.iterations)
             if self.callback is not None:
                 self.callback(self)
             elites = self.extract_elites()
 
+            Ge.LOG.debug('Processing selection.')
             others = []
             while True:
                 o1 = self.select_tournament(self.population,
@@ -322,9 +330,11 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
                 if self.pop_size - (len(others) + len(elites)) <= 0:
                     break
             self.population = elites + others
+            Ge.LOG.info('Finished iteration %d', self.iterations)
             self.iterations += 1
         if self.callback is not None:
             self.callback(self)
+        Ge.LOG.info('Finished generational evolution.')
 
     def _run_steady_state(self):
         self.population_sorted = self.fitness.sort(self.population, False,
@@ -360,13 +370,13 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         self.fitness.evaluate(individual)
         if self.bsf is None or self.fitness.compare(individual,
                                                     self.bsf,
-                                                    evo.Fitness.
-                                                    COMPARE_BSF):
+                                                    evo.Fitness.COMPARE_BSF):
             self.bsf = individual
             if self.stats is not None:
                 self.stats.save_bsf(self.iterations, self.bsf)
 
     def extract_elites(self):
+        Ge.LOG.debug('Extracting %d elites.', self.elites_num)
         if self.elites_num == 0:
             return []
 
@@ -377,11 +387,14 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             self.test_bsf(self.population[0])
             return self.population[0:self.elites_num]
 
+        Ge.LOG.debug('Population not sorted by fitness, using explicit '
+                     'sorting.')
         cmp = lambda a, b: self.fitness.compare(a, b, evo.Fitness.
                                                 COMPARE_TOURNAMENT)
         sorted_population = sorted(self.population,
                                    key=functools.cmp_to_key(cmp))
-        self.test_bsf()
+        self.test_bsf(sorted_population[0])
+        Ge.LOG.debug('Elites extracted.')
         return sorted_population[0:self.elites_num]
 
     def select_tournament(self, population, size, inverse=False, sorted_=True):
@@ -417,12 +430,14 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         """
         if self.generator.random() >= self.crossover_prob:
             return [o1, o2]
+        Ge.LOG.debug('Performing crossover of individuals %s, %s', o1, o2)
         assert self.crossover_method is not None
         # noinspection PyArgumentList
         return self.crossover_method(o1, o2, *self.crossover_method_args)
 
     def variable_crossover(self, o1, o2, crossover_pref_change_prob,
                            crossover_methods):
+        Ge.LOG.debug('Variable crossover of individuals %s, %s', o1, o2)
         xover_pref = o1.get_data('xover-pref')
         if xover_pref is None:
             xover_pref = self.generator.randrange(len(crossover_methods))
@@ -443,6 +458,7 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             raise TypeError('Parent must be of type CodonGenotypeIndividual.')
         if not isinstance(o2, evo.ge.support.CodonGenotypeIndividual):
             raise TypeError('Parent must be of type CodonGenotypeIndividual.')
+        Ge.LOG.debug('Ripple crossover of individuals %s, %s', o1, o2)
 
         g1 = o1.genotype
         g2 = o2.genotype
@@ -493,6 +509,7 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             raise TypeError('Parent must be of type CodonGenotypeIndividual.')
         if not isinstance(o2, evo.ge.support.CodonGenotypeIndividual):
             raise TypeError('Parent must be of type CodonGenotypeIndividual.')
+        Ge.LOG.debug('Subtree crossover of individuals %s, %s', o1, o2)
 
         if not o1.get_annotations() or not o2.get_annotations():
             return []
@@ -555,6 +572,7 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         if self.mutation_prob == 0:
             return
         if self.mutation_prob == 1:
+            Ge.LOG.debug('Mutating individual %s', individual.__str__())
             for i in range(individual.get_codon_num()):
                 new_codon = self.generator.randrange(individual.
                                                      get_max_codon_value())
@@ -566,6 +584,8 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         k = math.floor(math.log10(1 - self.generator.random()) /
                        math.log10(1 - self.mutation_prob))
         while k < individual.get_codon_num():
+            if not mutated:
+                Ge.LOG.debug('Mutating individual %s', individual.__str__())
             new_codon = self.generator.randrange(individual.
                                                  get_max_codon_value())
             individual.set_codon(k, new_codon)
@@ -581,6 +601,7 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
                             'CodonGenotypeIndividual.')
         if (individual.get_first_not_used() < individual.get_codon_num() and
                 self.generator.random() < self.prune_prob):
+            Ge.LOG.debug('Pruning individual %s', individual.__str__())
             individual.genotype = individual.genotype[:individual.
                                                       get_first_not_used()]
 
@@ -590,6 +611,7 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
                             'CodonGenotypeIndividual.')
         r = self.generator.random()
         if r < self.duplicate_prob:
+            Ge.LOG.debug('Duplicating individual %s', individual.__str__())
             pos = self.generator.randrange(individual.get_codon_num())
             n = self.generator.randint(1, individual.get_codon_num() - pos)
 

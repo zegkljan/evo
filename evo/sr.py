@@ -44,6 +44,12 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
         :param max_genes: maximum number of genes
         :param unfinished_fitness: fitness to assign to individuals that did not
             finished transcription
+        :param error_fitness: the fitness value that is assigned to the
+            individuals which produce :class:`ZeroDivisionError`\ ,
+            :class:`FloatingPointError` or any other error specified in
+            *handled_errors* argument
+        :param handled_errors: additional errors (exceptions) that should be
+            caught when applying a gene to the data
         :param target: target values of the datapoints: an N x 1 matrix where N
             is the number of datapoints
         :param wraps: number of times the wrapping (reusing the codon sequence

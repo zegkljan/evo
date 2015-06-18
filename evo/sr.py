@@ -4,7 +4,6 @@
 
 import numpy
 import numpy.linalg
-import numpy.matlib
 import copy
 import functools
 import logging
@@ -61,7 +60,7 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
             self, MultiGeneGeSrFitness.encapsulate_grammar(grammar, max_genes),
             unfinished_fitness, wraps, skip_if_evaluated)
         self.error_fitness = error_fitness
-        self.target = numpy.matrix(target, copy=False)
+        self.target = numpy.array(target, copy=False)
         self.errors = tuple([ZeroDivisionError, FloatingPointError] +
                             handled_errors)
 
@@ -87,9 +86,8 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
                 return self.error_fitness
             if metafeatures is None:
                 # noinspection PyTypeChecker
-                metafeatures = numpy.matlib.ones((result.shape[0],
-                                                  len(phenotype) + 1))
-            metafeatures[:, i] = numpy.asmatrix(result).T
+                metafeatures = numpy.ones((result.shape[0], len(phenotype) + 1))
+            metafeatures[:, i] = result
             i += 1
 
         if numpy.any(numpy.logical_or(numpy.isinf(metafeatures),
@@ -99,7 +97,7 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
                                           self.error_fitness)
             return self.error_fitness
         MultiGeneGeSrFitness.LOG.debug('Computing weights.')
-        mult = metafeatures.T * metafeatures
+        mult = metafeatures.T.dot(metafeatures)
         if numpy.any(numpy.logical_or(numpy.isinf(mult),
                                       numpy.isnan(mult))):
             MultiGeneGeSrFitness.LOG.info('NaN or inf in meatafeatures.T * '
@@ -107,12 +105,12 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
                                           'fitness: %f', self.error_fitness)
             return self.error_fitness
         try:
-            weights = (numpy.linalg.pinv(metafeatures.T * metafeatures) *
-                       metafeatures.T * self.target)
+            weights = numpy.linalg.pinv(mult).dot(metafeatures.T).\
+                dot(self.target)
         except numpy.linalg.linalg.LinAlgError as e:
             MultiGeneGeSrFitness.LOG.exception(e)
             return self.error_fitness
-        target_estimate = metafeatures * weights
+        target_estimate = metafeatures.dot(weights)
         error = self.target - target_estimate
         # just in case we need to check whether the target estimate corresponds
         # to the one computed by using the full compound predictor
@@ -122,8 +120,8 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
         #                                                         weights2[0])
         # target_estimate2 = numpy.apply_along_axis(compound_phenotype, 1,
         #                                           self.features)
-        individual.set_data('weights', list(numpy.asarray(weights).squeeze()))
-        return (error.T * error)[0, 0]
+        individual.set_data('weights', list(weights))
+        return error.T.dot(error)
 
     def apply_gene_phenotype(self, phenotype):
         """Applies the given phenotype to get its "metafeature".

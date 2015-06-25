@@ -396,4 +396,5 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
                     tries -= 1
                 annotations_set.add(ind.get_annotations())
                 pop.append(ind)
+        RampedHalfHalfInitializer.LOG.info('Initialization complete.')
         return pop

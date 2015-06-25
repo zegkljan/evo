@@ -12,6 +12,7 @@ import random
 import gc
 import math
 import logging
+import pprint
 
 import evo
 import evo.utils
@@ -285,6 +286,8 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             elif self.mode == 'steady-state':
                 self._run_steady_state()
         finally:
+            Ge.LOG.info('Finished.\nFitness: %f\n%s', self.bsf.get_fitness(),
+                        pprint.pformat(self.bsf.get_data()))
             Ge.LOG.info('Performing garbage collection.')
             gc.collect()
             try:
@@ -829,6 +832,12 @@ class GeTreeFitness(GeFitness):
         return self.parse_derivation_tree(decoded, individual)
 
     def parse_derivation_tree(self, derivation_tree, individual):
+        """Parses the given derivation tree and returns the phenotype.
+
+        :param derivation_tree: derivation tree of the individual
+        :param individual: the individual itself
+        :return: a correpsonding phenotype
+        """
         raise NotImplementedError()
 
 

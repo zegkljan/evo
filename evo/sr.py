@@ -121,6 +121,23 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
         # target_estimate2 = numpy.apply_along_axis(compound_phenotype, 1,
         #                                           self.features)
         individual.set_data('weights', list(weights))
+        return self.analyze_error(error, individual)
+
+    def analyze_error(self, error, individual):
+        """Computes the fitness value from the error on target data.
+
+        Computes the fitness value as the sum of squared errors. Override this
+        method to use different fitness and/or to perform additional analysis
+        of error values.
+
+        .. warning::
+
+            MGGE still optimizes the sum of squared errors, no matter what this
+            method actually does!
+
+        :param error:
+        :return:
+        """
         return error.T.dot(error)
 
     def apply_gene_phenotype(self, phenotype):

@@ -424,7 +424,7 @@ class Grammar(object):
         return None
 
     def to_tree(self, decisions, max_wraps, min_depth=None, max_depth=None,
-                sequence=None, adapt_sequence=True):
+                sequence=None, adapt_sequence=True, start_rule=None):
         """From the given input decisions generates an output in the form of a
         derivation tree.
 
@@ -482,8 +482,12 @@ class Grammar(object):
             taking the modulo value) will be appended (using the ``append()``
             method) to this sequence
         :param bool adapt_sequence: specifies whether the decisions should be
-            adapted to fit the chosen expansion in case of rescricted choice set
-            (i.e. when under ``min_depth`` of above ``max_depth``)
+            adapted to fit the chosen expansion in case of restricted choice set
+            (i.e. when under ``min_depth`` or above ``max_depth``)
+        :param start_rule: the rule (non-terminal) to use for start; if ``None``
+            (default) the grammar's default start rule is used
+        :type start_rule: :class:`str` (name of the rule) or
+            :class:`evo.utils.grammar.Rule` (the rule itself)
         :return: a 5-tuple as described above
         """
         if min_depth is None:
@@ -494,7 +498,17 @@ class Grammar(object):
             raise ValueError('min_depth must not be greater than max_depth')
         tree = None
         tree_stack = None
-        rules_stack = [self.get_start_rule()]
+
+        if start_rule is None:
+            rules_stack = [self.get_start_rule()]
+        elif isinstance(start_rule, str):
+            r = self.get_rule(start_rule)
+            if r is None:
+                raise ValueError('Rule {} does not exist in this grammar.'.
+                                 format(start_rule))
+            rules_stack = [r]
+        elif isinstance(start_rule, Rule):
+            rules_stack = [start_rule]
         it = decisions.__iter__()
         annot_stack = []
         annots = []
@@ -588,7 +602,7 @@ class Grammar(object):
                     if tree_stack:
                         tree_stack[-1][1] += 1
 
-        return tree, len(tree_stack) == 0, n, wraps, tuple(annots)
+        return tree, len(tree_stack) == 0, n, wraps, annots
 
     def to_text(self, decisions, max_wraps):
         """From the given input decisions generates an output in the form of a

@@ -377,10 +377,11 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
             for _ in range(individuals_per_setup + g):
                 ind = initializer.initialize()
                 tries = self.max_tries
-                while ind.get_annotations() in annotations_set and tries >= 0:
+                annots = tuple(ind.get_annotations())
+                while annots in annotations_set and tries >= 0:
                     ind = initializer.initialize()
                     tries -= 1
-                annotations_set.add(ind.get_annotations())
+                annotations_set.add(annots)
                 pop.append(ind)
 
             # full
@@ -391,10 +392,11 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
             for _ in range(individuals_per_setup + f):
                 ind = initializer.initialize()
                 tries = self.max_tries
-                while ind.get_annotations() in annotations_set and tries >= 0:
+                annots = tuple(ind.get_annotations())
+                while annots in annotations_set and tries >= 0:
                     ind = initializer.initialize()
                     tries -= 1
-                annotations_set.add(ind.get_annotations())
+                annotations_set.add(annots)
                 pop.append(ind)
         RampedHalfHalfInitializer.LOG.info('Initialization complete.')
         return pop

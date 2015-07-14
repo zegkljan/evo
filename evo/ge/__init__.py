@@ -109,8 +109,8 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
                 * ``('variable', pref_change_prob, (method1, method2, ...))`` -
                   the variable crossover; ``pref_change_prob`` is then the
                   probability of changing the preferred crossover method in the
-                  children, ``method1``... are the particular methods which can
-                  be one of the previous ones (in the same form)
+                  children, ``method1, ...`` are the particular methods which
+                  can be one of the previous ones (in the same form)
 
             The default value is ``'ripple'``\ .
         :keyword mutation_prob: (keyword argument) probability of performing
@@ -119,7 +119,16 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         :keyword mutation_type: (keyword argument) the type of mutation;
             possible values are
 
-                * ``'codon-change'`` - the codon-chagne mutation
+                * ``'codon-change'`` - codon-chagne mutation
+                * ``('subtree', max_depth)`` - derivation subtree mutation;
+                  ``max_depth`` is the maximum depth of the randomly generated
+                  subtree
+                * ``('variable', pref_change_prob, (method1, method2, ...))`` -
+                  a variable mutation; ``pref_change_prob`` is then the
+                  probability of changing the preferred mutation method in the
+                  mutated individual, ``method1, ...`` are the particular
+                  methods which can be one of the previous ones (in the same
+                  form)
 
             The default value is ``'codon-change'``\ .
         :keyword prune_prob: (keyword argument) probability of performing a
@@ -141,7 +150,10 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         self.fitness = fitness
         self.pop_size = pop_size
         self.population_initializer = population_initializer
-        self.grammar = grammar
+        if isinstance(grammar, evo.utils.grammar.Grammar):
+            self.grammar = grammar
+        else:
+            self.grammar = evo.utils.grammar.Grammar(grammar)
         self.mode = mode
         if mode not in ['generational', 'steady-state']:
             raise ValueError('Argument mode must be one of \'generational\' '
@@ -191,15 +203,11 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             self.mutation_prob = max(0, self.mutation_prob)
             self.mutation_prob = min(1, self.mutation_prob)
 
-        self.mutate_method = self.mutate
+        self.mutate_method = self.codon_change_mutate
         self.mutate_method_args = ()
         if 'mutation_type' in kwargs and kwargs['mutation_type'] is not None:
-            mt = kwargs['mutation_type']
-            if mt == 'codon-change':
-                self.mutate_method = self.mutate
-                self.mutate_method_args = ()
-            else:
-                raise ValueError('Invalid mutation type.')
+            self.mutate_method, self.mutate_method_args = \
+                self.setup_mutation(kwargs['mutation_type'])
 
         self.prune_prob = 0.2
         if 'prune_prob' in kwargs:
@@ -272,6 +280,26 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         else:
             raise ValueError('Invalid crossover type.')
         return crossover_method, crossover_method_args
+
+    def setup_mutation(self, mutation_type):
+        """Helper method for the constructor which sets up the mutation method.
+        """
+        if mutation_type == 'codon-change':
+            mutation_method = self.codon_change_mutate
+            mutation_method_args = ()
+        elif mutation_type[0] == 'subtree':
+            mutation_method = self.subtree_mutate
+            mutation_method_args = (mutation_type[1],)
+        elif mutation_type[0] == 'variable':
+            mutation_method = self.variable_mutation
+            sms = []
+            for submutation in mutation_type[2]:
+                mm, mma = self.setup_mutation(submutation)
+                sms.append((mm, mma))
+            mutation_method_args = (mutation_type[1], tuple(sms))
+        else:
+            raise ValueError('Invalid crossover type.')
+        return mutation_method, mutation_method_args
 
     def run(self):
         """Runs the GE algorithm.
@@ -551,12 +579,12 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
 
         a1 = o1.get_annotations()
         a2 = o2.get_annotations()
-        # o1.set_annotations(a1[:point1] + a2[point2:point2 + l2] +
-        #                    a1[point1 + l1:])
-        # o2.set_annotations(a2[:point2] + a1[point1:point1 + l1] +
-        #                    a2[point2 + l2:])
-        o1.set_annotations(None)
-        o2.set_annotations(None)
+        new_a1 = a1[:point1] + a2[point2:point2 + l2] + a1[point1 + l1:]
+        new_a2 = a2[:point2] + a1[point1:point1 + l1] + a2[point2 + l2:]
+        o1.set_annotations(new_a1)
+        o2.set_annotations(new_a2)
+        # o1.set_annotations(None)
+        # o2.set_annotations(None)
 
         assert o1.genotype, (o1.genotype, g1, g2, point1, point2)
         assert o2.genotype, (o2.genotype, g1, g2, point1, point2)
@@ -566,14 +594,34 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         return [o1, o2]
 
     def mutate(self, individual):
-        self.codon_change_mutate(individual)
+        self.mutate_method(individual, *self.mutate_method_args)
+
+    def variable_mutation(self, individual, mutation_pref_change_prob,
+                          mutation_methods):
+        Ge.LOG.debug('Variable mutation of individual %s', individual)
+        mutation_pref = individual.get_data('mutation-pref')
+        if mutation_pref is None:
+            mutation_pref = self.generator.randrange(len(mutation_methods))
+
+        mutation_method, args = mutation_methods[mutation_pref]
+        out = mutation_method(individual, *args)
+        while out is None:
+            mutation_pref = (mutation_pref + 1) % len(mutation_methods)
+            out = mutation_method(individual, *args)
+
+        if self.generator.random() < mutation_pref_change_prob:
+            individual.set_data('mutation-pref',
+                                self.generator.randrange(len(mutation_methods)))
+        else:
+            individual.set_data('mutation-pref', mutation_pref)
+        return out
 
     def codon_change_mutate(self, individual):
         if not isinstance(individual, evo.ge.support.CodonGenotypeIndividual):
             raise TypeError('Individual must be of type '
                             'CodonGenotypeIndividual.')
         if self.mutation_prob == 0:
-            return
+            return individual
         if self.mutation_prob == 1:
             Ge.LOG.debug('Mutating individual %s', individual.__str__())
             for i in range(individual.get_codon_num()):
@@ -581,7 +629,7 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
                                                      get_max_codon_value())
                 individual.set_codon(i, new_codon)
             individual.set_fitness(None)
-            return
+            return individual
 
         mutated = False
         k = math.floor(math.log10(1 - self.generator.random()) /
@@ -597,6 +645,43 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
                             math.log10(1 - self.mutation_prob))
         if mutated:
             individual.set_fitness(None)
+        return individual
+
+    def subtree_mutate(self, individual, max_depth):
+        if not isinstance(individual, evo.ge.support.CodonGenotypeIndividual):
+            raise TypeError('Individual must be of type '
+                            'CodonGenotypeIndividual.')
+        if self.mutation_prob == 0:
+            return individual
+        if self.generator.random() < self.mutation_prob:
+            Ge.LOG.debug('Mutating individual %s', individual.__str__())
+            if individual.annotations is None:
+                Ge.LOG.warn('No annotations to mutate %s',
+                             individual.__str__())
+                return None
+            annotations = individual.get_annotations()
+            idx = self.generator.randrange(len(annotations))
+            (new_codons, new_annotations) = self.generate_subtree_codons(
+                annotations[idx][0], max_depth)
+            new_genotype = (individual.genotype[0:idx] + new_codons +
+                            individual.genotype[idx + annotations[idx][1]:])
+            new_annotations = (annotations[0:idx] + new_annotations +
+                               annotations[idx + annotations[idx][1]:])
+            individual.set_annotations(new_annotations)
+            individual.genotype = new_genotype
+            individual.set_fitness(None)
+        return individual
+
+    def generate_subtree_codons(self, start_symbol, max_depth):
+        ri = evo.utils.random.RandomIntIterable(
+            -1, -1, 0, self.grammar.get_choice_nums_lcm(),
+            generator=self.generator)
+        seq = []
+        o, _, _, _, annotations = self.grammar.to_tree(ri, 0,
+                                                       max_depth=max_depth,
+                                                       sequence=seq,
+                                                       start_rule=start_symbol)
+        return seq, annotations
 
     def prune(self, individual):
         if not isinstance(individual, evo.ge.support.CodonGenotypeIndividual):

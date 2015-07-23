@@ -705,8 +705,8 @@ class Grammar(object):
         single choice points are omitted, this list contains only numbers
         greater than 1.
 
-        :param tree_root: the root node of the derivation tree
-        :type tree_root: :class:`evo.utils.tree.TreeNode`
+        :param evo.utils.tree.TreeNode tree_root: the root node of the
+            derivation tree
         """
         choices = []
         max_choices = []

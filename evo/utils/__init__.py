@@ -26,8 +26,7 @@ class Stats(object):
         """Saves a best-so-far individual ``bsf`` at the given ``iteration``.
 
         :param int iteration: iteration of the algorithm to save the bsf for
-        :param bsf: the individual to save
-        :type bsf: :class:`evo.Individual`
+        :param evo.Individual bsf: the individual to save
         """
         pass
 
@@ -186,3 +185,51 @@ class MultiplingStats(ResourceHoldingStats):
         for s in self.substats:
             if isinstance(s, ResourceHoldingStats):
                 s.cleanup()
+
+
+def _partition(vector, left, right, pivot_index, cmp):
+    pivot_value = vector[pivot_index]
+    vector[pivot_index], vector[right] = vector[right], vector[pivot_index]
+    store_index = left
+    for i in range(left, right):
+        if cmp(vector[i], pivot_value):
+            vector[store_index], vector[i] = vector[i], vector[store_index]
+            store_index += 1
+    vector[right], vector[store_index] = vector[store_index], vector[right]
+    return store_index
+
+
+def select(vector, k, left=None, right=None, cmp=None):
+    """Returns the k-th smallest, element of vector within vector[left:right + 1]
+    inclusive.
+
+    :param vector: the vector of elements to be searched
+    :param int k: the rank of desired element
+    :param int left: start index of the searched sub-sequence of the vector; if
+        ``None`` value of ``0`` is used
+    :param int right: end index (inclusive) of the searched sub-sequence of the
+        vector; if ``None`` value of ``len(vector) - 1`` is used
+    :param cmp: a callable taking two arguments (from the vector) returning
+        ``True`` if and only if the first argument is considered to precede the
+        second argument; if ``None`` the ``<`` operator will be used
+    """
+    if left is None:
+        left = 0
+    if right is None:
+        right = len(vector) - 1
+    if k > right - left:
+        raise ValueError("The rank is greater than the number of searched "
+                         "elements.")
+    if cmp is None:
+        cmp = lambda a, b: a < b
+    while True:
+        pivot_index = (right - left) // 2 + left
+        pivot_new_index = _partition(vector, left, right, pivot_index, cmp)
+        pivot_dist = pivot_new_index - left
+        if pivot_dist == k:
+            return vector[pivot_new_index]
+        elif k < pivot_dist:
+            right = pivot_new_index - 1
+        else:
+            k -= pivot_dist + 1
+            left = pivot_new_index + 1

@@ -138,15 +138,13 @@ class Ga(evo.GeneticBase, multiprocessing.context.Process):
             one is used) is assumed that it is already seeded and no seed is
             set inside this class.
 
-        :param fitness: fitness used to evaluate individual performance
-        :type fitness: :class:`evo.Fitness`
+        :param evo.Fitness fitness: fitness used to evaluate individual
+            performance
         :param int pop_size: size of the population; this value will be
             passed to the ``population_initializer``\ 's method
             ``initialize``\ ()
-        :param population_initializer: initializer used to initialize the
-            initial population
-        :type population_initializer:
-            :class:`ge.init.PopulationInitializer`
+        :param ge.init.PopulationInitializer population_initializer: initializer
+            used to initialize the initial population
         :param mode: Specifies which mode of genetic algorithm to use. Possible
             values are:
 
@@ -244,8 +242,7 @@ class Ga(evo.GeneticBase, multiprocessing.context.Process):
                   value of the ``incl`` parameter.
 
             The default value is ``'random'``.
-        :param stats: stats saving class
-        :type stats: :class:`evo.support.Stats`
+        :param evo.support.Stats stats: stats saving class
         :param callback: a callable which will be called at the end of every
             generation with a single argument which is the algorithm instance
             itself (i.e. instance of this class)
@@ -463,10 +460,10 @@ class Ga(evo.GeneticBase, multiprocessing.context.Process):
 
     def test_bsf(self, individual):
         self.fitness.evaluate(individual)
-        if self.bsf is None or self.fitness.compare(individual,
-                                                    self.bsf,
-                                                    evo.Fitness.
-                                                    COMPARE_BSF):
+        if self.bsf is None or self.fitness.is_better(individual,
+                                                      self.bsf,
+                                                      evo.Fitness.
+                                                      COMPARE_BSF):
             self.bsf = individual
             self.stats.save_bsf(self.iterations, self.bsf)
 
@@ -480,8 +477,8 @@ class Ga(evo.GeneticBase, multiprocessing.context.Process):
         if self.population_sorted:
             return self.population[0:self.elites_num]
 
-        cmp = lambda a, b: self.fitness.compare(a, b, evo.Fitness.
-                                                COMPARE_TOURNAMENT)
+        cmp = lambda a, b: self.fitness.is_better(a, b, evo.Fitness.
+                                                  COMPARE_TOURNAMENT)
         sorted_population = sorted(self.population,
                                    key=functools.cmp_to_key(cmp))
         return sorted_population[0:self.elites_num]
@@ -504,9 +501,9 @@ class Ga(evo.GeneticBase, multiprocessing.context.Process):
             if best_idx is None:
                 best_idx = candidate_idx
             else:
-                better = self.fitness.compare(candidate, population[best_idx],
-                                              evo.Fitness.
-                                              COMPARE_TOURNAMENT)
+                better = self.fitness.is_better(candidate, population[best_idx],
+                                                evo.Fitness.
+                                                COMPARE_TOURNAMENT)
                 if bool(inverse) ^ bool(better):
                     best_idx = candidate_idx
         return best_idx
@@ -600,8 +597,8 @@ class Ga(evo.GeneticBase, multiprocessing.context.Process):
                                                    sorted_=self.
                                                    population_sorted)
             loser = self.population[loser_idx]
-            if self.fitness.compare(indiv, loser,
-                                    evo.Fitness.COMPARE_TOURNAMENT):
+            if self.fitness.is_better(indiv, loser,
+                                      evo.Fitness.COMPARE_TOURNAMENT):
                 self._pop_replace(loser_idx, indiv)
         else:
             loser_idx = self.select_tournament_idx(self.population, n, True,

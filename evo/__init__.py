@@ -129,13 +129,24 @@ class Fitness(object):
         raise NotImplementedError()
 
     def compare(self, i1, i2, *args):
-        """Returns ``True`` if individual ``i1`` is "better" than individual
-        ``i2``.
+        """Returns ``-1`` if individual ``i1`` is strictly better than
+        individual ``i2``, ``0`` if they are of equal quality and ``1`` if
+        ``i1`` is strictly worse than ``i2``.
 
         :param args: possible additional arguments for comparison. Can be
           used to distinguish multiple comparison types.
         """
         raise NotImplementedError()
+
+    def is_better(self, i1, i2, *args):
+        """A wrapper for :meth:`evo.Fitness.compare` simplifying the output to
+        a boolean value which is ``True`` only if ``i1`` is strictly better than
+        ``i2``.
+
+        All arguments have exactly the same meaning as in
+        :meth:`evo.Fitness.compare`.
+        """
+        return self.compare(i1, i2, *args) <= 0
 
 
 class IndividualInitializer(object):
@@ -198,14 +209,14 @@ class GeneticBase(object):
             raise ValueError('Population must be sorted.')
 
         # is it worse than the worst?
-        if self.fitness.compare(self.population[-1], indiv,
-                                Fitness.COMPARE_TOURNAMENT):
+        if self.fitness.is_better(self.population[-1], indiv,
+                                  Fitness.COMPARE_TOURNAMENT):
             self.population.append(indiv)
             return
 
         # is it better than the best?
-        if self.fitness.compare(indiv, self.population[0],
-                                Fitness.COMPARE_TOURNAMENT):
+        if self.fitness.is_better(indiv, self.population[0],
+                                  Fitness.COMPARE_TOURNAMENT):
             self.population.insert(0, indiv)
             return
 
@@ -215,9 +226,9 @@ class GeneticBase(object):
         c = (l + u) // 2
         while l < u and l != c != u:
             ci = self.population[c]
-            if self.fitness.compare(ci, indiv, Fitness.COMPARE_TOURNAMENT):
+            if self.fitness.is_better(ci, indiv, Fitness.COMPARE_TOURNAMENT):
                 l = c
-            elif self.fitness.compare(indiv, ci, Fitness.COMPARE_TOURNAMENT):
+            elif self.fitness.is_better(indiv, ci, Fitness.COMPARE_TOURNAMENT):
                 u = c
             else:
                 break
@@ -243,12 +254,12 @@ class GeneticBase(object):
         if replace_idx < len(self.population) - 1:
             rn = self.population[replace_idx + 1]
 
-        left_fit = ln is not None and self.fitness.compare(ln, indiv,
-                                                           Fitness.
-                                                           COMPARE_TOURNAMENT)
-        right_fit = rn is not None and self.fitness.compare(indiv, rn,
-                                                            Fitness.
-                                                            COMPARE_TOURNAMENT)
+        left_fit = ln is not None and self.fitness.is_better(ln, indiv,
+                                                             Fitness.
+                                                             COMPARE_TOURNAMENT)
+        right_fit = rn is not None and self.fitness.is_better(indiv, rn,
+                                                              Fitness.
+                                                              COMPARE_TOURNAMENT)
         if left_fit and right_fit:
             self.population[replace_idx] = indiv
             return
@@ -257,3 +268,195 @@ class GeneticBase(object):
         # insert to the population
         del self.population[replace_idx]
         self._pop_insert(indiv)
+
+
+class PopulationStrategy(object):
+    """Defines the population dynamics in a genetic (evolutionary) algorithm.
+
+    Objects of this class are responsible for determining the size of the
+    population, the number of offspring generated in each iteration and how
+    these offspring are combined with the (parent) population.
+    """
+    def get_parents_number(self):
+        """Returns the number of individuals in the parent population.
+
+        In classical GA this is equivalent to the population size.
+
+        :rtype: :class:`int`
+        """
+        raise NotImplementedError()
+
+    def get_offspring_number(self):
+        """Returns the number of individuals created in each iteration.
+
+        :rtype: :class:`int`
+        """
+        raise NotImplementedError()
+
+    def get_elites_number(self):
+        """Returns the number of elite individuals that are to be directly
+        copied to the next iteration.
+
+        :rtype: :class:`int`
+        """
+        raise NotImplementedError()
+
+    def combine_populations(self, parents, offspring, elites):
+        """Combines the parent population, population of offspring and the
+        elites to create the parent population for the next iteration.
+
+        :param parents: parent population without the elites
+        :type parents: :class:`list` of :class:`evo.Individual`
+        :param offspring: population of offspring
+        :type offspring: :class:`list` of :class:`evo.Individual`
+        :param elites: elites (the best individuals from parent population)
+        :type elites: :class:`list` of :class:`evo.Individual`
+        :return: a new population to serve as a parent population in the next
+            iteration
+        :rtype: :class:`list` of :class:`evo.Individual`
+        """
+        raise NotImplementedError()
+
+
+class GenerationalPopulationStrategy(PopulationStrategy):
+    """Handles the generational strategy:
+
+    The population is of size N
+
+        #. E top individuals (i.e. elites) are extracted from parent population
+        #. (N - E) offspring are created
+        #. offspring and elites are joined into a single population which
+           completely replaces the parent population
+    """
+    def __init__(self, pop_size, elites_num):
+        """
+        :param pop_size: (parent) population size
+        :param elites_num: number of elites
+        """
+        self.pop_size = pop_size
+        self.elites_num = elites_num
+
+    def get_elites_number(self):
+        return self.elites_num
+
+    def get_parents_number(self):
+        return self.pop_size
+
+    def get_offspring_number(self):
+        return self.pop_size - self.elites_num
+
+    def combine_populations(self, parents, offspring, elites):
+        return offspring + elites
+
+
+class SteadyStatePopulationStrategy(PopulationStrategy):
+    """Handles the steady-state strategy:
+
+    The population is of size N
+
+        #. X (X is much lower than N) offspring are created
+        #. offspring are put back into population, killing some individuals
+           depending on the :meth:`.replace` method
+
+    There are no explicit elites.
+    """
+    def __init__(self, pop_size, offspring_num):
+        """
+        :param pop_size: (parent) population size
+        :param offspring_num: number of offspring to be created each iteration
+        """
+        self.pop_size = pop_size
+        self.offspring_num = offspring_num
+
+    def get_elites_number(self):
+        return 0
+
+    def get_parents_number(self):
+        return self.pop_size
+
+    def get_offspring_number(self):
+        return self.offspring_num
+
+    def combine_populations(self, parents, offspring, elites):
+        for o in offspring:
+            self.replace(parents, o)
+        return parents + elites
+
+    def replace(self, parent_pop, individual):
+        """Puts an individual into (parent) population such that the population
+        size remains the same (i.e. some individual has to be thrown away)
+
+        :param parent_pop: (parent) population
+        :type parent_pop: :class:`list` of :class:`evo.Individual`
+        :param evo.Individual individual: an individual to be put into the
+            population
+        :rtype: :class:`list` of :class:`evo.Individual`
+        """
+        raise NotImplementedError()
+
+
+class SelectionStrategy(object):
+    """Defines the selection algorithm (strategy).
+    """
+    def select_single(self, population):
+        """Selects a single individual from the given population.
+
+        :param population: population
+        :type population: :class:`list` of :class:`evo.Individual`
+        :return: a tuple containing the selected individual as the first element
+            and its index in the population as the second element
+        :rtype: :class:`tuple` of :class:`evo.Individual` and :class:`int`
+        """
+        raise NotImplementedError()
+
+    def select_all(self, population, all_num):
+        """Selects all individuals (up to the given number) from the given
+        population.
+
+        .. note::
+
+            Default implementation is::
+
+                def select_all(self, population, all_num):
+                    out = []
+                    for i in range(all_num):
+                        out.append(self.select_single(population))
+                    return out
+
+        :param population: population
+        :type population: :class:`list` of :class:`evo.Individual`
+        :param int all_num: number of individuals to be selected
+        :return: a list of tuples, each containing a selected individual as the
+            first element and its index in the population as the second element
+        :rtype: :class:`list` of :class:`tuple` of :class:`evo.Individual` and
+            :class:`int`
+        """
+        out = []
+        for i in range(all_num):
+            out.append(self.select_single(population))
+        return out
+
+
+class TournamentSelectionStrategy(SelectionStrategy):
+    """Handles the tournament selection of individuals.
+    """
+    def __init__(self, tournament_size, generator, fitness):
+        """
+        :param int tournament_size: size of the tournament
+        :param random.Random generator: random number generator
+        :param evo.Fitness fitness: the fitness object for comparison of
+            individuals
+        """
+        if tournament_size < 2:
+            raise ValueError("Tournament size must be at least 2.")
+        self.tournament_size = tournament_size
+        self.generator = generator
+        self.fitness = fitness
+
+    def select_single(self, population):
+        best_idx = self.generator.randrange(len(population))
+        for _ in range(self.tournament_size - 1):
+            idx = self.generator.randrange(len(population))
+            if self.fitness.is_better(population[idx], population[best_idx]):
+                best_idx = idx
+        return best_idx, population[best_idx]

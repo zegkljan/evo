@@ -69,16 +69,14 @@ class Cfggp(multiprocessing.context.Process):
             one is used) is assumed that it is already seeded and no seed is
             set inside this class.
 
-        :param fitness: fitness used to evaluate individual performance
-        :type fitness: :class:`evo.Fitness`
+        :param evo.Fitness fitness: fitness used to evaluate individual
+            performance
         :param int pop_size: size of the population; this value will be
             passed to the ``population_initializer``'s method ``initialize``\ ()
-        :param population_initializer: initializer used to initialize the
-            initial population
-        :type population_initializer:
-            :class:`ge.init.PopulationInitializer`
-        :param grammar: grammar this algorithm operates on
-        :type grammar: :class:`evo.support.grammar.Grammar`
+        :param ge.init.PopulationInitializer population_initializer: initializer
+            used to initialize the initial population
+        :param evo.support.grammar.Grammar grammar: grammar this algorithm
+            operates on
         :param mode: Specifies which mode of genetic algorithm to use. Possible
             values are ``'generational'`` and ``'steady-state'``.
         :param stop: Either a number or a callable. If it is number:
@@ -117,8 +115,7 @@ class Cfggp(multiprocessing.context.Process):
         :keyword mutation_prob: (keyword argument) probability of performing
             a mutation; if it does not fit into interval [0, 1] it is set to
             0 if lower than 0 and to 1 if higher than 1; default value is 0.1
-        :param stats: stats saving class
-        :type stats: :class:`evo.support.Stats`
+        :param evo.support.Stats stats: stats saving class
         :param callback: a callable which will be called at the end of every
             generation with a single argument which is the algorithm instance
             itself (i.e. instance of this class)
@@ -261,8 +258,8 @@ class Cfggp(multiprocessing.context.Process):
 
     def evaluate(self, individual):
         self.fitness.evaluate(individual)
-        if self.bsf is None or self.fitness.compare(individual.get_fitness(),
-                                                    self.bsf.get_fitness()):
+        if self.bsf is None or self.fitness.is_better(individual.get_fitness(),
+                                                      self.bsf.get_fitness()):
             self.bsf = individual
             self.stats.save_bsf(self.iterations, self.bsf)
 
@@ -288,8 +285,8 @@ class Cfggp(multiprocessing.context.Process):
             if candidate.get_fitness() is None:
                 self.evaluate(candidate)
 
-            if best is None or self.fitness.compare(candidate.get_fitness(),
-                                                    best.get_fitness()):
+            if best is None or self.fitness.is_better(candidate.get_fitness(),
+                                                      best.get_fitness()):
                 best = candidate
         return best
 
@@ -352,9 +349,9 @@ class Cfggp(multiprocessing.context.Process):
         if o2.get_fitness() is None:
             self.evaluate(o2)
 
-        if self.fitness.compare(o1.get_fitness(), o2.get_fitness()):
+        if self.fitness.is_better(o1.get_fitness(), o2.get_fitness()):
             o = o1
-        elif self.fitness.compare(o2.get_fitness(), o1.get_fitness()):
+        elif self.fitness.is_better(o2.get_fitness(), o1.get_fitness()):
             o = o2
         else:
             if self.generator.random() < 0.5:
@@ -362,19 +359,19 @@ class Cfggp(multiprocessing.context.Process):
             else:
                 o = o2
 
-        if self.fitness.compare(self.population[-1].get_fitness(),
-                                o.get_fitness()):
+        if self.fitness.is_better(self.population[-1].get_fitness(),
+                                  o.get_fitness()):
             return
 
         self.population.pop(-1)
 
-        if self.fitness.compare(self.population[-1].get_fitness(),
-                                o.get_fitness()):
+        if self.fitness.is_better(self.population[-1].get_fitness(),
+                                  o.get_fitness()):
             self.population.append(o)
             return
 
-        if self.fitness.compare(o.get_fitness(),
-                                self.population[0].get_fitness()):
+        if self.fitness.is_better(o.get_fitness(),
+                                  self.population[0].get_fitness()):
             self.population.insert(0, o)
             return
 
@@ -383,9 +380,9 @@ class Cfggp(multiprocessing.context.Process):
         c = (l + u) // 2
         while l < u and c != l and c != u:
             ci = self.population[c]
-            if self.fitness.compare(ci.get_fitness(), o.get_fitness()):
+            if self.fitness.is_better(ci.get_fitness(), o.get_fitness()):
                 l = c
-            elif self.fitness.compare(o.get_fitness(), ci.get_fitness()):
+            elif self.fitness.is_better(o.get_fitness(), ci.get_fitness()):
                 u = c
             else:
                 break

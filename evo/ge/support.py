@@ -167,8 +167,7 @@ class RandomWalkInitializer(evo.IndividualInitializer):
             Whatever generator is used it is assumed that it is already seeded
             and no seed is set inside this class.
 
-        :param grammar: the grammar to generate
-        :type grammar: :class:`evo.utils.grammar.Grammar`
+        :param evo.utils.grammar.Grammar grammar: the grammar to generate
         :keyword generator: a random number generator; if ``None`` or not
             present calls to the methods of standard python module
             :mod:`random` will be performed instead
@@ -269,8 +268,7 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
         The optional ``min_depth`` keyword argument can be used to generate
         trees from this depth instead of 1.
 
-        :param grammar: grammar to generate from
-        :type grammar: :class:`evo.utils.grammar.Grammar`
+        :param evo.utils.grammar.Grammar grammar: grammar to generate from
         :param int max_depth: maximum depth of the derivation trees; must be
             finite
         :keyword generator: a random number generator; if ``None`` or not set

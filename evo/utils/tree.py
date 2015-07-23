@@ -20,6 +20,19 @@ class TreeNode(object):
     def is_leaf(self):
         return self.children is None
 
+    def is_root(self):
+        return self.parent is None
+
+    def get_root(self):
+        """Returns the root of the tree this node is in.
+
+        Climbs up from this node by parents until a node without parent is found
+        and returned.
+        """
+        if self.parent is None:
+            return self
+        return self.parent.get_root()
+
     def is_complete(self):
         return self.children is not None and self.children
 

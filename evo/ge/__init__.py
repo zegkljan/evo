@@ -55,17 +55,15 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             one is used) is assumed that it is already seeded and no seed is
             set inside this class.
 
-        :param fitness: fitness used to evaluate individual performance
-        :type fitness: :class:`evo.Fitness`
+        :param evo.Fitness fitness: fitness used to evaluate individual
+            performance
         :param int pop_size: size of the population; this value will be
             passed to the ``population_initializer``\ 's method
             ``initialize``\ ()
-        :param population_initializer: initializer used to initialize the
-            initial population
-        :type population_initializer:
-            :class:`ge.init.PopulationInitializer`
-        :param grammar: grammar this algorithm operates on
-        :type grammar: :class:`evo.support.grammar.Grammar`
+        :param ge.init.PopulationInitializer population_initializer: initializer
+            used to initialize the initial population
+        :param evo.support.grammar.Grammar grammar: grammar this algorithm
+            operates on
         :param mode: Specifies which mode of genetic algorithm to use. Possible
             values are ``'generational'`` and ``'steady-state'``\ .
         :param stop: Either a number or a callable. If it is number:
@@ -137,8 +135,7 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         :keyword duplicate_prob: (keyword argument) probability of performing a
             duplication; if it does not fit into interval [0, 1] it is set to 0
             if lower than 0 and to 1 if higher than 1; default value is 0.2
-        :keyword stats: stats saving class
-        :type stats: :class:`evo.support.Stats`
+        :keyword evo.support.Stats stats: stats saving class
         :keyword callback: a callable which will be called at the beginning of
             every generation with a single argument which is the algorithm
             instance itself (i.e. instance of this class)
@@ -399,9 +396,9 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
 
     def test_bsf(self, individual):
         self.fitness.evaluate(individual)
-        if self.bsf is None or self.fitness.compare(individual,
-                                                    self.bsf,
-                                                    evo.Fitness.COMPARE_BSF):
+        if self.bsf is None or self.fitness.is_better(individual,
+                                                      self.bsf,
+                                                      evo.Fitness.COMPARE_BSF):
             self.bsf = individual
             if self.stats is not None:
                 self.stats.save_bsf(self.iterations, self.bsf)
@@ -420,8 +417,8 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
 
         Ge.LOG.debug('Population not sorted by fitness, using explicit '
                      'sorting.')
-        cmp = lambda a, b: self.fitness.compare(a, b, evo.Fitness.
-                                                COMPARE_TOURNAMENT)
+        cmp = lambda a, b: self.fitness.is_better(a, b, evo.Fitness.
+                                                  COMPARE_TOURNAMENT)
         sorted_population = sorted(self.population,
                                    key=functools.cmp_to_key(cmp))
         self.test_bsf(sorted_population[0])
@@ -446,9 +443,9 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             if best_idx is None:
                 best_idx = candidate_idx
             else:
-                better = self.fitness.compare(candidate, population[best_idx],
-                                              evo.Fitness.
-                                              COMPARE_TOURNAMENT)
+                better = self.fitness.is_better(candidate, population[best_idx],
+                                                evo.Fitness.
+                                                COMPARE_TOURNAMENT)
                 if bool(inverse) ^ bool(better):
                     best_idx = candidate_idx
         return best_idx
@@ -720,8 +717,8 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
                                                    sorted_=self.
                                                    population_sorted)
             loser = self.population[loser_idx]
-            if self.fitness.compare(indiv, loser,
-                                    evo.Fitness.COMPARE_TOURNAMENT):
+            if self.fitness.is_better(indiv, loser,
+                                      evo.Fitness.COMPARE_TOURNAMENT):
                 self._pop_replace(loser_idx, indiv)
         else:
             loser_idx = self.select_tournament_idx(self.population, n, True,
@@ -735,9 +732,9 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         if o2.get_fitness() is None:
             self.test_bsf(o2)
 
-        if self.fitness.compare(o1, o2, evo.Fitness.COMPARE_TOURNAMENT):
+        if self.fitness.is_better(o1, o2, evo.Fitness.COMPARE_TOURNAMENT):
             o = o1
-        elif self.fitness.compare(o2, o1, evo.Fitness.COMPARE_TOURNAMENT):
+        elif self.fitness.is_better(o2, o1, evo.Fitness.COMPARE_TOURNAMENT):
             o = o2
         else:
             if self.generator.random() < 0.5:
@@ -745,19 +742,19 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             else:
                 o = o2
 
-        if self.fitness.compare(self.population[-1], o,
-                                evo.Fitness.COMPARE_TOURNAMENT):
+        if self.fitness.is_better(self.population[-1], o,
+                                  evo.Fitness.COMPARE_TOURNAMENT):
             return
 
         self.population.pop(-1)
 
-        if self.fitness.compare(self.population[-1], o,
-                                evo.Fitness.COMPARE_TOURNAMENT):
+        if self.fitness.is_better(self.population[-1], o,
+                                  evo.Fitness.COMPARE_TOURNAMENT):
             self.population.append(o)
             return
 
-        if self.fitness.compare(o, self.population[0],
-                                evo.Fitness.COMPARE_TOURNAMENT):
+        if self.fitness.is_better(o, self.population[0],
+                                  evo.Fitness.COMPARE_TOURNAMENT):
             self.population.insert(0, o)
             return
 
@@ -766,10 +763,10 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         c = (l + u) // 2
         while l < u and l != c != u:
             ci = self.population[c]
-            if self.fitness.compare(ci, o, evo.Fitness.COMPARE_TOURNAMENT):
+            if self.fitness.is_better(ci, o, evo.Fitness.COMPARE_TOURNAMENT):
                 l = c
-            elif self.fitness.compare(o, ci,
-                                      evo.Fitness.COMPARE_TOURNAMENT):
+            elif self.fitness.is_better(o, ci,
+                                        evo.Fitness.COMPARE_TOURNAMENT):
                 u = c
             else:
                 break
@@ -844,8 +841,8 @@ class GeFitness(evo.Fitness):
 
     def evaluate(self, individual):
         """
-        :param individual: individual to decode
-        :type individual: :class:`evo.ge.support.CodonGenotypeIndividual`
+        :param evo.ge.support.CodonGenotypeIndividual individual: individual to
+            decode
         """
         if self.skip_if_evaluated and individual.get_fitness() is not None:
             return
@@ -871,8 +868,8 @@ class GeFitness(evo.Fitness):
               decoding process could not be finished.
             * Set the decoding annotations back to the individual.
 
-        :param individual: the individual to decode
-        :type individual: :class:`evo.ge.support.CodonGenotypeIndividual`
+        :param evo.ge.support.CodonGenotypeIndividual individual: the individual
+            to decode
         :raises evo.ge.GeFitness.NotFinishedError: the decoding process could
             not be finished
         """

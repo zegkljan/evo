@@ -4,7 +4,9 @@ Programming.
 """
 import logging
 import multiprocessing
+import pprint
 import random
+import gc
 
 import evo
 import evo.gp.support
@@ -22,14 +24,11 @@ class Gp(multiprocessing.context.Process):
 
     class _GenerationsStop(object):
 
-        def __init__(self, generations):
-            self.generations = generations
+        def __init__(self, iterations):
+            self.generations = iterations
 
-        def __call__(self, ge):
-            if ge.mode == 'generational':
-                return ge.iterations >= self.generations
-            if ge.mode == 'steady-state':
-                return ge.iterations >= (self.generations * ge.pop_size)
+        def __call__(self, gp):
+            return gp.iterations >= self.generations
 
     def __init__(self, fitness, pop_strategy, selection_strategy,
                  population_initializer, functions, terminals, stop, name=None,
@@ -181,13 +180,36 @@ class Gp(multiprocessing.context.Process):
 
         self.population = []
         self.population_sorted = False
-        self.bsf = None
 
         self.iterations = 0
         """
         The number of elapsed iterations of the algorithm (either generations
         in the generational mode or just iterations in the steady-state mode).
         """
+
+    def run(self):
+        """Runs the GE algorithm.
+        """
+        Gp.LOG.info('Starting algorithm.')
+        try:
+            self.population = self.population_initializer.initialize(
+                self.pop_strategy.get_parents_number())
+
+            self._run()
+        finally:
+            if self.fitness.get_bsf() is None:
+                Gp.LOG.info('Finished. No BSF acquired.')
+            else:
+                Gp.LOG.info('Finished.\nFitness: %f\n%s',
+                            self.fitness.get_bsf().get_fitness(),
+                            pprint.pformat(self.fitness.get_bsf().get_data()))
+            Gp.LOG.info('Performing garbage collection.')
+            gc.collect()
+            try:
+                if self.stats is not None:
+                    self.stats.cleanup()
+            except AttributeError:
+                pass
 
     def _run(self):
         Gp.LOG.info('Starting evolution.')
@@ -201,10 +223,10 @@ class Gp(multiprocessing.context.Process):
             Gp.LOG.debug('Processing selection.')
             offspring = []
             while len(offspring) < self.pop_strategy.get_offspring_number():
-                a = self.selection_strategy.select_single(self.population)[0]
+                a = self.selection_strategy.select_single(self.population)[1]
                 if self.generator.random() < self.crossover_prob:
                     b = self.selection_strategy.select_single(
-                        self.population)[0]
+                        self.population)[1]
                     children = self.crossover(a.copy(), b.copy())
                 else:
                     children = [a.copy()]
@@ -277,13 +299,15 @@ class Gp(multiprocessing.context.Process):
         p2 = self.generator.randrange(s2)
 
         n1 = g1.get_nth_node(p1)
-        n2 = g1.get_nth_node(p2)
+        n2 = g2.get_nth_node(p2)
 
         r1, r2 = evo.gp.support.swap_subtrees(n1, n2)
         o1.genotype = r1
         o2.genotype = r2
 
-        return o1, o2
+        o1.set_fitness(None)
+        o2.set_fitness(None)
+        return [o1, o2]
 
     def subtree_mutate(self, i, max_depth):
         g = i.genotype
@@ -300,10 +324,13 @@ class Gp(multiprocessing.context.Process):
             i.genotype = subtree
         else:
             subtree.parent.children[subtree.parent_index] = subtree
+        i.set_fitness(None)
         return i
 
     def top_individuals(self, k):
-        kth = evo.utils.select(self.population, k,
+        if k <= 0:
+            return []
+        kth = evo.utils.select(self.population, k - 1,
                                cmp=lambda a, b: self.fitness.is_better(a, b))
         tops = []
         for i in self.population:

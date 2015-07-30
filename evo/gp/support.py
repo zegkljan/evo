@@ -43,17 +43,20 @@ class TreeIndividual(evo.Individual):
 
 def generate_full_grow(inners, leaves, depth, generator):
     if depth <= 0:
-        node = generator.choice(leaves).clone()
+        node_gen = generator.choice(leaves)
+        node = node_gen()
         node.children = None
+        return node
 
-    root = generator.choice(inners).clone()
+    root_gen = generator.choice(inners)
+    root = root_gen()
     arity = root.get_arity()
     if arity == 0:
         root.children = None
         return root
     root.children = [None] * arity
     for i in range(arity):
-        child = generate_grow(inners, leaves, depth - 1, generator)
+        child = generate_full_grow(inners, leaves, depth - 1, generator)
         root.children[i] = child
         child.parent = root
         child.parent_index = i

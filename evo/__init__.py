@@ -148,6 +148,15 @@ class Fitness(object):
         """
         return self.compare(i1, i2, *args) <= 0
 
+    def get_bsf(self):
+        """Returns the best solution encountered so far.
+
+        :return: the best-so-far solution or ``None`` if there is no such
+            soltuion (yet)
+        :rtype: :class:`evo.Individual`
+        """
+        raise NotImplementedError()
+
 
 class IndividualInitializer(object):
     """Base class for initializing individuals.

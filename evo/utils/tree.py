@@ -11,11 +11,11 @@ class TreeNode(object):
     which is directly the parent tree node, not a list.
     """
 
-    def __init__(self, parent, parent_index, children, data):
-        self.parent = parent
-        self.parent_index = parent_index
-        self.children = children
-        self.data = data
+    def __init__(self):
+        self.parent = None
+        self.parent_index = None
+        self.children = None
+        self.data = None
 
     def is_leaf(self):
         return self.children is None
@@ -202,10 +202,11 @@ class TreeNode(object):
         """Clones the tree as if this node was its root (i.e. if this node
         had a parent, it will be set to None for the cloned node).
         """
+        n = self.__class__()
+        n.data = self.data
         if self.is_leaf():
-            return TreeNode(None, None, None, self.data)
+            return n
         children = [None] * len(self.children)
-        n = TreeNode(None, None, None, self.data)
         for individual in range(len(self.children)):
             c = self.children[individual].clone()
             c.parent = n
@@ -213,6 +214,21 @@ class TreeNode(object):
             children[individual] = c
         n.children = children
         return n
+
+    def is_shape_equal(self, other):
+        if self.children is None:
+            return other.children is None
+
+        if other.children is None:
+            return False
+
+        if len(self.children) != len(other.children):
+            return False
+
+        for s, o in zip(self.children, other.children):
+            if not s.is_shape_equal(o):
+                return False
+        return True
 
     def __str__(self):
         if self.is_leaf():

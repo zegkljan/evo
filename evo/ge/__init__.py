@@ -6,7 +6,6 @@
     Grammatical Evolution. Springer US, 2003. 33-47.
 """
 
-import functools
 import multiprocessing.context
 import random
 import gc
@@ -23,7 +22,7 @@ import evo.ge.support
 __author__ = 'Jan Žegklitz'
 
 
-class Ge(evo.GeneticBase, multiprocessing.context.Process):
+class Ge(multiprocessing.context.Process):
     """This class forms the whole GE algorithm.
     """
 
@@ -31,17 +30,15 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
 
     class _GenerationsStop(object):
 
-        def __init__(self, generations):
-            self.generations = generations
+        def __init__(self, iterations):
+            self.iterations = iterations
 
         def __call__(self, ge):
-            if ge.mode == 'generational':
-                return ge.iterations >= self.generations
-            if ge.mode == 'steady-state':
-                return ge.iterations >= (self.generations * ge.pop_size)
+            return ge.iterations >= self.iterations
 
-    def __init__(self, fitness, pop_size, population_initializer, grammar, mode,
-                 stop, name=None, **kwargs):
+    def __init__(self, fitness, pop_strategy, selection_strategy,
+                 population_initializer, grammar, stop, name=None,
+                 **kwargs):
         """The optional keyword argument ``generator`` can be used to pass a
         random number generator. If it is ``None`` or not present a standard
         generator is used which is the :mod:`random` module and its
@@ -57,15 +54,18 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
 
         :param evo.Fitness fitness: fitness used to evaluate individual
             performance
-        :param int pop_size: size of the population; this value will be
-            passed to the ``population_initializer``\ 's method
-            ``initialize``\ ()
+        :param pop_strategy: population handling strategy - determines the size
+            of the (parent) population, the number of offspring in each
+            iteration and how these should be combined with the parent
+            population
+        :type pop_strategy: :class:`evo.PopulationStrategy`
+        :param selection_strategy: selection strategy - the algorithm of
+            selection of "good" individuals from the population
+        :type selection_strategy: :class:`evo.SelectionStrategy`
         :param ge.init.PopulationInitializer population_initializer: initializer
             used to initialize the initial population
         :param evo.support.grammar.Grammar grammar: grammar this algorithm
             operates on
-        :param mode: Specifies which mode of genetic algorithm to use. Possible
-            values are ``'generational'`` and ``'steady-state'``\ .
         :param stop: Either a number or a callable. If it is number:
 
                 The number of generations the algorithm will run for. One
@@ -90,12 +90,6 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             ``None`` or not present calls to the methods of standard python
             module :mod:`random` will be performed instead
         :type generator: :class:`random.Random` , or ``None``
-        :keyword int elites_num: (keyword argument) the number of best
-            individuals to be copied directly to the next generation; if it
-            is lower then 0 it is set to 0; default value is 0
-        :keyword int tournament_size: (keyword argument) the size of
-            tournament for tournament selection; if it is lower than 2 it is
-            set to 2; default value is 2
         :keyword crossover_prob: (keyword argument) probability of performing a
             crossover; if it does not fit into interval [0, 1] it is set to 0 if
             lower than 0 and to 1 if higher than 1; default value is 0.8
@@ -140,21 +134,17 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             every generation with a single argument which is the algorithm
             instance itself (i.e. instance of this class)
         """
-        evo.GeneticBase.__init__(self)
         multiprocessing.context.Process.__init__(self, name=name)
 
         # Positional args
         self.fitness = fitness
-        self.pop_size = pop_size
+        self.pop_strategy = pop_strategy
+        self.selection_strategy = selection_strategy
         self.population_initializer = population_initializer
         if isinstance(grammar, evo.utils.grammar.Grammar):
             self.grammar = grammar
         else:
             self.grammar = evo.utils.grammar.Grammar(grammar)
-        self.mode = mode
-        if mode not in ['generational', 'steady-state']:
-            raise ValueError('Argument mode must be one of \'generational\' '
-                             'or \'steady-state\'')
         if isinstance(stop, int):
             # noinspection PyProtectedMember
             self.stop = Ge._GenerationsStop(stop)
@@ -167,20 +157,6 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         self.generator = random
         if 'generator' in kwargs:
             self.generator = kwargs['generator']
-
-        self.elites_num = 0
-        if 'elites_num' in kwargs:
-            if not isinstance(kwargs['elites_num'], int):
-                raise ValueError('Number of elites must be an integer.')
-            self.elites_num = kwargs['elites_num']
-            self.elites_num = max(0, self.elites_num)
-
-        self.tournament_size = 2
-        if 'tournament_size' in kwargs:
-            if not isinstance(kwargs['tournament_size'], int):
-                raise ValueError('Tournament size must be an integer.')
-            self.tournament_size = kwargs['tournament_size']
-            self.tournament_size = max(2, self.tournament_size)
 
         self.crossover_prob = 0.8
         if 'crossover_prob' in kwargs:
@@ -218,26 +194,6 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             self.duplicate_prob = max(0, self.duplicate_prob)
             self.duplicate_prob = min(1, self.duplicate_prob)
 
-        self.replace_method = self.random_replace
-        self.replace_method_args = ()
-        if 'steady_state_replace' in kwargs:
-            ssr = kwargs['steady_state_replace']
-            if ssr == 'random':
-                self.replace_method = self.random_replace
-                self.replace_method_args = ()
-            elif ssr == 'inverse-tournament':
-                self.replace_method = self.inverse_tournament_replace
-                self.replace_method_args = (self.tournament_size, False)
-            elif ssr[0] == 'inverse-tournament':
-                try:
-                    self.replace_method = self.inverse_tournament_replace
-                    self.replace_method_args = (int(ssr[1]), bool(ssr[2]))
-                except:
-                    raise ValueError('Invalid parameters for inverse '
-                                     'tournament replacement strategy.')
-            else:
-                raise ValueError('Invalid steady state replacement strategy.')
-
         self.stats = None
         if 'stats' in kwargs:
             self.stats = kwargs['stats']
@@ -250,13 +206,73 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
 
         self.population = []
         self.population_sorted = False
-        self.bsf = None
 
         self.iterations = 0
         """
         The number of elapsed iterations of the algorithm (either generations
         in the generational mode or just iterations in the steady-state mode).
         """
+
+    def run(self):
+        """Runs the GE algorithm.
+        """
+        Ge.LOG.info('Starting algorithm.')
+        try:
+            self.population = self.population_initializer.initialize(
+                self.pop_strategy.get_parents_number())
+
+            self._run()
+        finally:
+            if self.fitness.get_bsf() is None:
+                Ge.LOG.info('Finished. No BSF acquired.')
+            else:
+                Ge.LOG.info('Finished.\nFitness: %f\n%s',
+                            self.fitness.get_bsf().get_fitness(),
+                            pprint.pformat(self.fitness.get_bsf().get_data()))
+            Ge.LOG.info('Performing garbage collection.')
+            gc.collect()
+            try:
+                if self.stats is not None:
+                    self.stats.cleanup()
+            except AttributeError:
+                pass
+
+    def _run(self):
+        Ge.LOG.info('Starting evolution.')
+        while not self.stop(self):
+            Ge.LOG.info('Starting iteration %d', self.iterations)
+            if self.callback is not None:
+                self.callback(self)
+
+            elites = self.top_individuals(self.pop_strategy.get_elites_number())
+
+            Ge.LOG.debug('Processing selection.')
+            offspring = []
+            while len(offspring) < self.pop_strategy.get_offspring_number():
+                a = self.selection_strategy.select_single(self.population)[1]
+                self.prune(a)
+                if self.generator.random() < self.crossover_prob:
+                    b = self.selection_strategy.select_single(
+                        self.population)[1]
+                    self.prune(b)
+                    children = self.crossover(a.copy(), b.copy())
+                else:
+                    children = [a.copy()]
+
+                while (children and
+                       len(offspring) <
+                        self.pop_strategy.get_offspring_number()):
+                    o = children.pop()
+                    self.mutate(o)
+                    self.duplicate(o)
+                    offspring.append(o)
+            self.population = self.pop_strategy.combine_populations(
+                self.population, offspring, elites)
+            Ge.LOG.info('Finished iteration %d', self.iterations)
+            self.iterations += 1
+        if self.callback is not None:
+            self.callback(self)
+        Ge.LOG.info('Finished evolution.')
 
     def setup_crossover(self, crossover_type):
         """Helper method for the constructor which sets up the crossover method.
@@ -298,187 +314,19 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             raise ValueError('Invalid crossover type.')
         return mutation_method, mutation_method_args
 
-    def run(self):
-        """Runs the GE algorithm.
-        """
-        Ge.LOG.info('Starting algorithm.')
-        try:
-            self.population = self.population_initializer.initialize(
-                self.pop_size)
-
-            if self.mode == 'generational':
-                self._run_generational()
-            elif self.mode == 'steady-state':
-                self._run_steady_state()
-        finally:
-            Ge.LOG.info('Finished.\nFitness: %f\n%s', self.bsf.get_fitness(),
-                        pprint.pformat(self.bsf.get_data()))
-            Ge.LOG.info('Performing garbage collection.')
-            gc.collect()
-            try:
-                if self.stats is not None:
-                    self.stats.cleanup()
-            except AttributeError:
-                pass
-
-    def _run_generational(self):
-        Ge.LOG.info('Starting generational evolution.')
-        while not self.stop(self):
-            Ge.LOG.info('Starting iteration %d', self.iterations)
-            if self.callback is not None:
-                self.callback(self)
-            elites = self.extract_elites()
-
-            Ge.LOG.debug('Processing selection.')
-            others = []
-            while True:
-                o1 = self.select_tournament(self.population,
-                                            self.tournament_size,
-                                            sorted_=self.population_sorted). \
-                    copy()
-                o2 = self.select_tournament(self.population,
-                                            self.tournament_size,
-                                            sorted_=self.population_sorted). \
-                    copy()
-
-                self.prune(o1)
-                self.prune(o2)
-
-                offsprings = self.crossover(o1, o2)
-
-                # noinspection PyTypeChecker
-                for o in offsprings:
-                    self.mutate(o)
-                    self.duplicate(o)
-                    if self.pop_size - (len(others) + len(elites)) > 0:
-                        self.test_bsf(o)
-                        others.append(o)
-                    else:
-                        break
-                if self.pop_size - (len(others) + len(elites)) <= 0:
-                    break
-            self.population = elites + others
-            Ge.LOG.info('Finished iteration %d', self.iterations)
-            self.iterations += 1
-        if self.callback is not None:
-            self.callback(self)
-        Ge.LOG.info('Finished generational evolution.')
-
-    def _run_steady_state(self):
-        self.population_sorted = self.fitness.sort(self.population, False,
-                                                   evo.Fitness.
-                                                   COMPARE_TOURNAMENT)
-
-        while not self.stop(self):
-            if self.callback is not None:
-                self.callback(self)
-            o1 = self.select_tournament(self.population,
-                                        self.tournament_size,
-                                        sorted_=self.population_sorted).copy()
-            o2 = self.select_tournament(self.population,
-                                        self.tournament_size,
-                                        sorted_=self.population_sorted).copy()
-
-            self.prune(o1)
-            self.prune(o2)
-
-            offsprings = self.crossover(o1, o2)
-
-            # noinspection PyTypeChecker
-            for o in offsprings:
-                self.mutate(o)
-                self.duplicate(o)
-                self.replace(o)
-                self.test_bsf(o)
-            self.iterations += 1
-        if self.callback is not None:
-            self.callback(self)
-
-    def test_bsf(self, individual):
-        self.fitness.evaluate(individual)
-        if self.bsf is None or self.fitness.is_better(individual,
-                                                      self.bsf,
-                                                      evo.Fitness.COMPARE_BSF):
-            self.bsf = individual
-            if self.stats is not None:
-                self.stats.save_bsf(self.iterations, self.bsf)
-
-    def extract_elites(self):
-        Ge.LOG.debug('Extracting %d elites.', self.elites_num)
-        if self.elites_num == 0:
-            return []
-
-        self.population_sorted = self.fitness.sort(self.population, False,
-                                                   evo.Fitness.
-                                                   COMPARE_TOURNAMENT)
-        if self.population_sorted:
-            self.test_bsf(self.population[0])
-            return self.population[0:self.elites_num]
-
-        Ge.LOG.debug('Population not sorted by fitness, using explicit '
-                     'sorting.')
-        cmp = lambda a, b: self.fitness.is_better(a, b, evo.Fitness.
-                                                  COMPARE_TOURNAMENT)
-        sorted_population = sorted(self.population,
-                                   key=functools.cmp_to_key(cmp))
-        self.test_bsf(sorted_population[0])
-        Ge.LOG.debug('Elites extracted.')
-        return sorted_population[0:self.elites_num]
-
-    def select_tournament(self, population, size, inverse=False, sorted_=True):
-        return population[self.select_tournament_idx(population, size,
-                                                     inverse, sorted_)]
-
-    def select_tournament_idx(self, population, size,
-                              inverse=False, sorted_=False):
-        candidates_idx = self.generator.sample(range(len(population)), size)
-        if sorted_:
-            if inverse:
-                return max(candidates_idx)
-            return min(candidates_idx)
-        best_idx = None
-        for candidate_idx in candidates_idx:
-            candidate = population[candidate_idx]
-
-            if best_idx is None:
-                best_idx = candidate_idx
-            else:
-                better = self.fitness.is_better(candidate, population[best_idx],
-                                                evo.Fitness.
-                                                COMPARE_TOURNAMENT)
-                if bool(inverse) ^ bool(better):
-                    best_idx = candidate_idx
-        return best_idx
-
     def crossover(self, o1, o2):
         """Performs a crossover of two individuals.
 
         :param evo.ge.support.CodonGenotypeIndividual o1: first parent
         :param evo.ge.support.CodonGenotypeIndividual o2: second parent
         """
-        if self.generator.random() >= self.crossover_prob:
-            return [o1, o2]
         Ge.LOG.debug('Performing crossover of individuals %s, %s', o1, o2)
         assert self.crossover_method is not None
         # noinspection PyArgumentList
         return self.crossover_method(o1, o2, *self.crossover_method_args)
 
-    def variable_crossover(self, o1, o2, crossover_pref_change_prob,
-                           crossover_methods):
-        Ge.LOG.debug('Variable crossover of individuals %s, %s', o1, o2)
-        xover_pref = o1.get_data('xover-pref')
-        if xover_pref is None:
-            xover_pref = self.generator.randrange(len(crossover_methods))
-
-        xover_method, args = crossover_methods[xover_pref]
-        offsprings = xover_method(o1, o2, *args)
-        for o in offsprings:
-            if self.generator.random() < crossover_pref_change_prob:
-                o.set_data('xover-pref',
-                           self.generator.randrange(len(crossover_methods)))
-            else:
-                o.set_data('xover-pref', xover_pref)
-        return offsprings
+    def mutate(self, individual):
+        self.mutate_method(individual, *self.mutate_method_args)
 
     # noinspection PyUnusedLocal
     def single_point_crossover(self, o1, o2, *args):
@@ -590,28 +438,22 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         o2.set_fitness(None)
         return [o1, o2]
 
-    def mutate(self, individual):
-        self.mutate_method(individual, *self.mutate_method_args)
+    def variable_crossover(self, o1, o2, crossover_pref_change_prob,
+                           crossover_methods):
+        Ge.LOG.debug('Variable crossover of individuals %s, %s', o1, o2)
+        xover_pref = o1.get_data('xover-pref')
+        if xover_pref is None:
+            xover_pref = self.generator.randrange(len(crossover_methods))
 
-    def variable_mutation(self, individual, mutation_pref_change_prob,
-                          mutation_methods):
-        Ge.LOG.debug('Variable mutation of individual %s', individual)
-        mutation_pref = individual.get_data('mutation-pref')
-        if mutation_pref is None:
-            mutation_pref = self.generator.randrange(len(mutation_methods))
-
-        mutation_method, args = mutation_methods[mutation_pref]
-        out = mutation_method(individual, *args)
-        while out is None:
-            mutation_pref = (mutation_pref + 1) % len(mutation_methods)
-            out = mutation_method(individual, *args)
-
-        if self.generator.random() < mutation_pref_change_prob:
-            individual.set_data('mutation-pref',
-                                self.generator.randrange(len(mutation_methods)))
-        else:
-            individual.set_data('mutation-pref', mutation_pref)
-        return out
+        xover_method, args = crossover_methods[xover_pref]
+        offsprings = xover_method(o1, o2, *args)
+        for o in offsprings:
+            if self.generator.random() < crossover_pref_change_prob:
+                o.set_data('xover-pref',
+                           self.generator.randrange(len(crossover_methods)))
+            else:
+                o.set_data('xover-pref', xover_pref)
+        return offsprings
 
     def codon_change_mutate(self, individual):
         if not isinstance(individual, evo.ge.support.CodonGenotypeIndividual):
@@ -653,8 +495,7 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
         if self.generator.random() < self.mutation_prob:
             Ge.LOG.debug('Mutating individual %s', individual.__str__())
             if individual.annotations is None:
-                Ge.LOG.warn('No annotations to mutate %s',
-                             individual.__str__())
+                Ge.LOG.warn('No annotations to mutate %s', individual.__str__())
                 return None
             annotations = individual.get_annotations()
             idx = self.generator.randrange(len(annotations))
@@ -669,16 +510,25 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
             individual.set_fitness(None)
         return individual
 
-    def generate_subtree_codons(self, start_symbol, max_depth):
-        ri = evo.utils.random.RandomIntIterable(
-            -1, -1, 0, self.grammar.get_choice_nums_lcm(),
-            generator=self.generator)
-        seq = []
-        o, _, _, _, annotations = self.grammar.to_tree(ri, 0,
-                                                       max_depth=max_depth,
-                                                       sequence=seq,
-                                                       start_rule=start_symbol)
-        return seq, annotations
+    def variable_mutation(self, individual, mutation_pref_change_prob,
+                          mutation_methods):
+        Ge.LOG.debug('Variable mutation of individual %s', individual)
+        mutation_pref = individual.get_data('mutation-pref')
+        if mutation_pref is None:
+            mutation_pref = self.generator.randrange(len(mutation_methods))
+
+        mutation_method, args = mutation_methods[mutation_pref]
+        out = mutation_method(individual, *args)
+        while out is None:
+            mutation_pref = (mutation_pref + 1) % len(mutation_methods)
+            out = mutation_method(individual, *args)
+
+        if self.generator.random() < mutation_pref_change_prob:
+            individual.set_data('mutation-pref',
+                                self.generator.randrange(len(mutation_methods)))
+        else:
+            individual.set_data('mutation-pref', mutation_pref)
+        return out
 
     def prune(self, individual):
         if not isinstance(individual, evo.ge.support.CodonGenotypeIndividual):
@@ -705,73 +555,29 @@ class Ge(evo.GeneticBase, multiprocessing.context.Process):
                                    individual.genotype[-1:])
             individual.set_fitness(None)
 
-    def replace(self, indiv):
-        self.replace_method(indiv, *self.replace_method_args)
+    def generate_subtree_codons(self, start_symbol, max_depth):
+        ri = evo.utils.random.RandomIntIterable(
+            -1, -1, 0, self.grammar.get_choice_nums_lcm(),
+            generator=self.generator)
+        seq = []
+        o, _, _, _, annotations = self.grammar.to_tree(ri, 0,
+                                                       max_depth=max_depth,
+                                                       sequence=seq,
+                                                       start_rule=start_symbol)
+        return seq, annotations
 
-    def random_replace(self, indiv):
-        self._pop_replace(self.generator.randrange(len(self.population)), indiv)
-
-    def inverse_tournament_replace(self, indiv, n, participate):
-        if participate:
-            loser_idx = self.select_tournament_idx(self.population, n - 1, True,
-                                                   sorted_=self.
-                                                   population_sorted)
-            loser = self.population[loser_idx]
-            if self.fitness.is_better(indiv, loser,
-                                      evo.Fitness.COMPARE_TOURNAMENT):
-                self._pop_replace(loser_idx, indiv)
-        else:
-            loser_idx = self.select_tournament_idx(self.population, n, True,
-                                                   sorted_=self.
-                                                   population_sorted)
-            self._pop_replace(loser_idx, indiv)
-
-    def steady_state_replace(self, o1, o2):
-        if o1.get_fitness() is None:
-            self.test_bsf(o1)
-        if o2.get_fitness() is None:
-            self.test_bsf(o2)
-
-        if self.fitness.is_better(o1, o2, evo.Fitness.COMPARE_TOURNAMENT):
-            o = o1
-        elif self.fitness.is_better(o2, o1, evo.Fitness.COMPARE_TOURNAMENT):
-            o = o2
-        else:
-            if self.generator.random() < 0.5:
-                o = o1
-            else:
-                o = o2
-
-        if self.fitness.is_better(self.population[-1], o,
-                                  evo.Fitness.COMPARE_TOURNAMENT):
-            return
-
-        self.population.pop(-1)
-
-        if self.fitness.is_better(self.population[-1], o,
-                                  evo.Fitness.COMPARE_TOURNAMENT):
-            self.population.append(o)
-            return
-
-        if self.fitness.is_better(o, self.population[0],
-                                  evo.Fitness.COMPARE_TOURNAMENT):
-            self.population.insert(0, o)
-            return
-
-        l = 0
-        u = len(self.population)
-        c = (l + u) // 2
-        while l < u and l != c != u:
-            ci = self.population[c]
-            if self.fitness.is_better(ci, o, evo.Fitness.COMPARE_TOURNAMENT):
-                l = c
-            elif self.fitness.is_better(o, ci,
-                                        evo.Fitness.COMPARE_TOURNAMENT):
-                u = c
-            else:
+    def top_individuals(self, k):
+        if k <= 0:
+            return []
+        kth = evo.utils.select(self.population, k - 1,
+                               cmp=lambda a, b: self.fitness.is_better(a, b))
+        tops = []
+        for i in self.population:
+            if self.fitness.is_better(i, kth) or self.fitness.is_better(kth, i):
+                tops.append(i)
+            if len(tops) == k:
                 break
-            c = (l + u) // 2
-        self.population.insert(c + 1, o)
+        return tops
 
 
 # noinspection PyAbstractClass
@@ -838,6 +644,7 @@ class GeFitness(evo.Fitness):
         self.unfinished_fitness = unfinished_fitness
         self.wraps = wraps
         self.skip_if_evaluated = skip_if_evaluated
+        self.bsf = None
 
     def evaluate(self, individual):
         """
@@ -857,7 +664,9 @@ class GeFitness(evo.Fitness):
         fitness = self.evaluate_phenotype(phenotype, individual)
 
         individual.set_fitness(fitness)
-        pass
+        if self.bsf is None or self.is_better(individual, self.bsf):
+            self.bsf = individual.copy()
+        return fitness
 
     def decode(self, individual):
         """Decodes the individual.
@@ -888,6 +697,9 @@ class GeFitness(evo.Fitness):
         """Evaluates the phenotype.
         """
         raise NotImplementedError()
+
+    def get_bsf(self):
+        return self.bsf
 
 
 # noinspection PyAbstractClass

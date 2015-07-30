@@ -137,13 +137,6 @@ class Gp(multiprocessing.context.Process):
         if 'generator' in kwargs:
             self.generator = kwargs['generator']
 
-        self.elites_num = 0
-        if 'elites_num' in kwargs:
-            if not isinstance(kwargs['elites_num'], int):
-                raise ValueError('Number of elites must be an integer.')
-            self.elites_num = kwargs['elites_num']
-            self.elites_num = max(0, self.elites_num)
-
         self.crossover_prob = 0.8
         if 'crossover_prob' in kwargs:
             self.crossover_prob = kwargs['crossover_prob']
@@ -244,7 +237,7 @@ class Gp(multiprocessing.context.Process):
             self.iterations += 1
         if self.callback is not None:
             self.callback(self)
-        Gp.LOG.info('Finished generational evolution.')
+        Gp.LOG.info('Finished evolution.')
 
     def setup_crossover(self, crossover_type):
         """Helper method for the constructor which sets up the crossover method.

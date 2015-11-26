@@ -1,7 +1,6 @@
 # -*- coding: utf8 -*-
 """ TODO docstring
 """
-__author__ = ''
 
 import unittest
 

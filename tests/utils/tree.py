@@ -5,9 +5,6 @@ import unittest
 import evo.utils.tree as tree
 
 
-__author__ = ''
-
-
 class TestTree(unittest.TestCase):
     class Predicate:
         def __init__(self):

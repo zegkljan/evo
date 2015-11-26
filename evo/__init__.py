@@ -2,8 +2,9 @@
 """ TODO docstring
 """
 
-import copy
 import logging
+
+import copy
 
 __author__ = 'Jan Žegklitz'
 

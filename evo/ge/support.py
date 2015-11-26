@@ -2,12 +2,13 @@
 """Support classes for the :mod:`evo.ge` package.
 """
 
-import functools
-import random
 import fractions
 import numbers
 import math
 import logging
+
+import functools
+import random
 
 import evo
 import evo.utils.grammar

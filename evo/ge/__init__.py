@@ -7,11 +7,12 @@
 """
 
 import multiprocessing.context
-import random
 import gc
 import math
 import logging
 import pprint
+
+import random
 
 import evo
 import evo.utils

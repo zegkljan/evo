@@ -2,18 +2,18 @@
 """ This package contains an implementation of classical Koza-style Genetic
 Programming.
 """
+
 import logging
 import multiprocessing
 import pprint
-import random
 import gc
+
+import random
 
 import evo
 import evo.gp.support
 import evo.utils
 import evo.utils.tree
-
-__author__ = 'Jan Žegklitz'
 
 
 class Gp(multiprocessing.context.Process):
@@ -311,12 +311,7 @@ class Gp(multiprocessing.context.Process):
 
         subtree = evo.gp.support.generate_grow(self.functions, self.terminals,
                                                max_depth, self.generator)
-        subtree.parent = n.parent
-        subtree.parent_index = n.parent_index
-        if subtree.parent is None:
-            i.genotype = subtree
-        else:
-            subtree.parent.children[subtree.parent_index] = subtree
+        i.genotype = evo.gp.support.replace_subtree(n, subtree)
         i.set_fitness(None)
         return i
 

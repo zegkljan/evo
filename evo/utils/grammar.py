@@ -2,8 +2,9 @@
 """Contains classes which can form a BNF grammar.
 """
 
-import functools
 import fractions
+
+import functools
 
 import evo.utils.tree
 

@@ -3,8 +3,9 @@
 """
 
 import multiprocessing.context
-import random
 import gc
+
+import random
 
 import evo
 import evo.ge

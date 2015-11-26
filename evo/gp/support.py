@@ -3,6 +3,7 @@
 """
 
 import logging
+
 import random
 
 import evo
@@ -14,6 +15,38 @@ __author__ = 'Jan Žegklitz'
 class GpNode(evo.utils.tree.TreeNode):
     def get_arity(self):
         raise NotImplementedError()
+
+    # noinspection PyMethodMayBeStatic
+    def notify_child_changed(self, child_index: int, data=None):
+        """Notifies this node that one of its children changed.
+
+        This method is to be called by children nodes on their parents to notify
+        them that they changed. Override this method to implement the desired
+        behaviour upon notification.
+
+        :param child_index: index of this node's child the notification comes
+            from
+        :param data: optional data that will be passed to the ``notified_*``
+            methods and to the propagation call (if any)
+        .. seealso:: :meth:`notify_change`
+        """
+        pass
+
+    def notify_change(self, data=None):
+        """Notifies the parent node that this node has changed.
+
+        This method is to be used when the parent node needs to be notified of
+        a change in this node (whatever that is). The only requirement is that
+        the tree structure is properly set, i.e. the
+        :attr:`evo.utils.tree.TreeNode.parent` and
+        :attr:`evo.utils.tree.TreeNode.parent_index` are set correctly.
+
+        :param data: optional data that will be passed to the parent
+        """
+        if self.is_root():
+            return
+
+        self.parent.notify_child_changed(self.parent_index, data)
 
 
 class TreeIndividual(evo.Individual):
@@ -206,7 +239,7 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
         return pop
 
 
-def swap_subtrees(s1, s2):
+def swap_subtrees(s1: GpNode, s2: GpNode):
     """Takes two (sub)trees and swaps them in place, returning the new roots.
 
     Example:
@@ -255,34 +288,38 @@ def swap_subtrees(s1, s2):
 
     and the function will return a tuple ``(n, i)``.
 
-    :param evo.utils.tree.TreeNode s1: the first (sub)tree to be swapped
-    :param evo.utils.tree.TreeNode s2: the second (sub)tree to be swapped
+    This function also notifies about the change after the swapping is
+    completed.
+
+    :param s1: the first (sub)tree to be swapped
+    :param s2: the second (sub)tree to be swapped
     :return: a tuple of root nodes of the corresponding trees
-    :rtype: :class:`evo.utils.tree.TreeNode`
+    :rtype: :class:`evo.utils.tree.GpNode`
     """
     s1p = s1.parent
     s1pi = s1.parent_index
     s2p = s2.parent
     s2pi = s2.parent_index
 
-    if s1p is None:
-        if s2p is None:
-            return s2, s1
+    ret = None
+    if s1.is_root():
+        if s2.is_root():
+            ret = s2, s1
         else:
             s2.parent = None
             s2.parent_index = None
             s2p.children[s2pi] = s1
             s1.parent = s2p
             s1.parent_index = s2pi
-            return s2, s2p.get_root()
+            ret = s2, s2p.get_root()
     else:
-        if s2p is None:
+        if s2.is_root():
             s1.parent = None
             s1.parent_index = None
             s1p.children[s1pi] = s2
             s2.parent = s1p
             s2.parent_index = s1pi
-            return s1p.get_root(), s1
+            ret = s1p.get_root(), s1
         else:
             s1p.children[s1pi] = s2
             s2p.children[s2pi] = s1
@@ -290,4 +327,57 @@ def swap_subtrees(s1, s2):
             s1.parent_index = s2pi
             s2.parent = s1p
             s2.parent_index = s1pi
-            return s1p.get_root(), s2p.get_root()
+            ret = s1p.get_root(), s2p.get_root()
+
+    s1.notify_change()
+    s2.notify_change()
+    return ret
+
+
+def replace_subtree(old: GpNode, new: GpNode):
+    """Replaces the ``old`` (sub)tree with the ``new`` one, handling correct
+    connection with the possible parent of the ``old`` tree.
+
+    Example:
+    Suppose that we have two trees::
+
+           a             i
+        +--+-+       +---+---+
+        b    c       j   k   l
+           +-+-+
+           d   e
+        +--+   |
+        f  g   h
+
+    Suppose that ``old`` corresponds to the node ``c`` in the left tree and
+    ``new`` corresponds to the right tree (its root, i.e. node ``i``). After the
+    replace the left tree is going to look like::
+
+           a
+        +--+-+
+        b    i
+         +---+---+
+         j   k   l
+
+    and the function will return the root of the tree ``old`` was in, i.e. the
+    node ``a`` in this case
+
+    This function also notifies (from the ``new`` node) about the change after
+    the replace is completed.
+
+    :param old: the (sub)tree to be replaced
+    :param new: the (sub)tree to be inserted in the ``old``'s place
+    :return: root of the tree that was operated on
+    :rtype: :class:`evo.utils.tree.GpNode`
+    """
+    old_parent = old.parent
+    old_parent_index = old.parent_index
+
+    if old.is_root():
+        return new
+    else:
+        old_parent.children[old_parent_index] = new
+        new.parent = old_parent
+        new.parent_index = old_parent_index
+        new.notify_change()
+        return new.get_root()

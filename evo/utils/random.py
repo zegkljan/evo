@@ -3,8 +3,9 @@
 numbers and number generators.
 """
 
-import random
 import enum
+
+import random
 
 __author__ = 'Jan Žegklitz'
 

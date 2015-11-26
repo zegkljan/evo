@@ -3,6 +3,7 @@
 """
 
 import unittest
+
 import evo.utils.grammar as grammar
 import evo.utils.tree as tree
 

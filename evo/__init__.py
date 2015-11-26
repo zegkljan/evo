@@ -42,7 +42,7 @@ class Individual(object):
     def copy(self, carry_evaluation, carry_data):
         """Returns a copy of the individual.
 
-        :param bool carry_evaluation: specifies whtether to copy the evaluation
+        :param bool carry_evaluation: specifies whether to copy the evaluation
             related data (most importantly the fitness value) too
         """
         raise NotImplementedError()
@@ -153,7 +153,7 @@ class Fitness(object):
         """Returns the best solution encountered so far.
 
         :return: the best-so-far solution or ``None`` if there is no such
-            soltuion (yet)
+            solution (yet)
         :rtype: :class:`evo.Individual`
         """
         raise NotImplementedError()
@@ -198,7 +198,7 @@ class SimplePopulationInitializer(PopulationInitializer):
 
     def initialize(self, pop_size):
         SimplePopulationInitializer.LOG.info('Initializing population of size '
-                                              '%d', pop_size)
+                                             '%d', pop_size)
         population = []
         for _ in range(pop_size):
             population.append(self.individual_initializer.initialize())
@@ -212,6 +212,7 @@ class GeneticBase(object):
     This class contains the common utility methods only, not the algorithm
     itself.
     """
+
     def _pop_insert(self, indiv):
         """Inserts an individual into the sorted population.
         """
@@ -267,9 +268,8 @@ class GeneticBase(object):
         left_fit = ln is not None and self.fitness.is_better(ln, indiv,
                                                              Fitness.
                                                              COMPARE_TOURNAMENT)
-        right_fit = rn is not None and self.fitness.is_better(indiv, rn,
-                                                              Fitness.
-                                                              COMPARE_TOURNAMENT)
+        right_fit = rn is not None and self.fitness.is_better(
+            indiv, rn, Fitness.COMPARE_TOURNAMENT)
         if left_fit and right_fit:
             self.population[replace_idx] = indiv
             return
@@ -287,6 +287,7 @@ class PopulationStrategy(object):
     population, the number of offspring generated in each iteration and how
     these offspring are combined with the (parent) population.
     """
+
     def get_parents_number(self):
         """Returns the number of individuals in the parent population.
 
@@ -338,6 +339,7 @@ class GenerationalPopulationStrategy(PopulationStrategy):
         #. offspring and elites are joined into a single population which
            completely replaces the parent population
     """
+
     def __init__(self, pop_size, elites_num):
         """
         :param pop_size: (parent) population size
@@ -370,6 +372,7 @@ class SteadyStatePopulationStrategy(PopulationStrategy):
 
     There are no explicit elites.
     """
+
     def __init__(self, pop_size, offspring_num):
         """
         :param pop_size: (parent) population size
@@ -408,6 +411,7 @@ class SteadyStatePopulationStrategy(PopulationStrategy):
 class SelectionStrategy(object):
     """Defines the selection algorithm (strategy).
     """
+
     def select_single(self, population):
         """Selects a single individual from the given population.
 
@@ -450,6 +454,7 @@ class SelectionStrategy(object):
 class TournamentSelectionStrategy(SelectionStrategy):
     """Handles the tournament selection of individuals.
     """
+
     def __init__(self, tournament_size, generator, fitness):
         """
         :param int tournament_size: size of the tournament

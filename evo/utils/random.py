@@ -101,9 +101,9 @@ class Distribution(enum.Enum):
                          '0.')
 
     @staticmethod
-    def expovariate(lambd):
-        if lambd != 0:
-            return Distribution.EXPOVARIATE, lambd
+    def expovariate(lamb):
+        if lamb != 0:
+            return Distribution.EXPOVARIATE, lamb
         raise ValueError('The lambda parameter must be nonzero.')
 
     @staticmethod

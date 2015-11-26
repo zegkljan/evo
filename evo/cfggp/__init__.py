@@ -3,9 +3,8 @@
 """
 
 import multiprocessing.context
-import gc
-
 import random
+import gc
 
 import evo
 import evo.ge
@@ -39,6 +38,7 @@ class DerivationTreeIndividual(evo.Individual):
         return self.tree
 
 
+# noinspection PyAbstractClass
 class Cfggp(multiprocessing.context.Process):
     """This class forms the CFG-GP algorithm.
     """
@@ -216,8 +216,8 @@ class Cfggp(multiprocessing.context.Process):
 
                 self.crossover(o1, o2)
 
-                #self.mutate(o1)
-                #self.mutate(o2)
+                # self.mutate(o1)
+                # self.mutate(o2)
 
                 o1 = self.derivation_to_codon(o1)
                 o2 = self.derivation_to_codon(o2)
@@ -248,8 +248,8 @@ class Cfggp(multiprocessing.context.Process):
 
             self.crossover(o1, o2)
 
-            #self.mutate(o1)
-            #self.mutate(o2)
+            # self.mutate(o1)
+            # self.mutate(o2)
 
             o1 = self.derivation_to_codon(o1)
             o2 = self.derivation_to_codon(o2)
@@ -272,7 +272,7 @@ class Cfggp(multiprocessing.context.Process):
             if individual.get_fitness() is None:
                 self.evaluate(individual)
 
-        #self.generator.shuffle(self.population)
+        # self.generator.shuffle(self.population)
         self.population.sort(key=lambda x: x.get_fitness(),
                              reverse=self.fitness.maximize())
         return self.population[0:self.elites_num]
@@ -301,20 +301,20 @@ class Cfggp(multiprocessing.context.Process):
         if not isinstance(o2, DerivationTreeIndividual):
             raise TypeError('Parent must be of type DerivationTreeIndividual.')
 
-        pred1 = lambda node: not node.is_leaf()
+        def pred1(node): return not node.is_leaf()
         n1 = o1.tree.get_filtered_subtree_size(pred1)
         point1 = self.generator.randrange(n1)
         node1 = o1.tree.get_filtered_nth_node(point1, pred1)
 
-        pred2 = lambda node: not node.is_leaf() and node.data == node1.data
+        def pred2(node): return not node.is_leaf() and node.data == node1.data
         n2 = o2.tree.get_filtered_subtree_size(pred2)
         while n2 == 0:
             n1 = o1.tree.get_filtered_subtree_size(pred1)
             point1 = self.generator.randrange(n1)
             node1 = o1.tree.get_filtered_nth_node(point1, pred1)
 
-            pred2 = lambda node: (not node.is_leaf() and
-                                  node.data == node1.data)
+            def pred2(node): return (not node.is_leaf() and
+                                     node.data == node1.data)
             n2 = o2.tree.get_filtered_subtree_size(pred2)
 
         point2 = self.generator.randrange(n2)
@@ -379,7 +379,7 @@ class Cfggp(multiprocessing.context.Process):
         l = 0
         u = len(self.population)
         c = (l + u) // 2
-        while l < u and c != l and c != u:
+        while c != l < u != c:
             ci = self.population[c]
             if self.fitness.is_better(ci.get_fitness(), o.get_fitness()):
                 l = c

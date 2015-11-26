@@ -7,6 +7,7 @@ import logging
 import numpy
 import numpy.linalg
 import copy
+
 import functools
 
 import evo
@@ -17,6 +18,7 @@ import evo.utils.grammar
 __author__ = 'Jan Žegklitz'
 
 
+# noinspection PyAbstractClass
 class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
     """A fitness for symbolic regression that operates with multiple genes at
     the grammar level.
@@ -106,7 +108,7 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
                                           'fitness: %f', self.error_fitness)
             return self.error_fitness
         try:
-            weights = numpy.linalg.pinv(mult).dot(metafeatures.T).\
+            weights = numpy.linalg.pinv(mult).dot(metafeatures.T). \
                 dot(self.target)
         except numpy.linalg.linalg.LinAlgError as e:
             MultiGeneGeSrFitness.LOG.exception(e)
@@ -124,6 +126,7 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
         individual.set_data('weights', list(weights))
         return self.analyze_error(error, individual)
 
+    # noinspection PyMethodMayBeStatic,PyUnusedLocal
     def analyze_error(self, error, individual):
         """Computes the fitness value from the error on target data.
 
@@ -281,6 +284,7 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
         return grammar_dict
 
 
+# noinspection PyAbstractClass
 class MultiGeneGe(evo.ge.Ge):
     """This class represents the GE algorithm modified to work in the multi-gene
     genetic programming (MGGP) fashion.
@@ -326,7 +330,7 @@ class MultiGeneGe(evo.ge.Ge):
                                                   crossover_type[2],
                                                   crossover_type[3])
         elif crossover_type[0] == 'low-level':
-            return self.low_level_crossover, (crossover_type[1], )
+            return self.low_level_crossover, (crossover_type[1],)
         elif crossover_type[0] == 'probabilistic':
             crossover_method = self.probabilistic_crossover
             probs_methods = []
@@ -340,7 +344,7 @@ class MultiGeneGe(evo.ge.Ge):
             for i in range(len(probs_methods)):
                 probs_methods[i][0] = probs_methods[i][0] / probs_methods[-1][0]
 
-            crossover_method_args = (tuple(probs_methods), )
+            crossover_method_args = (tuple(probs_methods),)
             return crossover_method, crossover_method_args
         else:
             return super().setup_crossover(crossover_type)
@@ -441,6 +445,7 @@ class MultiGeneGe(evo.ge.Ge):
         return (i_annot[1] is not None and i_annot[1][0] == gene_rule and
                 self.generator.random() < crossover_rate)
 
+    # noinspection PyMethodMayBeStatic,PyUnusedLocal
     def low_level_crossover(self, o1, o2, hl_rules):
         if not isinstance(o1, evo.ge.support.CodonGenotypeIndividual):
             raise TypeError('Parent must be of type CodonGenotypeIndividual.')
@@ -449,12 +454,12 @@ class MultiGeneGe(evo.ge.Ge):
         MultiGeneGe.LOG.debug('Low level crossover of individuals %s, %s',
                               o1.__str__(), o2.__str__())
 
-        a1 = list(map(lambda x: (None if x is not None and x[0] in hl_rules
-                                 else x),
-                      o1.get_annotations()))
-        a2 = list(map(lambda x: (None if x is not None and x[0] in hl_rules
-                                 else x),
-                      o2.get_annotations()))
+        # a1 = list(map(lambda x: (None if x is not None and x[0] in hl_rules
+        #                          else x),
+        #               o1.get_annotations()))
+        # a2 = list(map(lambda x: (None if x is not None and x[0] in hl_rules
+        #                          else x),
+        #               o2.get_annotations()))
         o1.set_annotations(None)
         o2.set_annotations(None)
 

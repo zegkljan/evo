@@ -109,6 +109,7 @@ class RandomRealVectorInitializer(evo.IndividualInitializer):
         return VectorIndividual(genotype)
 
 
+# noinspection PyAbstractClass
 class Ga(evo.GeneticBase, multiprocessing.context.Process):
     """This class forms the whole GA algorithm.
     """
@@ -478,8 +479,8 @@ class Ga(evo.GeneticBase, multiprocessing.context.Process):
         if self.population_sorted:
             return self.population[0:self.elites_num]
 
-        cmp = lambda a, b: self.fitness.is_better(a, b, evo.Fitness.
-                                                  COMPARE_TOURNAMENT)
+        def cmp(a, b): return self.fitness.is_better(
+            a, b, evo.Fitness.COMPARE_TOURNAMENT)
         sorted_population = sorted(self.population,
                                    key=functools.cmp_to_key(cmp))
         return sorted_population[0:self.elites_num]
@@ -545,6 +546,7 @@ class Ga(evo.GeneticBase, multiprocessing.context.Process):
         i2.set_fitness(None)
         return [i1, i2]
 
+    # noinspection PyMethodMayBeStatic
     def mean_crossover(self, i1, i2):
         if len(i1.genotype) != len(i2.genotype):
             raise ValueError('Genotypes must be of equal lengths.')

@@ -526,7 +526,9 @@ class Grammar(object):
                 continue
             if isinstance(rule, Rule):
                 if tree is None:
-                    node = evo.utils.tree.TreeNode(None, None, [], rule.name)
+                    node = evo.utils.tree.TreeNode()
+                    node.children = []
+                    node.data = rule.name
                     tree = node
                     tree_stack = [[node, 0]]
                     depth = 1
@@ -691,12 +693,12 @@ class Grammar(object):
         The produced sequence of choices with respect to the ``tree_root``
         always behaves in the following way::
 
-            >>>g = ... # some Grammar
-            >>>choices = ... # sequence of choices producing a valid derivation
-            ...              # tree on ``g`` with no extra integers left
+            >>>g = ...  # some Grammar
+            >>>choices = ...  # sequence of choices producing a valid derivation
+            ...               # tree on ``g`` with no extra integers left
             >>>(tree, _, _, _, _) = g.to_tree(decisions=choices, max_wraps=0,
             ...                               max_depth=float('inf'))
-            >>>choices2 , _= g.derivation_tree_to_choice_squence(tree)
+            >>>choices2, _ = g.derivation_tree_to_choice_sequence(tree)
             >>>choices == choices2
             True
 
@@ -765,7 +767,7 @@ class Grammar(object):
         return '\n'.join(lines)
 
     def get_choice_nums_lcm(self):
-        """Returns the lowes common multiple of the numbers of choices of all
+        """Returns the least common multiple of the numbers of choices of all
         the rules in this grammar.
         """
         choice_nums = [r.get_choices_num() for r in self.get_rules()]
@@ -778,7 +780,6 @@ class Grammar(object):
 
         :rtype: int
         """
-        g_dict = self.to_dict()
         closed = set()
 
         def rule_min_depth(rule):
@@ -821,5 +822,6 @@ def derivation_tree_to_text(root):
     def extractor(node):
         if node.is_leaf():
             terminals.append(node.data)
+
     root.preorder(extractor)
     return ''.join(terminals)

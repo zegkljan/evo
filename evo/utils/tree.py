@@ -11,11 +11,12 @@ class TreeNode(object):
     which is directly the parent tree node, not a list.
     """
 
-    def __init__(self):
-        self.parent = None
-        self.parent_index = None
-        self.children = None
-        self.data = None
+    def __init__(self, parent=None, parent_index=None, children=None,
+                 data=None):
+        self.parent = parent
+        self.parent_index = parent_index
+        self.children = children
+        self.data = data
 
     def is_leaf(self):
         return self.children is None

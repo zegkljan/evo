@@ -269,7 +269,7 @@ def swap_subtrees(s1: GpNode, s2: GpNode):
 
     and the function will return a tuple ``(a, i)``.
 
-    Now suppose that ``s1`` cooresponds to the ``a`` node of the original left
+    Now suppose that ``s1`` corresponds to the ``a`` node of the original left
     tree and ``s2`` corresponds to the ``n`` node of the original right tree.
     After the swap the trees are going to look like::
 
@@ -301,7 +301,6 @@ def swap_subtrees(s1: GpNode, s2: GpNode):
     s2p = s2.parent
     s2pi = s2.parent_index
 
-    ret = None
     if s1.is_root():
         if s2.is_root():
             ret = s2, s1

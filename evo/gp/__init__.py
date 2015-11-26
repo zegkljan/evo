@@ -16,6 +16,7 @@ import evo.utils
 import evo.utils.tree
 
 
+# noinspection PyAbstractClass
 class Gp(multiprocessing.context.Process):
     """This class forms the whole GE algorithm.
     """

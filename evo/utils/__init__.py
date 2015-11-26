@@ -63,7 +63,7 @@ class MemoryStats(Stats):
 
 class ResourceHoldingStats(Stats):
     """A :class:`Stats` that holds some resources that have to be cleaned up.
-    This class has no funtion and therefore must be subclassed.
+    This class has no function and therefore must be subclassed.
 
     This class provides the :meth:`.cleanup()` method which should take care
     of cleaning up the resources.
@@ -104,7 +104,7 @@ class SimpleFileStats(ResourceHoldingStats):
             opened and closed in the :meth:`.cleanup()` method. If it is not a
             string it is assumed to be a file-like object and it will be used
             directly and will not be closed in the :meth:`.cleanup()`. This
-            behavior can be overriden by setting the ``manage`` argument.
+            behavior can be overridden by setting the ``manage`` argument.
         :param field_separator: set to use different separator than ``|``
             (which is the default)
         :param element_separator: set to use different separator than ``;``
@@ -160,7 +160,7 @@ class SimpleFileStats(ResourceHoldingStats):
             self.stats_file.close()
 
 
-class MultiplingStats(ResourceHoldingStats):
+class TeeStats(ResourceHoldingStats):
     """A :class:`Stats` class saving the stats to all "sub-stats". This is
     useful e.g. for saving stats both to memory and file, or print the stats
     to stderr/out in addition to other stats saving.
@@ -221,7 +221,8 @@ def select(vector, k, left=None, right=None, cmp=None):
         raise ValueError("The rank is greater than the number of searched "
                          "elements.")
     if cmp is None:
-        cmp = lambda a, b: a < b
+        def cmp(a, b):
+            return a < b
     while True:
         pivot_index = (right - left) // 2 + left
         pivot_new_index = _partition(vector, left, right, pivot_index, cmp)

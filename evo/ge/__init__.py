@@ -23,6 +23,7 @@ import evo.ge.support
 __author__ = 'Jan Žegklitz'
 
 
+# noinspection PyAbstractClass
 class Ge(multiprocessing.context.Process):
     """This class forms the whole GE algorithm.
     """
@@ -112,7 +113,7 @@ class Ge(multiprocessing.context.Process):
         :keyword mutation_type: (keyword argument) the type of mutation;
             possible values are
 
-                * ``'codon-change'`` - codon-chagne mutation
+                * ``'codon-change'`` - codon-change mutation
                 * ``('subtree', max_depth)`` - derivation subtree mutation;
                   ``max_depth`` is the maximum depth of the randomly generated
                   subtree
@@ -731,7 +732,7 @@ class GeTreeFitness(GeFitness):
 
         :param derivation_tree: derivation tree of the individual
         :param individual: the individual itself
-        :return: a correpsonding phenotype
+        :return: a corresponding phenotype
         """
         raise NotImplementedError()
 

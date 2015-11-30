@@ -149,13 +149,13 @@ class Fitness(object):
         """
         return self.compare(i1, i2, *args) <= 0
 
-    def get_bsf(self):
+    def get_bsf(self) -> Individual:
         """Returns the best solution encountered so far.
 
-        :return: the best-so-far solution or ``None`` if there is no such
-            solution (yet)
-        :rtype: :class:`evo.Individual`
-        """
+            :return: the best-so-far solution or ``None`` if there is no such
+                solution (yet)
+            :rtype: :class:`evo.Individual`
+            """
         raise NotImplementedError()
 
 

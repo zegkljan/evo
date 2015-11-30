@@ -13,6 +13,7 @@ __author__ = 'Jan Žegklitz'
 
 
 class GpNode(evo.utils.tree.TreeNode):
+
     def get_arity(self):
         raise NotImplementedError()
 

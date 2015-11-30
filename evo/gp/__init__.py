@@ -31,7 +31,7 @@ class Gp(multiprocessing.context.Process):
         def __call__(self, gp):
             return gp.iterations >= self.generations
 
-    def __init__(self, fitness, pop_strategy, selection_strategy,
+    def __init__(self, fitness: evo.Fitness, pop_strategy, selection_strategy,
                  population_initializer, functions, terminals, stop, name=None,
                  **kwargs):
         """The optional keyword argument ``generator`` can be used to pass a
@@ -194,7 +194,7 @@ class Gp(multiprocessing.context.Process):
             if self.fitness.get_bsf() is None:
                 Gp.LOG.info('Finished. No BSF acquired.')
             else:
-                Gp.LOG.info('Finished.\nFitness: %f\n%s',
+                Gp.LOG.info('Finished. Fitness: %f %s',
                             self.fitness.get_bsf().get_fitness(),
                             pprint.pformat(self.fitness.get_bsf().get_data()))
             Gp.LOG.info('Performing garbage collection.')
@@ -208,7 +208,7 @@ class Gp(multiprocessing.context.Process):
     def _run(self):
         Gp.LOG.info('Starting evolution.')
         while not self.stop(self):
-            Gp.LOG.info('Starting iteration %d', self.iterations)
+            Gp.LOG.debug('Starting iteration %d', self.iterations)
             if self.callback is not None:
                 self.callback(self)
 
@@ -234,7 +234,8 @@ class Gp(multiprocessing.context.Process):
                     offspring.append(o)
             self.population = self.pop_strategy.combine_populations(
                 self.population, offspring, elites)
-            Gp.LOG.info('Finished iteration %d', self.iterations)
+            Gp.LOG.info('Finished iteration %d. Best fitness: %f', self.iterations,
+                        self.fitness.get_bsf().get_fitness())
             self.iterations += 1
         if self.callback is not None:
             self.callback(self)

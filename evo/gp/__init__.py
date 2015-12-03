@@ -194,9 +194,10 @@ class Gp(multiprocessing.context.Process):
             if self.fitness.get_bsf() is None:
                 Gp.LOG.info('Finished. No BSF acquired.')
             else:
-                Gp.LOG.info('Finished. Fitness: %f %s',
+                Gp.LOG.info('Finished. Fitness: %f %s %s',
                             self.fitness.get_bsf().get_fitness(),
-                            pprint.pformat(self.fitness.get_bsf().get_data()))
+                            pprint.pformat(self.fitness.get_bsf().get_data()),
+                            str(self.fitness.get_bsf().genotype))
             Gp.LOG.info('Performing garbage collection.')
             gc.collect()
             try:
@@ -223,19 +224,19 @@ class Gp(multiprocessing.context.Process):
                         self.population)[1]
                     children = self.crossover(a.copy(), b.copy())
                 else:
-                    children = [a.copy()]
+                    children = [a]
 
                 while (children and
                        len(offspring) <
                         self.pop_strategy.get_offspring_number()):
                     o = children.pop()
                     if self.generator.random() < self.mutation_prob:
-                        o = self.mutate(o)
+                        o = self.mutate(o.copy())
                     offspring.append(o)
             self.population = self.pop_strategy.combine_populations(
                 self.population, offspring, elites)
-            Gp.LOG.info('Finished iteration %d. Best fitness: %f', self.iterations,
-                        self.fitness.get_bsf().get_fitness())
+            Gp.LOG.info('Finished iteration %d. Best fitness: %f',
+                        self.iterations, self.fitness.get_bsf().get_fitness())
             self.iterations += 1
         if self.callback is not None:
             self.callback(self)

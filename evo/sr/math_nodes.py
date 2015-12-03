@@ -203,6 +203,177 @@ class PIDiv2(MathNode):
         return out
 
 
+class Sin(MathNode):
+    """The sine function.
+    """
+    def __init__(self, cache=True):
+        super().__init__(cache)
+        self.data = 'sin'
+
+    def get_arity(self):
+        return 1
+
+    def _eval(self, args: dict=None):
+        a = self.children[0].eval(args)
+        return numpy.sin(a)
+
+
+class Cos(MathNode):
+    """The cosine function.
+    """
+    def __init__(self, cache=True):
+        super().__init__(cache)
+        self.data = 'cos'
+
+    def get_arity(self):
+        return 1
+
+    def _eval(self, args: dict=None):
+        a = self.children[0].eval(args)
+        return numpy.cos(a)
+
+
+class Exp(MathNode):
+    """The natural exponential function.
+    """
+    def __init__(self, cache=True):
+        super().__init__(cache)
+        self.data = 'exp'
+
+    def get_arity(self):
+        return 1
+
+    def _eval(self, args: dict=None):
+        a = self.children[0].eval(args)
+        return numpy.exp(a)
+
+
+class Abs(MathNode):
+    """Absolute value.
+    """
+    def __init__(self, cache=True):
+        super().__init__(cache)
+        self.data = 'abs'
+
+    def get_arity(self):
+        return 1
+
+    def _eval(self, args: dict=None):
+        a = self.children[0].eval(args)
+        return numpy.abs(a)
+
+
+class Power(MathNode):
+    """Power function, i.e. the argument raised to the power given in
+    constructor.
+
+    .. warning::
+
+        This is an unprotected power, i.e. undefined powers (e.g. negative power
+        of zero or half power of negative number) are not handled in this node.
+    """
+    def __init__(self, power=None, cache=True):
+        super().__init__(cache)
+        self.data = 'pow' + str(power)
+        self.power = power
+
+    def get_arity(self):
+        return 1
+
+    def _eval(self, args: dict=None):
+        a = self.children[0].eval(args)
+        return numpy.power(a, self.power)
+
+    def clone(self):
+        c = super().clone()
+        c.power = self.power
+        return c
+
+
+class Sqrt(MathNode):
+    """Square root.
+
+    .. warning::
+
+        This is an unprotected square root, i.e. the square root of negative
+        numbers is not handled in this node.
+    """
+    def __init__(self, cache=True):
+        super().__init__(cache)
+        self.data = 'sqrt'
+
+    def get_arity(self):
+        return 1
+
+    def _eval(self, args: dict=None):
+        a = self.children[0].eval(args)
+        return numpy.sqrt(a)
+
+
+class PSqrt(MathNode):
+    """Protected square root, returns the square root of the absolute value of
+    the argument.
+    """
+    def __init__(self, cache=True):
+        super().__init__(cache)
+        self.data = 'sqrt'
+
+    def get_arity(self):
+        return 1
+
+    def _eval(self, args: dict=None):
+        a = self.children[0].eval(args)
+        a = numpy.abs(a)
+        return numpy.sqrt(a)
+
+
+class Sigmoid(MathNode):
+    """Sigmoid function: :math:`sig(x) = \\frac{1}{1 + \\mathrm{e}^{-x}}`
+    """
+    def __init__(self, cache=True):
+        super().__init__(cache)
+        self.data = 'sig'
+
+    def get_arity(self):
+        return 1
+
+    def _eval(self, args: dict=None):
+        a = self.children[0].eval(args)
+        return 1 / (1 + numpy.exp(-a))
+
+
+class Sinc(MathNode):
+    """The sinc function: :math:`sinc(x) = \\frac{\\sin{\\pi x}}{\\pi x}`,
+    :math:`sinc(0) = 1`.
+    """
+    def __init__(self, cache=True):
+        super().__init__(cache)
+        self.data = 'sig'
+
+    def get_arity(self):
+        return 1
+
+    def _eval(self, args: dict=None):
+        a = self.children[0].eval(args)
+        return numpy.sinc(a)
+
+
+class Softplus(MathNode):
+    """The softplus or rectifier function:
+    :math:`softplus(x) = \\ln(1 + \\mathrm{e}^{x})`.
+    """
+    def __init__(self, cache=True):
+        super().__init__(cache)
+        self.data = 'softplus'
+
+    def get_arity(self):
+        return 1
+
+    def _eval(self, args: dict=None):
+        a = self.children[0].eval(args)
+        return numpy.log1p(numpy.exp(a))
+
+
 class Const(MathNode):
     """A constant.
     """

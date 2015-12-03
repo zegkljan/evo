@@ -66,6 +66,30 @@ class MathNode(evo.gp.support.GpNode):
         return c
 
 
+# noinspection PyAbstractClass
+class BackpropagatableNode(MathNode):
+    def __init__(self, cache=True):
+        super().__init__()
+        self.cache = cache
+        self._cache = None
+        self.bias = 0
+        self.weights = numpy.ones(self.get_arity())
+        self.argument = None
+
+    def clone(self):
+        c = super().clone()
+        c.cache = self.cache
+        c._cache = self._cache
+        c.bias = self.bias
+        c.weights = self.weights.copy()
+        return c
+
+    def derivative(self, x):
+        """Returns the value of the derivative of the node's function at ``x``.
+        """
+        raise NotImplementedError()
+
+
 class Add2(MathNode):
     """Addition of two operands: ``a + b``
     """
@@ -203,9 +227,10 @@ class PIDiv2(MathNode):
         return out
 
 
-class Sin(MathNode):
+class Sin(BackpropagatableNode):
     """The sine function.
     """
+
     def __init__(self, cache=True):
         super().__init__(cache)
         self.data = 'sin'
@@ -215,10 +240,14 @@ class Sin(MathNode):
 
     def _eval(self, args: dict=None):
         a = self.children[0].eval(args)
-        return numpy.sin(a)
+        self.argument = self.weights[0] * a + self.bias
+        return numpy.sin(self.argument)
+
+    def derivative(self, x):
+        return numpy.cos(x)
 
 
-class Cos(MathNode):
+class Cos(BackpropagatableNode):
     """The cosine function.
     """
     def __init__(self, cache=True):
@@ -230,10 +259,14 @@ class Cos(MathNode):
 
     def _eval(self, args: dict=None):
         a = self.children[0].eval(args)
-        return numpy.cos(a)
+        self.argument = self.weights[0] * a + self.bias
+        return numpy.cos(self.argument)
+
+    def derivative(self, x):
+        return -numpy.sin(x)
 
 
-class Exp(MathNode):
+class Exp(BackpropagatableNode):
     """The natural exponential function.
     """
     def __init__(self, cache=True):
@@ -245,7 +278,11 @@ class Exp(MathNode):
 
     def _eval(self, args: dict=None):
         a = self.children[0].eval(args)
-        return numpy.exp(a)
+        self.argument = self.weights[0] * a + self.bias
+        return numpy.exp(self.argument)
+
+    def derivative(self, x):
+        return numpy.exp(x)
 
 
 class Abs(MathNode):
@@ -263,7 +300,7 @@ class Abs(MathNode):
         return numpy.abs(a)
 
 
-class Power(MathNode):
+class Power(BackpropagatableNode):
     """Power function, i.e. the argument raised to the power given in
     constructor.
 
@@ -282,12 +319,16 @@ class Power(MathNode):
 
     def _eval(self, args: dict=None):
         a = self.children[0].eval(args)
-        return numpy.power(a, self.power)
+        self.argument = self.weights[0] * a + self.bias
+        return numpy.power(self.argument, self.power)
 
     def clone(self):
         c = super().clone()
         c.power = self.power
         return c
+
+    def derivative(self, x):
+        return self.power * numpy.power(x, self.power - 1)
 
 
 class Sqrt(MathNode):
@@ -327,7 +368,7 @@ class PSqrt(MathNode):
         return numpy.sqrt(a)
 
 
-class Sigmoid(MathNode):
+class Sigmoid(BackpropagatableNode):
     """Sigmoid function: :math:`sig(x) = \\frac{1}{1 + \\mathrm{e}^{-x}}`
     """
     def __init__(self, cache=True):
@@ -339,10 +380,15 @@ class Sigmoid(MathNode):
 
     def _eval(self, args: dict=None):
         a = self.children[0].eval(args)
-        return 1 / (1 + numpy.exp(-a))
+        self.argument = self.weights[0] * a + self.bias
+        return 1 / (1 + numpy.exp(-self.argument))
+
+    def derivative(self, x):
+        a = 1 / (1 + numpy.exp(-x))
+        return a * (1 - a)
 
 
-class Sinc(MathNode):
+class Sinc(BackpropagatableNode):
     """The sinc function: :math:`sinc(x) = \\frac{\\sin{\\pi x}}{\\pi x}`,
     :math:`sinc(0) = 1`.
     """
@@ -355,10 +401,14 @@ class Sinc(MathNode):
 
     def _eval(self, args: dict=None):
         a = self.children[0].eval(args)
-        return numpy.sinc(a)
+        self.argument = self.weights[0] * a + self.bias
+        return numpy.sinc(self.argument)
+
+    def derivative(self, x):
+        return (x * numpy.cos(x) - numpy.sin(x)) / x**2
 
 
-class Softplus(MathNode):
+class Softplus(BackpropagatableNode):
     """The softplus or rectifier function:
     :math:`softplus(x) = \\ln(1 + \\mathrm{e}^{x})`.
     """
@@ -371,7 +421,12 @@ class Softplus(MathNode):
 
     def _eval(self, args: dict=None):
         a = self.children[0].eval(args)
-        return numpy.log1p(numpy.exp(a))
+        self.argument = self.weights[0] * a + self.bias
+        return numpy.log1p(numpy.exp(self.argument))
+
+    def derivative(self, x):
+        a = numpy.exp(x)
+        return a / (a + 1)
 
 
 class Const(MathNode):
@@ -402,3 +457,27 @@ class Variable(MathNode):
 
     def _eval(self, args: dict=None):
         return args[self.data]
+
+
+def backpropagate(root: BackpropagatableNode, cost_derivative: callable,
+                  true_output, args):
+    # root
+    # bias derivative
+    root.d_bias = cost_derivative(root.eval(args), true_output) * root.derivative(root.argument)
+    # weight derivative
+    inputs = list(map(lambda x: x.eval(args), root.children))
+    root.d_weights = root.d_bias * numpy.array(inputs)
+
+    # compute inner nodes deltas
+    o = list(root.children)
+    while o:
+        node = o.pop(0)
+        if not isinstance(node, BackpropagatableNode):
+            continue
+        # compute node's delta
+        node.d_bias = (node.parent.d_bias *
+                       node.parent.weights[node.parent_index] *
+                       node.derivative(node.argument))
+
+        if not node.is_leaf():
+            o.extend(node.children)

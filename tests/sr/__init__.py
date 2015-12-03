@@ -2,9 +2,7 @@
 
 import unittest
 
-import evo.sr as sr
-
-__author__ = 'Jan Žegklitz'
+import evo.sr.mgge as mgge
 
 
 class TestMultiGeneGeSrFitness(unittest.TestCase):
@@ -43,7 +41,7 @@ class TestMultiGeneGeSrFitness(unittest.TestCase):
                 }
             }
             self.assertEqual(expected_grammar_dict,
-                             sr.MultiGeneGeSrFitness.encapsulate_grammar(
+                             mgge.MultiGeneGeSrFitness.encapsulate_grammar(
                                  test_grammar_dict, 3, force_consume=False))
         with self.subTest('force_consume=True'):
             # <multigene-start> ::= <gene> | <gene><gene> | <gene><gene><gene>
@@ -68,7 +66,7 @@ class TestMultiGeneGeSrFitness(unittest.TestCase):
             }
             self.maxDiff = None
             self.assertEqual(expected_grammar_dict,
-                             sr.MultiGeneGeSrFitness.encapsulate_grammar(
+                             mgge.MultiGeneGeSrFitness.encapsulate_grammar(
                                  test_grammar_dict, 3, force_consume=True))
 
 

@@ -57,11 +57,11 @@ class TestBackpropagation(unittest.TestCase):
                 mn.backpropagate(root, self.error_derivative, y, {})
                 np.testing.assert_allclose(
                     root.d_bias,
-                    [np.exp(a * x + b) * (np.exp(a * x + b) - y)]
+                    [[np.exp(a * x + b) * (np.exp(a * x + b) - y)]]
                 )
                 np.testing.assert_allclose(
                     root.d_weights,
-                    [x * np.exp(a * x + b) * (np.exp(a * x + b) - y)]
+                    [[x * np.exp(a * x + b) * (np.exp(a * x + b) - y)]]
                 )
 
     def test_nonroot_exp(self):
@@ -92,11 +92,11 @@ class TestBackpropagation(unittest.TestCase):
                 mn.backpropagate(root, self.error_derivative, y, {})
                 np.testing.assert_allclose(
                     exp.d_bias,
-                    [np.exp(a * x + b) * (np.exp(a * x + b) - y)]
+                    [[np.exp(a * x + b) * (np.exp(a * x + b) - y)]]
                 )
                 np.testing.assert_allclose(
                     exp.d_weights,
-                    [x * np.exp(a * x + b) * (np.exp(a * x + b) - y)]
+                    [[x * np.exp(a * x + b) * (np.exp(a * x + b) - y)]]
                 )
 
     def test_root_mul2(self):
@@ -128,8 +128,8 @@ class TestBackpropagation(unittest.TestCase):
                 mn.backpropagate(root, self.error_derivative, y, {})
                 np.testing.assert_allclose(
                     root.d_bias,
-                    [(b + x2) * ((a + x1) * (b + x2) - y),
-                     (a + x1) * ((a + x1) * (b + x2) - y)]
+                    [[(b + x2) * ((a + x1) * (b + x2) - y),
+                      (a + x1) * ((a + x1) * (b + x2) - y)]]
                 )
                 self.assertRaises(AttributeError, lambda: root.d_weights)
 
@@ -166,8 +166,8 @@ class TestBackpropagation(unittest.TestCase):
                 mn.backpropagate(root, self.error_derivative, y, {})
                 np.testing.assert_allclose(
                     mul.d_bias,
-                    [(b + x2) * ((a + x1) * (b + x2) - y),
-                     (a + x1) * ((a + x1) * (b + x2) - y)]
+                    [[(b + x2) * ((a + x1) * (b + x2) - y),
+                      (a + x1) * ((a + x1) * (b + x2) - y)]]
                 )
                 self.assertRaises(AttributeError, lambda: mul.d_weights)
 
@@ -208,17 +208,17 @@ class TestBackpropagation(unittest.TestCase):
                 mn.backpropagate(exp, self.error_derivative, y, {})
                 np.testing.assert_allclose(
                     mul.d_bias,
-                    [d * (b + x2) * np.exp(d * (a + x1) * (b + x2) + c) * (np.exp(d * (a + x1) * (b + x2) + c) - y),
-                     d * (a + x1) * np.exp(d * (a + x1) * (b + x2) + c) * (np.exp(d * (a + x1) * (b + x2) + c) - y)]
+                    [[d * (b + x2) * np.exp(d * (a + x1) * (b + x2) + c) * (np.exp(d * (a + x1) * (b + x2) + c) - y),
+                      d * (a + x1) * np.exp(d * (a + x1) * (b + x2) + c) * (np.exp(d * (a + x1) * (b + x2) + c) - y)]]
                 )
                 self.assertRaises(AttributeError, lambda: mul.d_weights)
                 np.testing.assert_allclose(
                     exp.d_bias,
-                    [np.exp(d * (a + x1) * (b + x2) + c) * (np.exp(d * (a + x1) * (b + x2) + c) - y)]
+                    [[np.exp(d * (a + x1) * (b + x2) + c) * (np.exp(d * (a + x1) * (b + x2) + c) - y)]]
                 )
                 np.testing.assert_allclose(
                     exp.d_weights,
-                    [(a + x1) * (b + x2) * np.exp(d * (a + x1) * (b + x2) + c) * (np.exp(d * (a + x1) * (b + x2) + c) - y)]
+                    [[(a + x1) * (b + x2) * np.exp(d * (a + x1) * (b + x2) + c) * (np.exp(d * (a + x1) * (b + x2) + c) - y)]]
                 )
 
     def test_mul2_exp(self):
@@ -262,16 +262,16 @@ class TestBackpropagation(unittest.TestCase):
                 mn.backpropagate(mul, self.error_derivative, y, {})
                 np.testing.assert_allclose(
                     exp.d_bias,
-                    [(d + x2) * np.exp(a + b * x1) * ((d + x2) * (np.exp(a + b * x1) + c) - y)]
+                    [[(d + x2) * np.exp(a + b * x1) * ((d + x2) * (np.exp(a + b * x1) + c) - y)]]
                 )
                 np.testing.assert_allclose(
                     exp.d_weights,
-                    [x1 * (d + x2) * np.exp(a + b * x1) * ((d + x2) * (np.exp(a + b * x1) + c) - y)]
+                    [[x1 * (d + x2) * np.exp(a + b * x1) * ((d + x2) * (np.exp(a + b * x1) + c) - y)]]
                 )
                 np.testing.assert_allclose(
                     mul.d_bias,
-                    [(d + x2) * ((d + x2) * (np.exp(a + b * x1) + c) - y),
-                     (np.exp(a + b * x1) + c) * ((d + x2) * (np.exp(a + b * x1) + c) - y)]
+                    [[(d + x2) * ((d + x2) * (np.exp(a + b * x1) + c) - y),
+                      (np.exp(a + b * x1) + c) * ((d + x2) * (np.exp(a + b * x1) + c) - y)]]
                 )
                 self.assertRaises(AttributeError, lambda: mul.d_weights)
 

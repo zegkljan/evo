@@ -3,7 +3,7 @@
 with trees (data structure).
 """
 
-__author__ = 'Jan Žegklitz'
+import copy
 
 
 class TreeNode(object):
@@ -12,7 +12,7 @@ class TreeNode(object):
     """
 
     def __init__(self, parent=None, parent_index=None, children=None,
-                 data=None):
+                 data=None, **kwargs):
         self.parent = parent
         self.parent_index = parent_index
         self.children = children
@@ -203,8 +203,7 @@ class TreeNode(object):
         """Clones the tree as if this node was its root (i.e. if this node
         had a parent, it will be set to None for the cloned node).
         """
-        n = self.__class__()
-        n.data = self.data
+        n = self.clone_self()
         if self.is_leaf():
             return n
         children = [None] * len(self.children)
@@ -215,6 +214,13 @@ class TreeNode(object):
             children[individual] = c
         n.children = children
         return n
+
+    def clone_self(self):
+        """Clones this node but not its children.
+
+        Override this method for special cloning.
+        """
+        return TreeNode(data=copy.deepcopy(self.data))
 
     def is_shape_equal(self, other):
         if self.children is None:

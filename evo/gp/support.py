@@ -9,16 +9,15 @@ import random
 import evo
 import evo.utils.tree
 
-__author__ = 'Jan Žegklitz'
-
 
 class GpNode(evo.utils.tree.TreeNode):
 
-    def get_arity(self):
+    @staticmethod
+    def get_arity():
         raise NotImplementedError()
 
     # noinspection PyMethodMayBeStatic
-    def notify_child_changed(self, child_index: int, data=None):
+    def child_changed(self, child_index: int, data=None):
         """Notifies this node that one of its children changed.
 
         This method is to be called by children nodes on their parents to notify
@@ -33,8 +32,19 @@ class GpNode(evo.utils.tree.TreeNode):
         """
         pass
 
+    def self_changed(self, data=None):
+        """Notifies this node that it changed.
+
+        This method is to be called on this node to notify it that it was
+        changed. Override this method to implement the desired behaviour upon
+        notification.
+
+        :param data: optional data that will be passed to the other methods
+        """
+        pass
+
     def notify_change(self, data=None):
-        """Notifies the parent node that this node has changed.
+        """Notifies this node and the parent node that this node has changed.
 
         This method is to be used when the parent node needs to be notified of
         a change in this node (whatever that is). The only requirement is that
@@ -42,19 +52,21 @@ class GpNode(evo.utils.tree.TreeNode):
         :attr:`evo.utils.tree.TreeNode.parent` and
         :attr:`evo.utils.tree.TreeNode.parent_index` are set correctly.
 
-        :param data: optional data that will be passed to the parent
+        :param data: optional data that will be passed to the ``self_changed``
+            and ``child_changed`` methods
         """
+        self.self_changed(data)
         if self.is_root():
             return
 
-        self.parent.notify_child_changed(self.parent_index, data)
+        self.parent.child_changed(self.parent_index, data)
 
 
 class TreeIndividual(evo.Individual):
     """A class representing an individual as a tree.
     """
 
-    def __init__(self, genotype):
+    def __init__(self, genotype: GpNode):
         """Creates the individual.
 
         :param evo.gp.support.GpNode genotype: the genotype of the individual,

@@ -4,10 +4,11 @@ import unittest
 
 import numpy as np
 
+import evo.sr.backpropagation
 import evo.sr.math_nodes as mn
 
 
-class Identity(mn.BackpropagatableNode):
+class Identity(evo.sr.backpropagation.WeightedNode):
     def __init__(self, cache=True):
         super().__init__(cache)
         self.data = 'id'
@@ -52,9 +53,9 @@ class TestBackpropagation(unittest.TestCase):
                 root.bias = np.array([b], dtype=np.float64)
                 root.weights = np.array([a], dtype=np.float64)
                 inp.data = x
-                inp.notify_child_changed(0)
+                inp.child_changed(0)
                 root.eval()
-                mn.backpropagate(root, self.error_derivative, y, {})
+                evo.sr.backpropagation.backpropagate(root, self.error_derivative, y, {})
                 np.testing.assert_allclose(
                     root.d_bias,
                     [[np.exp(a * x + b) * (np.exp(a * x + b) - y)]]
@@ -87,9 +88,9 @@ class TestBackpropagation(unittest.TestCase):
                 exp.bias = np.array([b], dtype=np.float64)
                 exp.weights = np.array([a], dtype=np.float64)
                 inp.data = x
-                inp.notify_child_changed(0)
+                inp.child_changed(0)
                 root.eval()
-                mn.backpropagate(root, self.error_derivative, y, {})
+                evo.sr.backpropagation.backpropagate(root, self.error_derivative, y, {})
                 np.testing.assert_allclose(
                     exp.d_bias,
                     [[np.exp(a * x + b) * (np.exp(a * x + b) - y)]]
@@ -121,11 +122,11 @@ class TestBackpropagation(unittest.TestCase):
             with self.subTest(x1=x1, x2=x2, a=a, b=b, y=y):
                 root.bias = np.array([a, b], dtype=np.float64)
                 inp0.data = x1
-                inp0.notify_child_changed(0)
+                inp0.child_changed(0)
                 inp1.data = x2
-                inp1.notify_child_changed(0)
+                inp1.child_changed(0)
                 root.eval()
-                mn.backpropagate(root, self.error_derivative, y, {})
+                evo.sr.backpropagation.backpropagate(root, self.error_derivative, y, {})
                 np.testing.assert_allclose(
                     root.d_bias,
                     [[(b + x2) * ((a + x1) * (b + x2) - y),
@@ -159,11 +160,11 @@ class TestBackpropagation(unittest.TestCase):
             with self.subTest(x1=x1, x2=x2, a=a, b=b, y=y):
                 mul.bias = np.array([a, b], dtype=np.float64)
                 inp0.data = x1
-                inp0.notify_child_changed(0)
+                inp0.child_changed(0)
                 inp1.data = x2
-                inp1.notify_child_changed(0)
+                inp1.child_changed(0)
                 root.eval()
-                mn.backpropagate(root, self.error_derivative, y, {})
+                evo.sr.backpropagation.backpropagate(root, self.error_derivative, y, {})
                 np.testing.assert_allclose(
                     mul.d_bias,
                     [[(b + x2) * ((a + x1) * (b + x2) - y),
@@ -201,11 +202,11 @@ class TestBackpropagation(unittest.TestCase):
                 exp.bias = np.array([c], dtype=np.float64)
                 exp.weights = np.array([d], dtype=np.float64)
                 inp0.data = x1
-                inp0.notify_child_changed(0)
+                inp0.child_changed(0)
                 inp1.data = x2
-                inp1.notify_child_changed(0)
+                inp1.child_changed(0)
                 exp.eval()
-                mn.backpropagate(exp, self.error_derivative, y, {})
+                evo.sr.backpropagation.backpropagate(exp, self.error_derivative, y, {})
                 np.testing.assert_allclose(
                     mul.d_bias,
                     [[d * (b + x2) * np.exp(d * (a + x1) * (b + x2) + c) * (np.exp(d * (a + x1) * (b + x2) + c) - y),
@@ -255,11 +256,11 @@ class TestBackpropagation(unittest.TestCase):
                 exp.weights = np.array([b], dtype=np.float64)
                 mul.bias = np.array([c, d], dtype=np.float64)
                 inp0.data = x1
-                inp0.notify_child_changed(0)
+                inp0.child_changed(0)
                 inp1.data = x2
-                inp1.notify_child_changed(0)
+                inp1.child_changed(0)
                 mul.eval()
-                mn.backpropagate(mul, self.error_derivative, y, {})
+                evo.sr.backpropagation.backpropagate(mul, self.error_derivative, y, {})
                 np.testing.assert_allclose(
                     exp.d_bias,
                     [[(d + x2) * np.exp(a + b * x1) * ((d + x2) * (np.exp(a + b * x1) + c) - y)]]

@@ -19,11 +19,11 @@ class RpropFitness(evo.Fitness):
     trees that support backpropagation.
     """
 
-    LOG = logging.getLogger(__name__ + '.BackpropagationFitness')
+    LOG = logging.getLogger(__name__ + '.RpropFitness')
 
     def __init__(self, error_fitness, handled_errors, train_inputs,
                  train_output, var_mapping: dict, rprop_updater: callable,
-                 rprop_steps=10):
+                 rprop_steps=10, keep_best_weights=True):
         """
         The ``var_mapping`` argument is responsible for mapping the input
         variables to variable names of a tree. It is supposed to be a dict with
@@ -58,6 +58,7 @@ class RpropFitness(evo.Fitness):
                             handled_errors)
         self.rprop_updater = rprop_updater
         self.rprop_steps = rprop_steps
+        self.keep_best_weights = keep_best_weights
 
         self.args = evo.sr.prepare_args(train_inputs, var_mapping)
         self.cost_derivative = lambda yhat, y: yhat - y
@@ -73,6 +74,9 @@ class RpropFitness(evo.Fitness):
             error = prev_error = self.analyze_error(self.train_output - yhat,
                                                     individual)
             RpropFitness.LOG.debug('Initial error: %f', error)
+            if self.keep_best_weights:
+                best_weights = self.extract_weights(individual.genotype)
+                best_error = error
             for i in range(self.rprop_steps):
                 evo.sr.backpropagation.backpropagate(individual.genotype,
                                                      self.cost_derivative,
@@ -82,6 +86,8 @@ class RpropFitness(evo.Fitness):
                 updated = self.rprop_updater.update(individual.genotype,
                                                     error, prev_error)
 
+                if self.keep_best_weights:
+                    weights = self.extract_weights(individual.genotype)
                 if not updated:
                     RpropFitness.LOG.debug('Stopping rprop because no update '
                                            'occurred.')
@@ -97,9 +103,15 @@ class RpropFitness(evo.Fitness):
                 error = self.analyze_error(self.train_output - yhat, individual)
                 RpropFitness.LOG.debug('Step %d error: %f Full model: %s', i,
                                        error, individual.genotype.full_infix())
+                if self.keep_best_weights and error < best_error:
+                    best_weights = weights
+                    best_error = error
                 pass
-            error = self.train_output - yhat
-            fitness = self.analyze_error(error, individual)
+            if self.keep_best_weights:
+                self.apply_weights(individual.genotype, best_weights)
+                fitness = best_error
+            else:
+                fitness = error
         except self.errors as e:
             RpropFitness.LOG.debug('Exception occurred during evaluation, '
                                    'assigning fitness %f',
@@ -142,3 +154,36 @@ class RpropFitness(evo.Fitness):
 
     def get_bsf(self) -> evo.Individual:
         return self.bsf
+
+    @staticmethod
+    def extract_weights(genotype: evo.sr.MathNode) -> list:
+        w = []
+
+        def extractor(n):
+            weights = getattr(n, 'weights', None)
+            if weights is not None:
+                weights = weights.copy()
+            bias = getattr(n, 'bias', None)
+            if bias is not None:
+                bias = bias.copy()
+            w.append(weights)
+            w.append(bias)
+
+        genotype.preorder(extractor)
+        return w
+
+    @staticmethod
+    def apply_weights(genotype: evo.sr.MathNode, weights: list):
+        i = [0]
+
+        def applier(n):
+            w = weights[i[0]]
+            b = weights[i[0] + 1]
+            i[0] += 2
+
+            if w is not None:
+                setattr(n, 'weights', w)
+            if b is not None:
+                setattr(n, 'weights', b)
+
+        genotype.preorder(applier)

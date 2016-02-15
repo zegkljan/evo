@@ -213,7 +213,7 @@ class Div2(WeightedNode, evo.sr.Div2):
 
     def derivative(self, arg_no: int, x):
         if arg_no == 0:
-            return 1.0 / x[:, 1]
+            return numpy.true_divide(1.0, numpy.square(x[:, 1]))
         if arg_no == 1:
             return -numpy.true_divide(x[:, 0], numpy.square(x[:, 1]))
         raise ValueError('Invalid arg_no.')
@@ -246,7 +246,7 @@ class Sin(WeightedNode, evo.sr.Sin):
         super().__init__(**kwargs)
 
     def derivative(self, arg_no: int, x):
-        return numpy.cos(x)
+        return numpy.cos(x[:, 0])
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
@@ -276,7 +276,7 @@ class Cos(WeightedNode, evo.sr.Cos):
         super().__init__(**kwargs)
 
     def derivative(self, arg_no: int, x):
-        return -numpy.sin(x)
+        return -numpy.sin(x[:, 0])
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
@@ -306,7 +306,7 @@ class Exp(WeightedNode, evo.sr.Exp):
         super().__init__(**kwargs)
 
     def derivative(self, arg_no: int, x):
-        return numpy.exp(x)
+        return numpy.exp(x[:, 0])
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
@@ -336,7 +336,7 @@ class Abs(WeightedNode, evo.sr.Abs):
         super().__init__(**kwargs)
 
     def derivative(self, arg_no: int, x):
-        return numpy.sign(x)
+        return numpy.sign(x[:, 0])
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
@@ -366,7 +366,7 @@ class Power(WeightedNode, evo.sr.Power):
         super().__init__(**kwargs)
 
     def derivative(self, arg_no: int, x):
-        return self.power * numpy.power(x[0], self.power - 1)
+        return self.power * numpy.power(x[:, 0], self.power - 1)
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
@@ -396,7 +396,7 @@ class Sigmoid(WeightedNode, evo.sr.Sigmoid):
         super().__init__(**kwargs)
 
     def derivative(self, arg_no: int, x):
-        a = 1 / (1 + numpy.exp(-x[0]))
+        a = 1 / (1 + numpy.exp(-x[:, 0]))
         return a * (1 - a)
 
     def full_infix(self, **kwargs):
@@ -427,7 +427,7 @@ class Sinc(WeightedNode, evo.sr.Sinc):
         super().__init__(**kwargs)
 
     def derivative(self, arg_no: int, x):
-        return (x * numpy.cos(x[0]) - numpy.sin(x[0])) / x**2
+        return (x * numpy.cos(x[:, 0]) - numpy.sin(x[:, 0])) / x**2
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
@@ -457,7 +457,7 @@ class Softplus(WeightedNode, evo.sr.Softplus):
         super().__init__(**kwargs)
 
     def derivative(self, arg_no: int, x):
-        a = numpy.exp(x[0])
+        a = numpy.exp(x[:, 0])
         return a / (a + 1)
 
     def full_infix(self, **kwargs):
@@ -542,7 +542,11 @@ def backpropagate(root: WeightedNode, cost_derivative: callable,
         # weights derivative
         inputs = None
         if node.tune_weights is True:
-            inputs = numpy.array([x.eval(args) for x in node.children])
+            raw = [x.eval(args) for x in node.children]
+            if len(raw) == 1:
+                inputs = numpy.array(raw)
+            else:
+                inputs = numpy.column_stack(numpy.broadcast(*raw))
         elif node.tune_weights:
             # noinspection PyUnresolvedReferences
             raw = [node.children[i].eval(args) if node.tune_weights[i] else 0

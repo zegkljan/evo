@@ -427,7 +427,9 @@ class Sinc(WeightedNode, evo.sr.Sinc):
         super().__init__(**kwargs)
 
     def derivative(self, arg_no: int, x):
-        return (x * numpy.cos(x[:, 0]) - numpy.sin(x[:, 0])) / x**2
+        return numpy.true_divide(
+            x[:, 0] * numpy.cos(x[:, 0]) - numpy.sin(x[:, 0]),
+            x[:, 0]**2)
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
@@ -623,19 +625,8 @@ def sgd_step(root: WeightedNode, train_inputs, train_output,
     root.preorder(update)
 
 
-class RpropPlusUpdater(object):
-    """Rprop algorithm update scheme.
-
-    This is the original Rprop algorithm [Riedmiller1993] (with
-    weight-backtracking), also called Rprop\ :sup:`+` [Igel2000].
-
-    .. [Riedmiller1993] Martin Riedmiller and Heinrich Braun. `A Direct Adaptive
-        Method for Faster Backpropagation Learning: The RPROP Algorithm .`
-        IEEE International Conference on Neural Networks. 1993. pp. 586-591.
-
-    .. [Igel2000] Christian Igel and Michael Hüsken. `Improving the Rprop
-        Learning Algorithm.` Proceedings of the Second International Symposium
-        on Neural Computation (NC 2000). 2000.
+class RpropBase(object):
+    """This is a base class for Rprop algorithm variants.
     """
     def __init__(self, delta_init=0.1, delta_min=1e-6, delta_max=50,
                  eta_minus=0.5, eta_plus=1.2):
@@ -646,7 +637,31 @@ class RpropPlusUpdater(object):
         self.eta_minus = eta_minus
         self.delta_min = delta_min
         self.updated = False
-    
+
+    def update(self, root: WeightedNode, error, prev_error):
+        self.updated = False
+        root.preorder(self.update_node)
+        return self.updated
+
+
+
+    def update_node(self, node):
+        raise NotImplementedError()
+
+
+class RpropPlus(RpropBase):
+    """This is the original Rprop algorithm [Riedmiller1993] (with
+    weight-backtracking), also called Rprop\ :sup:`+` [Igel2000].
+
+    .. [Riedmiller1993] Martin Riedmiller and Heinrich Braun. `A Direct Adaptive
+        Method for Faster Backpropagation Learning: The RPROP Algorithm .`
+        IEEE International Conference on Neural Networks. 1993. pp. 586-591.
+
+    .. [Igel2000] Christian Igel and Michael Hüsken. `Improving the Rprop
+        Learning Algorithm.` Proceedings of the Second International Symposium
+        on Neural Computation (NC 2000). 2000.
+    """
+
     def upd(self, w, d, prev_d, delta, prev_update, arity):
         s_prev = numpy.sign(prev_d)
         s = numpy.sign(d)
@@ -669,7 +684,7 @@ class RpropPlusUpdater(object):
                 w[i] += prev_update[i]
                 prev_d[i] = d[i]
 
-    def __call__(self, node):
+    def update_node(self, node):
         if not isinstance(node, WeightedNode):
             return
         upd = False
@@ -709,31 +724,15 @@ class RpropPlusUpdater(object):
             self.updated = True
             node.notify_change()
 
-    def update(self, root: WeightedNode, error, prev_error):
-        self.updated = False
-        root.preorder(self)
-        return self.updated
 
-
-class RpropMinusUpdater(object):
-    """Rprop algorithm update scheme.
-
-    This is the Rprop algorithm without weight-backtracking, also called
+class RpropMinus(RpropBase):
+    """This is the Rprop algorithm without weight-backtracking, also called
     Rprop\ :sup:`-` [Igel2000].
 
     .. [Igel2000] Christian Igel and Michael Hüsken. `Improving the Rprop
         Learning Algorithm.` Proceedings of the Second International Symposium
         on Neural Computation (NC 2000). 2000.
     """
-    def __init__(self, delta_init=0.1, delta_min=1e-6, delta_max=50,
-                 eta_minus=0.5, eta_plus=1.2):
-        super().__init__()
-        self.delta_init = delta_init
-        self.eta_plus = eta_plus
-        self.delta_max = delta_max
-        self.eta_minus = eta_minus
-        self.delta_min = delta_min
-        self.updated = False
 
     def upd(self, w, d, prev_d, delta, arity):
         s_prev = numpy.sign(prev_d)
@@ -750,7 +749,7 @@ class RpropMinusUpdater(object):
             w[i] -= s[i] * delta[i]
             prev_d[i] = d[i]
 
-    def __call__(self, node):
+    def update_node(self, node):
         if not isinstance(node, WeightedNode):
             return
         upd = False
@@ -783,31 +782,17 @@ class RpropMinusUpdater(object):
             self.updated = True
             node.notify_change()
 
-    def update(self, root: WeightedNode, error, prev_error):
-        self.updated = False
-        root.preorder(self)
-        return self.updated
 
-
-class IRpropPlusUpdater(object):
-    """Rprop algorithm update scheme.
-
-    This is the improved Rprop algorithm with weight-backtracking, also called
+class IRpropPlus(RpropBase):
+    """This is the improved Rprop algorithm with weight-backtracking, also called
     iRprop\ :sup:`+` [Igel2000].
 
     .. [Igel2000] Christian Igel and Michael Hüsken. `Improving the Rprop
         Learning Algorithm.` Proceedings of the Second International Symposium
         on Neural Computation (NC 2000). 2000.
     """
-    def __init__(self, delta_init=0.1, delta_min=1e-6, delta_max=50,
-                 eta_minus=0.5, eta_plus=1.2):
-        super().__init__()
-        self.delta_init = delta_init
-        self.eta_plus = eta_plus
-        self.delta_max = delta_max
-        self.eta_minus = eta_minus
-        self.delta_min = delta_min
-        self.updated = False
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.error_worsened = False
 
     def upd(self, w, d, prev_d, delta, prev_update, arity):
@@ -833,7 +818,7 @@ class IRpropPlusUpdater(object):
                 w[i] += prev_update[i]
                 prev_d[i] = d[i]
 
-    def __call__(self, node):
+    def update_node(self, node):
         if not isinstance(node, WeightedNode):
             return
         upd = False
@@ -874,31 +859,18 @@ class IRpropPlusUpdater(object):
             node.notify_change()
 
     def update(self, root: WeightedNode, error, prev_error):
-        self.updated = False
         self.error_worsened = error > prev_error
-        root.preorder(self)
-        return self.updated
+        super().update(root, error, prev_error)
 
 
-class IRpropMinusUpdater(object):
-    """Rprop algorithm update scheme.
-
-    This is the improved Rprop algorithm without weight-backtracking, also
+class IRpropMinus(RpropBase):
+    """This is the improved Rprop algorithm without weight-backtracking, also
     called iRprop\ :sup:`-` [Igel2000].
 
     .. [Igel2000] Christian Igel and Michael Hüsken. `Improving the Rprop
         Learning Algorithm.` Proceedings of the Second International Symposium
         on Neural Computation (NC 2000). 2000.
     """
-    def __init__(self, delta_init=0.1, delta_min=1e-6, delta_max=50,
-                 eta_minus=0.5, eta_plus=1.2):
-        super().__init__()
-        self.delta_init = delta_init
-        self.eta_plus = eta_plus
-        self.delta_max = delta_max
-        self.eta_minus = eta_minus
-        self.delta_min = delta_min
-        self.updated = False
 
     def upd(self, w, d, prev_d, delta, arity):
         s_prev = numpy.sign(prev_d)
@@ -916,7 +888,7 @@ class IRpropMinusUpdater(object):
             w[i] -= s[i] * delta[i]
             prev_d[i] = d[i]
 
-    def __call__(self, node):
+    def update_node(self, node):
         if not isinstance(node, WeightedNode):
             return
         upd = False
@@ -948,8 +920,3 @@ class IRpropMinusUpdater(object):
         if upd:
             self.updated = True
             node.notify_change()
-
-    def update(self, root: WeightedNode, error, prev_error):
-        self.updated = False
-        root.preorder(self)
-        return self.updated

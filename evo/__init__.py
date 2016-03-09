@@ -6,8 +6,6 @@ import logging
 
 import copy
 
-__author__ = 'Jan Žegklitz'
-
 
 class Individual(object):
     """A class representing an individual in an evolutionary algorithm.
@@ -475,3 +473,7 @@ class TournamentSelectionStrategy(SelectionStrategy):
             if self.fitness.is_better(population[idx], population[best_idx]):
                 best_idx = idx
         return best_idx, population[best_idx]
+
+
+if __name__ == '__main__':
+    print('Run')

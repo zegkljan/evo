@@ -625,7 +625,22 @@ def sgd_step(root: WeightedNode, train_inputs, train_output,
     root.preorder(update)
 
 
-class RpropBase(object):
+class WeightsUpdater(object):
+    """This is a base class for algorithms for updating weights on trees.
+    """
+    def __init__(self):
+        self.updated = False
+
+    def update(self, root: WeightedNode, error, prev_error) -> bool:
+        self.updated = False
+        root.preorder(self.update_node)
+        return self.updated
+
+    def update_node(self, node):
+        raise NotImplementedError()
+
+
+class RpropBase(WeightsUpdater):
     """This is a base class for Rprop algorithm variants.
     """
     def __init__(self, delta_init=0.1, delta_min=1e-6, delta_max=50,
@@ -636,14 +651,6 @@ class RpropBase(object):
         self.delta_max = delta_max
         self.eta_minus = eta_minus
         self.delta_min = delta_min
-        self.updated = False
-
-    def update(self, root: WeightedNode, error, prev_error):
-        self.updated = False
-        root.preorder(self.update_node)
-        return self.updated
-
-
 
     def update_node(self, node):
         raise NotImplementedError()

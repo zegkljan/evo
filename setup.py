@@ -13,7 +13,7 @@ setup(
     # core descriptors
     name='evo',
     version='0.0.1.dev1',
-    packages=find_packages(exclude=('tests', 'tests.*')),
+    packages=find_packages(where=here, exclude=('tests', 'tests.*')),
     install_requires=[
         'setuptools',
         'numpy'
@@ -37,7 +37,8 @@ setup(
         'License :: OSI Approved :: Academic Free License (AFL)',
 
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.4'
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5'
     ],
     keywords='evolutionary optimization ai'
 )

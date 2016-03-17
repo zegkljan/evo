@@ -56,6 +56,14 @@ class TreeNode(object):
                      for n in self.children]) +
                 predicate(self))
 
+    def get_subtree_depth(self):
+        """Returns the maximum depth of the tree at this node (including this
+        node).
+        """
+        if self.is_leaf():
+            return 1
+        return max([n.get_subtree_depth() for n in self.children]) + 1
+
     def get_nth_node(self, n):
         """Iterates through the tree in breadth-first fashion and returns the
         ``n``-th node encountered. This node is included (i.e. it's the 0th

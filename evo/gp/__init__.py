@@ -7,6 +7,7 @@ import logging
 import multiprocessing
 import pprint
 import gc
+import time
 
 import random
 
@@ -23,13 +24,21 @@ class Gp(multiprocessing.context.Process):
 
     LOG = logging.getLogger(__name__ + '.Gp')
 
-    class _GenerationsStop(object):
+    @staticmethod
+    def generations(g):
+        return lambda gp: gp.iterations >= g
 
-        def __init__(self, iterations):
-            self.generations = iterations
+    @staticmethod
+    def time(seconds):
+        return lambda gp: time.time() - gp.start_time >= seconds
 
-        def __call__(self, gp):
-            return gp.iterations >= self.generations
+    @staticmethod
+    def any(*args):
+        return lambda gp: any(arg(gp) for arg in args)
+
+    @staticmethod
+    def all(*args):
+        return lambda gp: all(arg(gp) for arg in args)
 
     def __init__(self, fitness: evo.Fitness, pop_strategy, selection_strategy,
                  population_initializer, functions, terminals, stop, name=None,
@@ -127,7 +136,7 @@ class Gp(multiprocessing.context.Process):
         self.population_initializer = population_initializer
         if isinstance(stop, int):
             # noinspection PyProtectedMember
-            self.stop = Gp._GenerationsStop(stop)
+            self.stop = self.generations(stop)
         elif callable(stop):
             self.stop = stop
         else:
@@ -176,6 +185,8 @@ class Gp(multiprocessing.context.Process):
         self.population_sorted = False
 
         self.iterations = 0
+        self.start_time = None
+        self.end_time = None
         """
         The number of elapsed iterations of the algorithm (either generations
         in the generational mode or just iterations in the steady-state mode).
@@ -186,11 +197,13 @@ class Gp(multiprocessing.context.Process):
         """
         Gp.LOG.info('Starting algorithm.')
         try:
+            self.start_time = time.time()
             self.population = self.population_initializer.initialize(
                 self.pop_strategy.get_parents_number())
 
             self._run()
         finally:
+            self.end_time = time.time()
             if self.fitness.get_bsf() is None:
                 Gp.LOG.info('Finished. No BSF acquired.')
             else:

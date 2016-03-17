@@ -75,36 +75,32 @@ class BackpropagationFitness(evo.Fitness):
         BackpropagationFitness.LOG.debug('Optimising inner parameters.')
         try:
             yhat = individual.genotype.eval(args=self.get_args())
-
-            error = prev_error = self.get_error(yhat, individual)
-            BackpropagationFitness.LOG.debug('Initial error: %f', error)
+            check = self._check_output(yhat, individual)
+            if check is not None:
+                return check
+            fitness = prev_error = self.get_error(yhat, individual)
+            BackpropagationFitness.LOG.debug('Initial error: %f', fitness)
             for i in range(self.steps):
-                evo.sr.backpropagation.backpropagate(individual.genotype,
-                                                     self.cost_derivative,
-                                                     self.get_train_output(),
-                                                     self.get_args(),
-                                                     self.get_train_input_cases())
+                evo.sr.backpropagation.backpropagate(
+                    individual.genotype, self.cost_derivative,
+                    self.get_train_output(), self.get_args(),
+                    self.get_train_input_cases())
                 updated = self.updater.update(individual.genotype,
-                                              error, prev_error)
+                                              fitness, prev_error)
 
                 if not updated:
                     BackpropagationFitness.LOG.debug(
                         'Stopping rprop because no update occurred.')
                     break
                 yhat = individual.genotype.eval(args=self.get_args())
-                if numpy.any(numpy.logical_or(numpy.isinf(yhat),
-                                              numpy.isnan(yhat))):
-                    BackpropagationFitness.LOG.info(
-                        'NaN or inf in output, assigning fitness: %f',
-                        self.error_fitness)
-                    return self.error_fitness
-                prev_error = error
-                error = self.get_error(yhat, individual)
+                check = self._check_output(yhat, individual)
+                if check is not None:
+                    return check
+                prev_error = fitness
+                fitness = self.get_error(yhat, individual)
                 BackpropagationFitness.LOG.debug(
-                    'Step %d error: %f Full model: %s', i, error,
+                    'Step %d error: %f Full model: %s', i, fitness,
                     individual.genotype.full_infix())
-                pass
-            fitness = error
         except self.errors as e:
             BackpropagationFitness.LOG.debug(
                 'Exception occurred during evaluation, assigning fitness %f',
@@ -114,6 +110,15 @@ class BackpropagationFitness(evo.Fitness):
         if self.bsf is None or self.bsf.get_fitness() > fitness:
             self.bsf = individual.copy()
         return fitness
+
+    def _check_output(self, yhat, individual):
+        if numpy.any(numpy.logical_or(numpy.isinf(yhat),
+                                      numpy.isnan(yhat))):
+            BackpropagationFitness.LOG.debug('NaN or inf in output, assigning '
+                                             'fitness: %f', self.error_fitness)
+            individual.set_fitness(self.error_fitness)
+            return self.error_fitness
+        return None
 
     def get_error(self, outputs, individual):
         """Computes the error of the individual.
@@ -136,7 +141,7 @@ class BackpropagationFitness(evo.Fitness):
             f1 = i1.get_fitness()
         if f2 is None:
             self.evaluate(i2)
-            f2 = i1.get_fitness()
+            f2 = i2.get_fitness()
         return f1 < f2
 
     def get_bsf(self) -> evo.Individual:

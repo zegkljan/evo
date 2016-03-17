@@ -2,8 +2,6 @@
 """This package contains support modules for evolutionary algorithms.
 """
 
-__author__ = 'Jan Žegklitz'
-
 
 class Stats(object):
     """A base class for saving statistics of a run of an evolutionary
@@ -234,3 +232,16 @@ def select(vector, k, left=None, right=None, cmp=None):
         else:
             k -= pivot_dist + 1
             left = pivot_new_index + 1
+
+
+def nested_update(base: dict, update: dict, inplace=True) -> dict:
+    if not inplace:
+        base = dict(base)
+    for k, v in update.items():
+        if k not in base:
+            base[k] = v
+        elif isinstance(base[k], dict) and isinstance(v, dict):
+            nested_update(base[k], v)
+        else:
+            base[k] = v
+    return base

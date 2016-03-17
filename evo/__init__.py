@@ -3,8 +3,9 @@
 """
 
 import logging
-
 import copy
+
+__version__ = '0.0.1.dev1'
 
 
 class Individual(object):
@@ -474,6 +475,3 @@ class TournamentSelectionStrategy(SelectionStrategy):
                 best_idx = idx
         return best_idx, population[best_idx]
 
-
-if __name__ == '__main__':
-    print('Run')

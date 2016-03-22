@@ -36,10 +36,13 @@ class MathNode(evo.gp.support.GpNode):
         :param args: values to set to variables, keyed by variable names
         :return: result of the evaluation
         """
+        if self.cache and self._cache is not None:
+            return self._cache
+
         result = self.operation(*[self.eval_child(i, args)
                                   for i
                                   in range(len(self.children))])
-        if self.cache and self._cache is None:
+        if self.cache:
             self._cache = result
 
         return result

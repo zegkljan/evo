@@ -39,6 +39,17 @@ class WeightedNode(evo.sr.MathNode):
         self.tune_bias = tune_bias
         self.tune_weights = tune_weights
 
+    def copy_contents(self, dest):
+        super().copy_contents(dest)
+        dest.bias = self.bias.copy()
+        dest.weights = self.weights.copy()
+        if self.argument is None:
+            dest.argument = None
+        else:
+            dest.argument = self.argument.copy()
+        dest.tune_bias = self.tune_bias
+        dest.tune_weights = self.tune_weights
+
     def eval_child(self, child_no: int, args: dict = None):
         val = super().eval_child(child_no, args)
         return self.weights[child_no] * val + self.bias[child_no]
@@ -100,16 +111,6 @@ class Add2(WeightedNode, evo.sr.Add2):
             self.children[0].infix(**kwargs),
             self.children[1].infix(**kwargs))
 
-    def clone_self(self):
-        c = Add2(cache=self.cache, tune_weights=self.tune_weights)
-        c.cache = self.cache
-        c._cache = self._cache
-        c.bias = self.bias.copy()
-        c.weights = self.weights.copy()
-        if self.argument is not None:
-            c.argument = self.argument.copy()
-        return c
-
 
 class Sub2(WeightedNode, evo.sr.Sub2):
     """Weighted version of :class:`evo.sr.Sub2`\ .
@@ -141,16 +142,6 @@ class Sub2(WeightedNode, evo.sr.Sub2):
             self.weights[0], self.weights[1],
             self.children[0].infix(**kwargs),
             self.children[1].infix(**kwargs))
-
-    def clone_self(self):
-        c = Sub2(cache=self.cache, tune_weights=self.tune_weights)
-        c.cache = self.cache
-        c._cache = self._cache
-        c.bias = self.bias.copy()
-        c.weights = self.weights.copy()
-        if self.argument is not None:
-            c.argument = self.argument.copy()
-        return c
 
 
 class Mul2(WeightedNode, evo.sr.Mul2):
@@ -184,16 +175,6 @@ class Mul2(WeightedNode, evo.sr.Mul2):
             self.children[0].infix(**kwargs),
             self.children[1].infix(**kwargs))
 
-    def clone_self(self):
-        c = Mul2(cache=self.cache, tune_bias=self.tune_bias)
-        c.cache = self.cache
-        c._cache = self._cache
-        c.bias = self.bias.copy()
-        c.weights = self.weights.copy()
-        if self.argument is not None:
-            c.argument = self.argument.copy()
-        return c
-
 
 class Div2(WeightedNode, evo.sr.Div2):
     """Weighted version of :class:`evo.sr.Div2`\ .
@@ -226,16 +207,6 @@ class Div2(WeightedNode, evo.sr.Div2):
             self.children[0].infix(**kwargs),
             self.children[1].infix(**kwargs))
 
-    def clone_self(self):
-        c = Div2(cache=self.cache, tune_bias=self.tune_bias)
-        c.cache = self.cache
-        c._cache = self._cache
-        c.bias = self.bias.copy()
-        c.weights = self.weights.copy()
-        if self.argument is not None:
-            c.argument = self.argument.copy()
-        return c
-
 
 class Sin(WeightedNode, evo.sr.Sin):
     """Weighted version of :class:`evo.sr.Sin`\ .
@@ -254,17 +225,6 @@ class Sin(WeightedNode, evo.sr.Sin):
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
-
-    def clone_self(self):
-        c = Sin(cache=self.cache, tune_bias=self.tune_bias,
-                tune_weights=self.tune_weights)
-        c.cache = self.cache
-        c._cache = self._cache
-        c.bias = self.bias.copy()
-        c.weights = self.weights.copy()
-        if self.argument is not None:
-            c.argument = self.argument.copy()
-        return c
 
 
 class Cos(WeightedNode, evo.sr.Cos):
@@ -285,17 +245,6 @@ class Cos(WeightedNode, evo.sr.Cos):
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
 
-    def clone_self(self):
-        c = Cos(cache=self.cache, tune_bias=self.tune_bias,
-                tune_weights=self.tune_weights)
-        c.cache = self.cache
-        c._cache = self._cache
-        c.bias = self.bias.copy()
-        c.weights = self.weights.copy()
-        if self.argument is not None:
-            c.argument = self.argument.copy()
-        return c
-
 
 class Exp(WeightedNode, evo.sr.Exp):
     """Weighted version of :class:`evo.sr.Exp`\ .
@@ -314,17 +263,6 @@ class Exp(WeightedNode, evo.sr.Exp):
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
-
-    def clone_self(self):
-        c = Exp(cache=self.cache, tune_bias=self.tune_bias,
-                tune_weights=self.tune_weights)
-        c.cache = self.cache
-        c._cache = self._cache
-        c.bias = self.bias.copy()
-        c.weights = self.weights.copy()
-        if self.argument is not None:
-            c.argument = self.argument.copy()
-        return c
 
 
 class Abs(WeightedNode, evo.sr.Abs):
@@ -345,17 +283,6 @@ class Abs(WeightedNode, evo.sr.Abs):
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
 
-    def clone_self(self):
-        c = Abs(cache=self.cache, tune_bias=self.tune_bias,
-                tune_weights=self.tune_weights)
-        c.cache = self.cache
-        c._cache = self._cache
-        c.bias = self.bias.copy()
-        c.weights = self.weights.copy()
-        if self.argument is not None:
-            c.argument = self.argument.copy()
-        return c
-
 
 class Power(WeightedNode, evo.sr.Power):
     """Weighted version of :class:`evo.sr.Power`\ .
@@ -374,17 +301,6 @@ class Power(WeightedNode, evo.sr.Power):
         return base.format(
             self.bias[0], self.weights[0], self.power,
             self.children[0].infix(**kwargs))
-
-    def clone_self(self):
-        c = Power(cache=self.cache, power=self.power, tune_bias=self.tune_bias,
-                  tune_weights=self.tune_weights)
-        c.cache = self.cache
-        c._cache = self._cache
-        c.bias = self.bias.copy()
-        c.weights = self.weights.copy()
-        if self.argument is not None:
-            c.argument = self.argument.copy()
-        return c
 
 
 class Sigmoid(WeightedNode, evo.sr.Sigmoid):
@@ -405,17 +321,6 @@ class Sigmoid(WeightedNode, evo.sr.Sigmoid):
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
-
-    def clone_self(self):
-        c = Sigmoid(cache=self.cache, tune_bias=self.tune_bias,
-                    tune_weights=self.tune_weights)
-        c.cache = self.cache
-        c._cache = self._cache
-        c.bias = self.bias.copy()
-        c.weights = self.weights.copy()
-        if self.argument is not None:
-            c.argument = self.argument.copy()
-        return c
 
 
 class Sinc(WeightedNode, evo.sr.Sinc):
@@ -438,17 +343,6 @@ class Sinc(WeightedNode, evo.sr.Sinc):
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
 
-    def clone_self(self):
-        c = Sinc(cache=self.cache, tune_bias=self.tune_bias,
-                 tune_weights=self.tune_weights)
-        c.cache = self.cache
-        c._cache = self._cache
-        c.bias = self.bias.copy()
-        c.weights = self.weights.copy()
-        if self.argument is not None:
-            c.argument = self.argument.copy()
-        return c
-
 
 class Softplus(WeightedNode, evo.sr.Softplus):
     """Weighted version of :class:`evo.sr.Softplus`\ .
@@ -469,20 +363,10 @@ class Softplus(WeightedNode, evo.sr.Softplus):
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
 
-    def clone_self(self):
-        c = Sigmoid(cache=self.cache, tune_bias=self.tune_bias,
-                    tune_weights=self.tune_weights)
-        c.cache = self.cache
-        c._cache = self._cache
-        c.bias = self.bias.copy()
-        c.weights = self.weights.copy()
-        if self.argument is not None:
-            c.argument = self.argument.copy()
-        return c
 
-
-def backpropagate(root: WeightedNode, cost_derivative: callable,
-                  true_output, args, datapts_no=1):
+def backpropagate(root: WeightedNode, cost_derivative: callable, true_output,
+                  args, datapts_no=1, output_transform: callable=None,
+                  output_transform_derivative: callable=None):
     """Computes the gradient of the cost function in weights and biases using
     the back-propagation algorithm.
 
@@ -519,7 +403,18 @@ def backpropagate(root: WeightedNode, cost_derivative: callable,
     :param cost_derivative: derivative of the error function
     :param true_output: the desired output
     :param args: arguments for evaluation
+    :param datapts_no: number of datapoints present in evaluation
+    :param output_transform: transformation of the output value(s)
+    :param output_transform_derivative: derivative of the output transform
     """
+    if output_transform is None:
+        def output_transform(y):
+            return y
+    if output_transform_derivative is None:
+        def output_transform_derivative(y):
+            if y.ndim == 1:
+                return 1
+            return numpy.ones((1, y.shape[1]))
     o = [root]
     while o:
         node = o.pop(0)
@@ -528,18 +423,20 @@ def backpropagate(root: WeightedNode, cost_derivative: callable,
         # bias derivative
         # if root, do it different
         if node is root:
-            node.d_bias = numpy.empty((datapts_no, node.bias.size))
+            node.data['d_bias'] = numpy.empty((datapts_no, node.bias.size))
             for i in range(node.bias.size):
-                cd = cost_derivative(node.eval(args), true_output)
+                cd = cost_derivative(output_transform(node.eval(args)),
+                                     true_output)
+                otfd = output_transform_derivative(node.eval(args))
                 nd = node.derivative(i, node.argument)
-                node.d_bias[:, i] = cd * nd
+                node.data['d_bias'][:, i] = cd * otfd * nd
         else:
-            node.d_bias = numpy.empty((datapts_no, len(node.bias)))
+            node.data['d_bias'] = numpy.empty((datapts_no, len(node.bias)))
             for i in range(len(node.bias)):
-                pd = node.parent.d_bias[:, node.parent_index]
+                pd = node.parent.data['d_bias'][:, node.parent_index]
                 pw = node.parent.weights[node.parent_index]
                 nd = node.derivative(i, node.argument)
-                node.d_bias[:, i] = pd * pw * nd
+                node.data['d_bias'][:, i] = pd * pw * nd
 
         # weights derivative
         inputs = None
@@ -556,7 +453,7 @@ def backpropagate(root: WeightedNode, cost_derivative: callable,
                    in range(len(node.children))]
             inputs = numpy.column_stack(numpy.broadcast(*raw))
         if inputs is not None and len(inputs) > 0:
-            node.d_weights = node.d_bias * inputs.T
+            node.data['d_weights'] = node.data['d_bias'] * inputs.T
 
         if not node.is_leaf():
             o.extend(node.children)
@@ -695,37 +592,39 @@ class RpropPlus(RpropBase):
         if not isinstance(node, WeightedNode):
             return
         upd = False
-        if node.tune_bias and hasattr(node, 'd_bias'):
+        if node.tune_bias and 'd_bias' in node.data:
             upd = True
-            d_bias = numpy.sum(node.d_bias, axis=0)
-            if not hasattr(node, 'prev_d_bias'):
-                node.prev_d_bias = numpy.zeros(node.get_arity())
+            d_bias = numpy.sum(node.data['d_bias'], axis=0)
+            if 'prev_d_bias' not in node.data:
+                node.data['prev_d_bias'] = numpy.zeros(node.get_arity())
 
-            if not hasattr(node, 'delta_bias'):
-                node.delta_bias = numpy.ones(node.bias.shape) * self.delta_init
+            if 'delta_bias' not in node.data:
+                node.data['delta_bias'] = (numpy.ones(node.bias.shape) *
+                                           self.delta_init)
 
-            if not hasattr(node, 'prev_bias_update'):
-                node.prev_bias_update = numpy.zeros(node.bias.shape)
+            if 'prev_bias_update' not in node.data:
+                node.data['prev_bias_update'] = numpy.zeros(node.bias.shape)
 
-            self.upd(node.bias, d_bias, node.prev_d_bias, node.delta_bias,
-                     node.prev_bias_update, node.get_arity())
-
-        if node.tune_weights and hasattr(node, 'd_weights'):
-            upd = True
-            d_weights = numpy.sum(node.d_weights, axis=0)
-            if not hasattr(node, 'prev_d_weights'):
-                node.prev_d_weights = numpy.zeros(node.get_arity())
-
-            if not hasattr(node, 'delta_weights'):
-                node.delta_weights = numpy.ones(node.weights.shape) *\
-                                     self.delta_init
-
-            if not hasattr(node, 'prev_weight_update'):
-                node.prev_weight_update = numpy.zeros(node.weights.shape)
-
-            self.upd(node.weights, d_weights, node.prev_d_weights,
-                     node.delta_weights, node.prev_weight_update,
+            self.upd(node.bias, d_bias, node.data['prev_d_bias'],
+                     node.data['delta_bias'], node.data['prev_bias_update'],
                      node.get_arity())
+
+        if node.tune_weights and 'd_weights' in node.data:
+            upd = True
+            d_weights = numpy.sum(node.data['d_weights'], axis=0)
+            if 'prev_d_weights' not in node.data:
+                node.data['prev_d_weights'] = numpy.zeros(node.get_arity())
+
+            if 'delta_weights' not in node.data:
+                node.data['delta_weights'] = (numpy.ones(node.weights.shape) *
+                                              self.delta_init)
+
+            if 'prev_weight_update' not in node.data:
+                node.data['prev_weight_update'] = numpy.zeros(node.weights.shape)
+
+            self.upd(node.weights, d_weights, node.data['prev_d_weights'],
+                     node.data['delta_weights'],
+                     node.data['prev_weight_update'], node.get_arity())
 
         if upd:
             self.updated = True
@@ -760,30 +659,31 @@ class RpropMinus(RpropBase):
         if not isinstance(node, WeightedNode):
             return
         upd = False
-        if node.tune_bias and hasattr(node, 'd_bias'):
+        if node.tune_bias and 'd_bias' in node.data:
             upd = True
             d_bias = numpy.sum(node.d_bias, axis=0)
-            if not hasattr(node, 'prev_d_bias'):
-                node.prev_d_bias = numpy.zeros(node.get_arity())
+            if 'prev_d_bias' not in node.data:
+                node.data['prev_d_bias'] = numpy.zeros(node.get_arity())
 
-            if not hasattr(node, 'delta_bias'):
-                node.delta_bias = numpy.ones(node.bias.shape) * self.delta_init
+            if 'delta_bias' not in node.data:
+                node.data['delta_bias'] = (numpy.ones(node.bias.shape) *
+                                           self.delta_init)
 
-            self.upd(node.bias, d_bias, node.prev_d_bias, node.delta_bias,
-                     node.get_arity())
+            self.upd(node.bias, d_bias, node.data['prev_d_bias'],
+                     node.data['delta_bias'], node.get_arity())
 
-        if node.tune_weights and hasattr(node, 'd_weights'):
+        if node.tune_weights and 'd_weights' in node.data:
             upd = True
-            d_weights = numpy.sum(node.d_weights, axis=0)
-            if not hasattr(node, 'prev_d_weights'):
-                node.prev_d_weights = numpy.zeros(node.get_arity())
+            d_weights = numpy.sum(node.data['d_weights'], axis=0)
+            if 'prev_d_weights' not in node.data:
+                node.data['prev_d_weights'] = numpy.zeros(node.get_arity())
 
-            if not hasattr(node, 'delta_weights'):
-                node.delta_weights = numpy.ones(node.weights.shape) *\
-                                     self.delta_init
+            if 'delta_weights' not in node.data:
+                node.data['delta_weights'] = (numpy.ones(node.weights.shape) *
+                                              self.delta_init)
 
-            self.upd(node.weights, d_weights, node.prev_d_weights,
-                     node.delta_weights, node.get_arity())
+            self.upd(node.weights, d_weights, node.data['prev_d_weights'],
+                     node.data['delta_weights'], node.get_arity())
 
         if upd:
             self.updated = True
@@ -829,37 +729,39 @@ class IRpropPlus(RpropBase):
         if not isinstance(node, WeightedNode):
             return
         upd = False
-        if node.tune_bias and hasattr(node, 'd_bias'):
+        if node.tune_bias and 'd_bias' in node.data:
             upd = True
-            d_bias = numpy.sum(node.d_bias, axis=0)
-            if not hasattr(node, 'prev_d_bias'):
-                node.prev_d_bias = numpy.zeros(node.get_arity())
+            d_bias = numpy.sum(node.data['d_bias'], axis=0)
+            if 'prev_d_bias' not in node.data:
+                node.data['prev_d_bias'] = numpy.zeros(node.get_arity())
 
-            if not hasattr(node, 'delta_bias'):
-                node.delta_bias = numpy.ones(node.bias.shape) * self.delta_init
+            if 'delta_bias' not in node.data:
+                node.data['delta_bias'] = (numpy.ones(node.bias.shape) *
+                                           self.delta_init)
 
-            if not hasattr(node, 'prev_bias_update'):
-                node.prev_bias_update = numpy.zeros(node.bias.shape)
+            if 'prev_bias_update' not in node.data:
+                node.data['prev_bias_update'] = numpy.zeros(node.bias.shape)
 
-            self.upd(node.bias, d_bias, node.prev_d_bias, node.delta_bias,
-                     node.prev_bias_update, node.get_arity())
+            self.upd(node.bias, d_bias, node.data['prev_d_bias'],
+                     node.data['delta_bias'], node.data['prev_bias_update'],
+                     node.get_arity())
 
-        if node.tune_weights and hasattr(node, 'd_weights'):
+        if node.tune_weights and 'd_weights' in node.data:
             upd = True
-            d_weights = numpy.sum(node.d_weights, axis=0)
-            if not hasattr(node, 'prev_d_weights'):
-                node.prev_d_weights = numpy.zeros(node.get_arity())
+            d_weights = numpy.sum(node.data['d_weights'], axis=0)
+            if 'prev_d_weights' not in node.data:
+                node.data['prev_d_weights'] = numpy.zeros(node.get_arity())
 
-            if not hasattr(node, 'delta_weights'):
-                node.delta_weights = numpy.ones(node.weights.shape) *\
+            if 'delta_weights' not in node.data:
+                node.data['delta_weights'] = numpy.ones(node.weights.shape) *\
                                      self.delta_init
 
-            if not hasattr(node, 'prev_weight_update'):
-                node.prev_weight_update = numpy.zeros(node.weights.shape)
+            if 'prev_weight_update' not in node.data:
+                node.data['prev_weight_update'] = numpy.zeros(node.weights.shape)
 
-            self.upd(node.weights, d_weights, node.prev_d_weights,
-                     node.delta_weights, node.prev_weight_update,
-                     node.get_arity())
+            self.upd(node.weights, d_weights, node.data['prev_d_weights'],
+                     node.data['delta_weights'],
+                     node.data['prev_weight_update'], node.get_arity())
 
         if upd:
             self.updated = True
@@ -899,30 +801,31 @@ class IRpropMinus(RpropBase):
         if not isinstance(node, WeightedNode):
             return
         upd = False
-        if node.tune_bias and hasattr(node, 'd_bias'):
+        if node.tune_bias and 'd_bias' in node.data:
             upd = True
-            d_bias = numpy.sum(node.d_bias, axis=0)
-            if not hasattr(node, 'prev_d_bias'):
-                node.prev_d_bias = numpy.zeros(node.get_arity())
+            d_bias = numpy.sum(node.data['d_bias'], axis=0)
+            if 'prev_d_bias' not in node.data:
+                node.data['prev_d_bias'] = numpy.zeros(node.get_arity())
 
-            if not hasattr(node, 'delta_bias'):
-                node.delta_bias = numpy.ones(node.bias.shape) * self.delta_init
+            if 'delta_bias' not in node.data:
+                node.data['delta_bias'] = (numpy.ones(node.bias.shape) *
+                                           self.delta_init)
 
-            self.upd(node.bias, d_bias, node.prev_d_bias, node.delta_bias,
-                     node.get_arity())
+            self.upd(node.bias, d_bias, node.data['prev_d_bias'],
+                     node.data['delta_bias'], node.get_arity())
 
-        if node.tune_weights and hasattr(node, 'd_weights'):
+        if node.tune_weights and 'd_weights' in node.data:
             upd = True
-            d_weights = numpy.sum(node.d_weights, axis=0)
-            if not hasattr(node, 'prev_d_weights'):
-                node.prev_d_weights = numpy.zeros(node.get_arity())
+            d_weights = numpy.sum(node.data['d_weights'], axis=0)
+            if 'prev_d_weights' not in node.data:
+                node.data['prev_d_weights'] = numpy.zeros(node.get_arity())
 
-            if not hasattr(node, 'delta_weights'):
-                node.delta_weights = numpy.ones(node.weights.shape) *\
+            if 'delta_weights' not in node.data:
+                node.data['delta_weights'] = numpy.ones(node.weights.shape) *\
                                      self.delta_init
 
-            self.upd(node.weights, d_weights, node.prev_d_weights,
-                     node.delta_weights, node.get_arity())
+            self.upd(node.weights, d_weights, node.data['prev_d_weights'],
+                     node.data['delta_weights'], node.get_arity())
 
         if upd:
             self.updated = True

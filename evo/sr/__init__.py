@@ -21,6 +21,11 @@ class MathNode(evo.gp.support.GpNode):
         self.cache = cache
         self._cache = None
 
+    def copy_contents(self, dest):
+        super().copy_contents(dest)
+        dest.cache = self.cache
+        dest._cache = self._cache
+
     def eval(self, args: dict=None):
         """Evaluates this node.
 
@@ -114,7 +119,7 @@ class Add2(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = '+'
+        self.data['name'] = '+'
 
     @staticmethod
     def get_arity():
@@ -127,12 +132,6 @@ class Add2(MathNode):
         return Add2.INFIX_FMT.format(self.children[0].infix(**kwargs),
                                      self.children[1].infix(**kwargs))
 
-    def clone_self(self):
-        c = Add2(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
-
 
 class Sub2(MathNode):
     """Subtraction of the second operand from the first one: ``a - b``
@@ -141,7 +140,7 @@ class Sub2(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = '-'
+        self.data['name'] = '-'
 
     @staticmethod
     def get_arity():
@@ -154,12 +153,6 @@ class Sub2(MathNode):
         return Sub2.INFIX_FMT.format(self.children[0].infix(**kwargs),
                                      self.children[1].infix(**kwargs))
 
-    def clone_self(self):
-        c = Sub2(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
-
 
 class Mul2(MathNode):
     """Multiplication of two operands: ``a * b``
@@ -168,7 +161,7 @@ class Mul2(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = '*'
+        self.data['name'] = '*'
 
     @staticmethod
     def get_arity():
@@ -180,12 +173,6 @@ class Mul2(MathNode):
     def infix(self, **kwargs):
         return Mul2.INFIX_FMT.format(self.children[0].infix(**kwargs),
                                      self.children[1].infix(**kwargs))
-
-    def clone_self(self):
-        c = Mul2(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
 
 
 class Div2(MathNode):
@@ -200,7 +187,7 @@ class Div2(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = '/'
+        self.data['name'] = '/'
 
     @staticmethod
     def get_arity():
@@ -212,12 +199,6 @@ class Div2(MathNode):
     def infix(self, **kwargs):
         return Div2.INFIX_FMT.format(self.children[0].infix(**kwargs),
                                      self.children[1].infix(**kwargs))
-
-    def clone_self(self):
-        c = Add2(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
 
 
 class IDiv2(MathNode):
@@ -232,7 +213,7 @@ class IDiv2(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = '//'
+        self.data['name'] = '//'
 
     @staticmethod
     def get_arity():
@@ -245,12 +226,6 @@ class IDiv2(MathNode):
         return IDiv2.INFIX_FMT.format(self.children[0].infix(**kwargs),
                                       self.children[1].infix(**kwargs))
 
-    def clone_self(self):
-        c = IDiv2(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
-
 
 class PDiv2(MathNode):
     """Protected division of the first operand by the second one, returns 1 if
@@ -260,7 +235,7 @@ class PDiv2(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = '{/}'
+        self.data['name'] = '{/}'
 
     @staticmethod
     def get_arity():
@@ -279,12 +254,6 @@ class PDiv2(MathNode):
         return PDiv2.INFIX_FMT.format(self.children[0].infix(**kwargs),
                                       self.children[1].infix(**kwargs))
 
-    def clone_self(self):
-        c = PDiv2(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
-
 
 class PIDiv2(MathNode):
     """Protected integer division of the first operand by the second one,
@@ -294,7 +263,7 @@ class PIDiv2(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = '{//}'
+        self.data['name'] = '{//}'
 
     @staticmethod
     def get_arity():
@@ -313,12 +282,6 @@ class PIDiv2(MathNode):
         return PIDiv2.INFIX_FMT.format(self.children[0].infix(**kwargs),
                                        self.children[1].infix(**kwargs))
 
-    def clone_self(self):
-        c = PIDiv2(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
-
 
 class Sin(MathNode):
     """The sine function.
@@ -327,7 +290,7 @@ class Sin(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = 'sin'
+        self.data['name'] = 'sin'
 
     @staticmethod
     def get_arity():
@@ -339,12 +302,6 @@ class Sin(MathNode):
     def infix(self, **kwargs):
         return Sin.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
-    def clone_self(self):
-        c = Sin(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
-
 
 class Cos(MathNode):
     """The cosine function.
@@ -353,7 +310,7 @@ class Cos(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = 'cos'
+        self.data['name'] = 'cos'
 
     @staticmethod
     def get_arity():
@@ -365,12 +322,6 @@ class Cos(MathNode):
     def infix(self, **kwargs):
         return Cos.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
-    def clone_self(self):
-        c = Cos(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
-
 
 class Exp(MathNode):
     """The natural exponential function.
@@ -379,7 +330,7 @@ class Exp(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = 'exp'
+        self.data['name'] = 'exp'
 
     @staticmethod
     def get_arity():
@@ -391,12 +342,6 @@ class Exp(MathNode):
     def infix(self, **kwargs):
         return Exp.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
-    def clone_self(self):
-        c = Exp(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
-
 
 class Abs(MathNode):
     """Absolute value.
@@ -405,7 +350,7 @@ class Abs(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = 'abs'
+        self.data['name'] = 'abs'
 
     @staticmethod
     def get_arity():
@@ -416,12 +361,6 @@ class Abs(MathNode):
 
     def infix(self, **kwargs):
         return Abs.INFIX_FMT.format(self.children[0].infix(**kwargs))
-
-    def clone_self(self):
-        c = Abs(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
 
 
 class Power(MathNode):
@@ -435,9 +374,9 @@ class Power(MathNode):
     """
     INFIX_FMT = '({0}^{1})'
 
-    def __init__(self, power, **kwargs):
+    def __init__(self, power=None, **kwargs):
         super().__init__(**kwargs)
-        self.data = 'pow' + str(power)
+        self.data['name'] = 'pow' + str(power)
         self.power = power
 
     @staticmethod
@@ -451,11 +390,9 @@ class Power(MathNode):
         return Power.INFIX_FMT.format(self.children[0].infix(**kwargs),
                                       self.power)
 
-    def clone_self(self):
-        c = Power(cache=self.cache, power=self.power)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
+    def copy_contents(self, dest):
+        super().copy_contents(dest)
+        dest.power = self.power
 
 
 class Sqrt(MathNode):
@@ -470,7 +407,7 @@ class Sqrt(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = 'sqrt'
+        self.data['name'] = 'sqrt'
 
     @staticmethod
     def get_arity():
@@ -482,12 +419,6 @@ class Sqrt(MathNode):
     def infix(self, **kwargs) -> str:
         return Sqrt.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
-    def clone_self(self):
-        c = Sqrt(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
-
 
 class PSqrt(MathNode):
     """Protected square root, returns the square root of the absolute value of
@@ -497,7 +428,7 @@ class PSqrt(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = 'psqrt'
+        self.data['name'] = 'psqrt'
 
     @staticmethod
     def get_arity():
@@ -509,12 +440,6 @@ class PSqrt(MathNode):
     def infix(self, **kwargs) -> str:
         return PSqrt.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
-    def clone_self(self):
-        c = Sqrt(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
-
 
 class Sigmoid(MathNode):
     """Sigmoid function: :math:`sig(x) = \\frac{1}{1 + \\mathrm{e}^{-x}}`
@@ -523,7 +448,7 @@ class Sigmoid(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = 'sigm'
+        self.data['name'] = 'sigm'
 
     @staticmethod
     def get_arity():
@@ -535,12 +460,6 @@ class Sigmoid(MathNode):
     def infix(self, **kwargs):
         return Sigmoid.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
-    def clone_self(self):
-        c = Sigmoid(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
-
 
 class Sinc(MathNode):
     """The sinc function: :math:`sinc(x) = \\frac{\\sin{\\pi x}}{\\pi x}`,
@@ -550,7 +469,7 @@ class Sinc(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = 'sinc'
+        self.data['name'] = 'sinc'
 
     @staticmethod
     def get_arity():
@@ -562,12 +481,6 @@ class Sinc(MathNode):
     def infix(self, **kwargs):
         return Sinc.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
-    def clone_self(self):
-        c = Sinc(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
-
 
 class Softplus(MathNode):
     """The softplus or rectifier function:
@@ -577,7 +490,7 @@ class Softplus(MathNode):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.data = 'softplus'
+        self.data['name'] = 'softplus'
 
     @staticmethod
     def get_arity():
@@ -589,12 +502,6 @@ class Softplus(MathNode):
     def infix(self, **kwargs):
         return Softplus.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
-    def clone_self(self):
-        c = Sigmoid(cache=self.cache)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
-
 
 class Const(MathNode):
     """A constant.
@@ -602,7 +509,9 @@ class Const(MathNode):
     INFIX_FMT = '{0}'
 
     def __init__(self, val=None, **kwargs):
-        super().__init__(data=val, **kwargs)
+        super().__init__(**kwargs)
+        self.data['name'] = str(val)
+        self.value = val
 
     @staticmethod
     def get_arity():
@@ -614,11 +523,9 @@ class Const(MathNode):
     def infix(self, **kwargs):
         return Const.INFIX_FMT.format(self.data)
 
-    def clone_self(self):
-        c = Const(cache=self.cache, val=self.data)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
+    def copy_contents(self, dest):
+        super().copy_contents(dest)
+        dest.value = self.value
 
 
 class Variable(MathNode):
@@ -626,23 +533,18 @@ class Variable(MathNode):
     """
 
     def __init__(self, name=None, **kwargs):
-        super().__init__(data=name, **kwargs)
+        super().__init__(**kwargs)
+        self.data['name'] = name
 
     @staticmethod
     def get_arity():
         return 0
 
     def eval(self, args: dict=None):
-        return args[self.data]
+        return args[self.data['name']]
 
     def infix(self, **kwargs):
-        return self.data
-
-    def clone_self(self):
-        c = Variable(cache=self.cache, name=self.data)
-        c.cache = self.cache
-        c._cache = self._cache
-        return c
+        return self.data['name']
 
     def operation(self, *args):
         raise NotImplementedError('Variable does no operation.')

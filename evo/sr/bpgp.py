@@ -22,8 +22,9 @@ class BackpropagationFitness(evo.Fitness):
     LOG = logging.getLogger(__name__ + '.BackpropagationFitness')
 
     def __init__(self, error_fitness, handled_errors, var_mapping: dict,
-                 updater: evo.sr.backpropagation.WeightsUpdater,
-                 steps: int=10):
+                 cost_derivative,
+                 updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
+                 fit: bool=False):
         """
         The ``var_mapping`` argument is responsible for mapping the input
         variables to variable names of a tree. It is supposed to be a dict with
@@ -43,16 +44,38 @@ class BackpropagationFitness(evo.Fitness):
             ``train_inputs`` argument)
         :param steps: number of steps the optimisation algorithm will do prior
             to each error evaluation
+
+            There are several forms of this setting:
+
+                * integer value - this just sets the number of steps that
+                  will be performed
+                * ``('depth', max_steps)`` - the number of steps that will be
+                  performed is determined as the ``max_steps`` minus the
+                  (maximum) depth of the tree
+                * ``('nodes', max_steps)`` - the number of steps that will be
+                  performed is determined as the ``max_steps`` minus the
+                  number of nodes in the tree
+        :param fit: if ``True`` the output of the genomes will be
+            additionally transformed using the :meth:`.fit_outputs` method.
         """
         super().__init__()
         self.error_fitness = error_fitness
         self.var_mapping = var_mapping
         self.errors = tuple([ZeroDivisionError, FloatingPointError] +
                             handled_errors)
+        self.cost_derivative = cost_derivative
         self.updater = updater
-        self.steps = steps
+        if isinstance(steps, int):
+            self.steps = steps
+            self.get_steps = self.steps_number
+        elif steps[0] == 'depth':
+            self.steps = steps[1]
+            self.get_steps = self.steps_depth
+        elif steps[0] == 'nodes':
+            self.steps = steps[1]
+            self.get_steps = self.steps_nodes
+        self.fit = fit
 
-        self.cost_derivative = lambda yhat, y: yhat - y
         self.bsf = None
 
     def get_train_inputs(self):
@@ -68,23 +91,47 @@ class BackpropagationFitness(evo.Fitness):
         inputs = self.get_train_inputs()
         return evo.sr.prepare_args(inputs, self.var_mapping)
 
+    def steps_number(self, individual):
+        ret = self.steps
+        return ret
+
+    def steps_depth(self, individual):
+        ret = self.steps - individual.genotype.get_subtree_depth()
+        return ret
+
+    def steps_nodes(self, individual):
+        ret = self.steps - individual.genotype.get_subtree_size()
+        return ret
+
     def evaluate(self, individual: evo.gp.support.TreeIndividual):
         BackpropagationFitness.LOG.debug('Evaluating individual %s',
                                          individual.__str__())
 
         BackpropagationFitness.LOG.debug('Optimising inner parameters.')
+        otf = None
+        otf_d = None
         try:
             yhat = individual.genotype.eval(args=self.get_args())
             check = self._check_output(yhat, individual)
             if check is not None:
                 return check
+            if self.fit:
+                self.fit_outputs(individual, yhat)
+
+                def otf(y):
+                    return (individual.get_data('intercept') +
+                            y * individual.get_data('coefficients'))
+
+                def otf_d(y):
+                    return individual.get_data('coefficients')
             fitness = prev_error = self.get_error(yhat, individual)
             BackpropagationFitness.LOG.debug('Initial error: %f', fitness)
-            for i in range(self.steps):
+            for i in range(self.get_steps(individual)):
                 evo.sr.backpropagation.backpropagate(
                     individual.genotype, self.cost_derivative,
                     self.get_train_output(), self.get_args(),
-                    self.get_train_input_cases())
+                    self.get_train_input_cases(), output_transform=otf,
+                    output_transform_derivative=otf_d)
                 updated = self.updater.update(individual.genotype,
                                               fitness, prev_error)
 
@@ -96,6 +143,8 @@ class BackpropagationFitness(evo.Fitness):
                 check = self._check_output(yhat, individual)
                 if check is not None:
                     return check
+                if self.fit:
+                    self.fit_outputs(individual, yhat)
                 prev_error = fitness
                 fitness = self.get_error(yhat, individual)
                 BackpropagationFitness.LOG.debug(
@@ -107,7 +156,7 @@ class BackpropagationFitness(evo.Fitness):
                 self.error_fitness, exc_info=True)
             fitness = self.error_fitness
         individual.set_fitness(fitness)
-        if self.bsf is None or self.bsf.get_fitness() > fitness:
+        if self.bsf is None or self.compare(individual, self.bsf) < 0:
             self.bsf = individual.copy()
         return fitness
 
@@ -142,19 +191,26 @@ class BackpropagationFitness(evo.Fitness):
         if f2 is None:
             self.evaluate(i2)
             f2 = i2.get_fitness()
-        return f1 < f2
+        return self.fitness_cmp(f1, f2)
+
+    def fitness_cmp(self, f1, f2):
+        raise NotImplementedError()
 
     def get_bsf(self) -> evo.Individual:
         return self.bsf
+
+    def fit_outputs(self, individual, outputs):
+        raise NotImplementedError()
 
 
 class RegressionFitness(BackpropagationFitness):
     """This is a class that uses backpropagation to fit to static target values.
     """
-    def __init__(self, error_fitness, handled_errors, train_inputs,
-                 train_output, var_mapping: dict,
-                 updater: evo.sr.backpropagation.WeightsUpdater,
-                 steps: int = 10):
+
+    def __init__(self, handled_errors, train_inputs, train_output,
+                 var_mapping: dict,
+                 updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
+                 fit: bool=False):
         """
         :param train_inputs: feature variables' values: an N x M matrix where N
             is the number of datapoints (the same N as in ``target`` argument)
@@ -162,10 +218,12 @@ class RegressionFitness(BackpropagationFitness):
         :param train_output: target values of the datapoints: an N x 1 matrix
             where N is the number of datapoints
         """
-        super().__init__(error_fitness, handled_errors, var_mapping, updater,
-                         steps)
+        super().__init__(-numpy.inf, handled_errors, var_mapping,
+                         lambda yhat, y: yhat - y, updater, steps, fit)
         self.train_inputs = train_inputs
         self.train_output = numpy.array(train_output, copy=False)
+        self.ssw = numpy.sum((self.train_output - self.train_output.mean()) **
+                             2)
         self.args = evo.sr.prepare_args(train_inputs, var_mapping)
 
     def get_train_inputs(self):
@@ -181,6 +239,37 @@ class RegressionFitness(BackpropagationFitness):
         return self.args
 
     def get_error(self, outputs, individual):
-        errs = self.get_train_output() - outputs
-        return errs.dot(errs) / numpy.alen(errs)
+        intercept = individual.get_data('intercept')
+        coefficients = individual.get_data('coefficients')
+        if coefficients is not None:
+            if outputs.ndim == 1:
+                outputs = outputs * coefficients
+            else:
+                outputs = outputs.dot(coefficients)
+        if intercept is not None:
+            outputs = outputs + intercept
+        e = self.get_train_output() - outputs
+        sse = e.dot(e)
+        r2 = 1 - sse / self.ssw
+        mse = sse / numpy.alen(e)
+        individual.set_data('R2', r2)
+        individual.set_data('MSE', mse)
+        return r2
 
+    def fit_outputs(self, individual, outputs):
+        if outputs.ndim == 1:
+            outputs = outputs[:, numpy.newaxis]
+        ones = numpy.ones((outputs.shape[0], 1))
+        base = numpy.hstack((ones, outputs))
+        mult = base.T.dot(base)
+        target = self.get_train_output()
+        w = numpy.linalg.pinv(mult).dot(base.T).dot(target)
+        individual.set_data('intercept', w[0])
+        individual.set_data('coefficients', w[1:])
+
+    def fitness_cmp(self, f1, f2):
+        if f1 > f2:
+            return -1
+        if f1 < f2:
+            return 1
+        return 0

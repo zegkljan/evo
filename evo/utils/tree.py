@@ -12,11 +12,14 @@ class TreeNode(object):
     """
 
     def __init__(self, parent=None, parent_index=None, children=None,
-                 data=None, **kwargs):
+                 data: dict=None, **kwargs):
         self.parent = parent
         self.parent_index = parent_index
         self.children = children
-        self.data = data
+        if data is None:
+            self.data = dict()
+        else:
+            self.data = data
 
     def is_leaf(self):
         return self.children is None
@@ -228,7 +231,12 @@ class TreeNode(object):
 
         Override this method for special cloning.
         """
-        return TreeNode(data=copy.deepcopy(self.data))
+        c = type(self)()
+        self.copy_contents(c)
+        return c
+
+    def copy_contents(self, dest):
+        dest.data = copy.deepcopy(self.data)
 
     def is_shape_equal(self, other):
         if self.children is None:
@@ -252,10 +260,15 @@ class TreeNode(object):
         children_str = ' '.join([x.__str__() for x in self.children])
         if len(self.children) > 0:
             children_str = ' ' + children_str
-        return '({0}{1})'.format(self.data, children_str)
+        name = type(self).__name__
+        if 'name' in self.data:
+            name = self.data['name']
+        return '({0}{1})'.format(name, children_str)
 
     def self_str(self):
         """Returns the string representation of the node without the children
         (i.e. only the data).
         """
-        return '{0}'.format(self.data)
+        if 'name' in self.data:
+            return '{0}'.format(self.data['name'])
+        return '{0}'.format(type(self).__name__)

@@ -8,7 +8,6 @@ import multiprocessing
 import pprint
 import gc
 import time
-
 import random
 
 import evo
@@ -248,8 +247,10 @@ class Gp(multiprocessing.context.Process):
                     offspring.append(o)
             self.population = self.pop_strategy.combine_populations(
                 self.population, offspring, elites)
-            Gp.LOG.info('Finished iteration %d. Best fitness: %f',
-                        self.iterations, self.fitness.get_bsf().get_fitness())
+            Gp.LOG.info('Finished iteration %d. Best fitness: %f | %s | %s',
+                        self.iterations, self.fitness.get_bsf().get_fitness(),
+                        str(self.fitness.get_bsf()),
+                        self.fitness.get_bsf().get_data())
             self.iterations += 1
         if self.callback is not None:
             self.callback(self)

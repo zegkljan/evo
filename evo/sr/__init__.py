@@ -518,7 +518,7 @@ class Const(MathNode):
         return 0
 
     def eval(self, args: dict=None):
-        return self.data
+        return self.value
 
     def infix(self, **kwargs):
         return Const.INFIX_FMT.format(self.data)

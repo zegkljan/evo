@@ -242,7 +242,7 @@ class RegressionFitness(BackpropagationFitness):
         intercept = individual.get_data('intercept')
         coefficients = individual.get_data('coefficients')
         if coefficients is not None:
-            if outputs.ndim == 1:
+            if not isinstance(outputs, numpy.ndarray) or outputs.ndim == 1:
                 outputs = outputs * coefficients
             else:
                 outputs = outputs.dot(coefficients)
@@ -257,12 +257,17 @@ class RegressionFitness(BackpropagationFitness):
         return r2
 
     def fit_outputs(self, individual, outputs):
-        if outputs.ndim == 1:
-            outputs = outputs[:, numpy.newaxis]
-        ones = numpy.ones((outputs.shape[0], 1))
-        base = numpy.hstack((ones, outputs))
-        mult = base.T.dot(base)
         target = self.get_train_output()
+        if not isinstance(outputs, numpy.ndarray):
+            base = numpy.empty((target.shape[0], 2))
+        elif outputs.ndim == 1:
+            base = numpy.empty((target.shape[0], 2))
+            outputs = outputs[:, numpy.newaxis]
+        else:
+            base = numpy.empty((target.shape[0], outputs.shape[1] + 1))
+        base[:, 0] = 1
+        base[:, 1:] = outputs
+        mult = base.T.dot(base)
         w = numpy.linalg.pinv(mult).dot(base.T).dot(target)
         individual.set_data('intercept', w[0])
         individual.set_data('coefficients', w[1:])

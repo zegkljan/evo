@@ -107,15 +107,16 @@ class BackpropagationFitness(evo.Fitness):
         BackpropagationFitness.LOG.debug('Evaluating individual %s',
                                          individual.__str__())
 
-        BackpropagationFitness.LOG.debug('Optimising inner parameters.')
         otf = None
         otf_d = None
         try:
             yhat = individual.genotype.eval(args=self.get_args())
+            BackpropagationFitness.LOG.debug('Checking output...')
             check = self._check_output(yhat, individual)
             if check is not None:
                 return check
             if self.fit:
+                BackpropagationFitness.LOG.debug('Performing output fitting...')
                 self.fit_outputs(individual, yhat)
 
                 def otf(y):
@@ -125,6 +126,7 @@ class BackpropagationFitness(evo.Fitness):
                 def otf_d(y):
                     return individual.get_data('coefficients')
             fitness = prev_error = self.get_error(yhat, individual)
+            BackpropagationFitness.LOG.debug('Optimising inner parameters...')
             BackpropagationFitness.LOG.debug('Initial error: %f', fitness)
             for i in range(self.get_steps(individual)):
                 evo.sr.backpropagation.backpropagate(
@@ -267,8 +269,7 @@ class RegressionFitness(BackpropagationFitness):
             base = numpy.empty((target.shape[0], outputs.shape[1] + 1))
         base[:, 0] = 1
         base[:, 1:] = outputs
-        mult = base.T.dot(base)
-        w = numpy.linalg.pinv(mult).dot(base.T).dot(target)
+        w = numpy.linalg.lstsq(base, target)[0]
         individual.set_data('intercept', w[0])
         individual.set_data('coefficients', w[1:])
 

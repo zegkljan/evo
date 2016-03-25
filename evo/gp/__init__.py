@@ -239,8 +239,8 @@ class Gp(multiprocessing.context.Process):
                     children = [a]
 
                 while (children and
-                       len(offspring) <
-                        self.pop_strategy.get_offspring_number()):
+                               len(offspring) <
+                               self.pop_strategy.get_offspring_number()):
                     o = children.pop()
                     if self.generator.random() < self.mutation_prob:
                         o = self.mutate(o.copy())
@@ -333,6 +333,7 @@ class Gp(multiprocessing.context.Process):
         return i
 
     def top_individuals(self, k):
+        Gp.LOG.debug('Obtaining top %d individuals...', k)
         if k <= 0:
             return []
         kth = evo.utils.select(self.population, k - 1,
@@ -343,4 +344,5 @@ class Gp(multiprocessing.context.Process):
                 tops.append(i)
             if len(tops) == k:
                 break
+        Gp.LOG.debug('Obtained top individuals: %s', str(tops))
         return tops

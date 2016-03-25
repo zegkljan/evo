@@ -2,6 +2,10 @@
 """This package contains support modules for evolutionary algorithms.
 """
 
+import logging
+
+LOG = logging.getLogger(__name__)
+
 
 class Stats(object):
     """A base class for saving statistics of a run of an evolutionary
@@ -198,7 +202,7 @@ def _partition(vector, left, right, pivot_index, cmp):
 
 
 def select(vector, k, left=None, right=None, cmp=None):
-    """Returns the k-th smallest, element of vector within vector[left:right + 1]
+    """Returns the k-th smallest element of vector within vector[left:right + 1]
     inclusive.
 
     :param vector: the vector of elements to be searched

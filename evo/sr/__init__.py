@@ -521,7 +521,7 @@ class Const(MathNode):
         return self.value
 
     def infix(self, **kwargs):
-        return Const.INFIX_FMT.format(self.data)
+        return Const.INFIX_FMT.format(self.data['name'])
 
     def copy_contents(self, dest):
         super().copy_contents(dest)

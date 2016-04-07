@@ -105,6 +105,11 @@ class Add2(WeightedNode, evo.sr.Add2):
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return '({0} * {2} + {1} * {3})'.format(
+                repr(self.weights[0]), repr(self.weights[1]),
+                self.children[0].infix(**kwargs),
+                self.children[1].infix(**kwargs))
         return ('({0:' + num_format + '} * {2} + '
                 '{1:' + num_format + '} * {3})').format(
             self.weights[0], self.weights[1],
@@ -137,6 +142,11 @@ class Sub2(WeightedNode, evo.sr.Sub2):
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return '({0} * {2} - {1} * {3})'.format(
+                repr(self.weights[0]), repr(self.weights[1]),
+                self.children[0].infix(**kwargs),
+                self.children[1].infix(**kwargs))
         return ('({0:' + num_format + '} * {2} - '
                 '{1:' + num_format + '} * {3})').format(
             self.weights[0], self.weights[1],
@@ -169,6 +179,11 @@ class Mul2(WeightedNode, evo.sr.Mul2):
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return '(({0} + {2}) * ({1} + {3}))'.format(
+                repr(self.bias[0]), repr(self.bias[1]),
+                self.children[0].infix(**kwargs),
+                self.children[1].infix(**kwargs))
         return ('(({0:' + num_format + '} + {2}) * '
                 '({1:' + num_format + '} + {3}))').format(
             self.bias[0], self.bias[1],
@@ -201,6 +216,11 @@ class Div2(WeightedNode, evo.sr.Div2):
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return '(({0} + {2}) / ({1} + {3}))'.format(
+                repr(self.bias[0]), repr(self.bias[1]),
+                self.children[0].infix(**kwargs),
+                self.children[1].infix(**kwargs))
         return ('(({0:' + num_format + '} + {2}) / '
                 '({1:' + num_format + '} + {3}))').format(
             self.bias[0], self.bias[1],
@@ -221,6 +241,10 @@ class Sin(WeightedNode, evo.sr.Sin):
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return 'sin({0} + {1} * {2})'.format(
+                repr(self.bias[0]), repr(self.weights[0]),
+                self.children[0].infix(**kwargs))
         return ('sin({0:' + num_format + '} + '
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
@@ -240,6 +264,10 @@ class Cos(WeightedNode, evo.sr.Cos):
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return 'cos({0} + {1} * {2})'.format(
+                repr(self.bias[0]), repr(self.weights[0]),
+                self.children[0].infix(**kwargs))
         return ('cos({0:' + num_format + '} + '
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
@@ -259,6 +287,10 @@ class Exp(WeightedNode, evo.sr.Exp):
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return 'exp({0} + {1} * {2})'.format(
+                repr(self.bias[0]), repr(self.weights[0]),
+                self.children[0].infix(**kwargs))
         return ('exp({0:' + num_format + '} + '
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
@@ -278,8 +310,12 @@ class Abs(WeightedNode, evo.sr.Abs):
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
-        return ('|{0:' + num_format + '} + '
-                '{1:' + num_format + '} * {2}|').format(
+        if num_format == 'repr':
+            return 'abs({0} + {1} * {2})'.format(
+                repr(self.bias[0]), repr(self.weights[0]),
+                self.children[0].infix(**kwargs))
+        return ('abs({0:' + num_format + '} + '
+                '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
 
@@ -297,6 +333,10 @@ class Power(WeightedNode, evo.sr.Power):
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return '(({0} + {1} * {3})^{2})'.format(
+                repr(self.bias[0]), repr(self.weights[0]), self.power,
+                self.children[0].infix(**kwargs))
         base = '(({0:' + num_format + '} + {1:' + num_format + '} * {3})^{2})'
         return base.format(
             self.bias[0], self.weights[0], self.power,
@@ -317,6 +357,10 @@ class Sigmoid(WeightedNode, evo.sr.Sigmoid):
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return 'sig({0} + {1} * {2})'.format(
+                repr(self.bias[0]), repr(self.weights[0]),
+                self.children[0].infix(**kwargs))
         return ('sig({0:' + num_format + '} + '
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
@@ -338,6 +382,10 @@ class Sinc(WeightedNode, evo.sr.Sinc):
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return 'sinc({0} + {1} * {2})'.format(
+                repr(self.bias[0]), repr(self.weights[0]),
+                self.children[0].infix(**kwargs))
         return ('sinc({0:' + num_format + '} + '
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
@@ -358,6 +406,10 @@ class Softplus(WeightedNode, evo.sr.Softplus):
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return 'softplus({0} + {1} * {2})'.format(
+                repr(self.bias[0]), repr(self.weights[0]),
+                self.children[0].infix(**kwargs))
         return ('softplus({0:' + num_format + '} + '
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],

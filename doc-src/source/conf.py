@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.abspath('../..'))
 
 # -- General configuration -----------------------------------------------------
 autoclass_content = 'both'
+autodoc_member_order = 'groupwise'
 
 def skip(app, what, name, obj, skip, options):
     if name.startswith("__") or obj.__doc__:
@@ -38,8 +39,9 @@ def setup(app):
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = ['sphinx.ext.autodoc', 'sphinx.ext.todo', 'sphinx.ext.coverage',
               'sphinx.ext.mathjax', 'sphinx.ext.ifconfig',
-              'sphinx.ext.viewcode', 'sphinx.ext.intersphinx']
-intersphinx_mapping = {'python': ('http://docs.python.org/3.4', None),
+              'sphinx.ext.viewcode', 'sphinx.ext.intersphinx',
+              'sphinx.ext.napoleon']
+intersphinx_mapping = {'python': ('http://docs.python.org/3.5', None),
                        'numpy': ('http://docs.scipy.org/doc/numpy/', None)}
 
 # Add any paths that contain templates here, relative to this directory.
@@ -116,11 +118,17 @@ if html_theme == 'default':
         'stickysidebar' : 'true',
         'externalrefs' : 'true'
     }
+if html_theme == 'alabaster':
+    html_theme_options = {}
 if html_theme == 'nature':
     html_theme_options = {}
 if html_theme == 'pyramid':
     html_theme_options = {}
 if html_theme == 'sphinxdoc':
+    html_theme_options = {}
+if html_theme == 'agogo':
+    html_theme_options = {}
+if html_theme == 'traditional':
     html_theme_options = {}
 
 # Add any paths that contain custom themes here, relative to this directory.

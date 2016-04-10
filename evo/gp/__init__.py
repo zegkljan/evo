@@ -102,27 +102,178 @@ class Gp(multiprocessing.context.Process):
         :keyword crossover_prob: (keyword argument) probability of performing a
             crossover; if it does not fit into interval [0, 1] it is set to 0 if
             lower than 0 and to 1 if higher than 1; default value is 0.8
-        :keyword crossover_type: (keyword argument) the type of crossover;
-            possible values are
-
-                * ``'subtree'`` - subtree crossover
+        :keyword crossover_type: (keyword argument) the type of crossover,
+            for details see :ref:`Crossover types <evo.gp.Gp.xover-types>`
 
             The default value is ``'subtree'``.
         :keyword mutation_prob: (keyword argument) probability of performing
             a mutation; if it does not fit into interval [0, 1] it is set to
             0 if lower than 0 and to 1 if higher than 1; default value is 0.1
-        :keyword mutation_type: (keyword argument) the type of mutation;
-            possible values are
-
-                * ``('subtree', max_depth)`` - subtree mutation; ``max_depth``
-                  is the maximum depth of the randomly generated subtree; it is
-                  the only mutation type supported
+        :keyword mutation_type: (keyword argument) the type of mutation, for
+            details see :ref:`Mutation types <evo.gp.Gp.mutation-types>`
 
             The default value is ``('subtree', 5)``.
+        :keyword limits: specifies the size limits for the individuals, for
+            details see :ref:`Limits <evo.gp.Gp.limits>`
+
+            The default is no limits.
         :keyword evo.support.Stats stats: stats saving class
         :keyword callback: a callable which will be called at the beginning of
             every generation with a single argument which is the algorithm
             instance itself (i.e. instance of this class)
+
+        .. _evo.gp.Gp.xover-types:
+
+        .. rubric:: Crossover types
+
+        The available crossover types are:
+
+            * subtree crossover,
+            * rate-based high-level crossover,
+            * probabilistic meta-crossover,
+            * custom crossover.
+
+        *Subtree crossover*
+
+        Classical Koza-style subtree crossover, i.e. a node is randomly
+        chosen at each tree and the subtrees beneath these nodes are swapped
+        between the trees. If a parent has more than 1 gene, the node is
+        picked from a random gene.
+
+        To use this crossover set the ``crossover_type`` argument to
+        ``'subtree'``\ .
+
+        *Rate-based high-level crossover*
+
+        This type of crossover operates on the gene level. It swaps the whole
+        genes between the individuals.
+
+        Each gene in the parents is selected for the crossover with a
+        probability ``cr_rate``\ . Then the genes that were selected are
+        swapped between the parents. If any of the parents' number of genes
+        exceeds the limit ``g_max`` then the excess genes (from the end) are
+        thrown away.
+
+        This crossover assumes that the order of the genes is not important.
+        Also, if the number of genes in both parents is 1, subtree crossover
+        is used instead.
+
+        To use this crossover set the ``crossover_type`` argument to
+        ``('cr-high-level', cr_rate, g_max)`` and substitute ``cr_rate`` and
+        ``g_max`` for the actual crossover rate and maximum number of genes.
+
+        *Probabilistic meta-crossover*
+
+        The probabilistic crossover is, in fact, not a crossover method but is
+        composed of a number of other crossover methods along with
+        probabilites for each of them. In the end, each of the methods is
+        performed with a probability assigned to it.
+
+        To use this crossover set the ``crossover_type`` argument to
+        ``('probabilistic`, (p1, m1), (p2, m2), ...)``\ . The ``p1``\ ,
+        ``p2``\ , etc. are to be substituted with probabilities, the ``m1``\,
+        ``m2``\ , etc. are to be substituted with the individual crossover
+        methods as if they were assigned to the ``crossover_type`` argument
+        themselves. If the probabilites don't sum up to 1 they are going to
+        be scaled so that they do.
+
+        Example: ``('probabilistic', (.4, 'subtree'), (.4, ('cr-high-level',
+        .5, 4)))`` translates to a probabilistic crossover where with
+        probability 0.4 the subtree crossover will be performed  and with
+        probability 0.6 the rate-based high-level crossover will be used.
+
+        *Custom crossover*
+
+        A custom crossover specified by a callable which will receive the
+        parents as its arguments. This crossover can be used in
+        meta-crossover methods as any other crossover method.
+
+        The callable should take three arguments: the :class:`Gp` object of
+        the running algorithm, the first parent and the second parent,
+        and it should return the offspring in a list. The parents are copied
+        prior to their passing into the callable so any modification of them
+        is safe with respect to other individuals in the population.
+
+        To use this crossover set the ``crossover_type`` argument to
+        ``('custom', callable)`` and replace ``callable`` with a callable of
+        three arguments.
+
+        .. warning:
+
+            It is the job of the callable to unset the offspring's fitness.
+
+        .. _evo.gp.Gp.mutation-types:
+
+        .. rubric:: Mutation types
+
+        The available mutation types are:
+
+            * subtree mutation,
+            * custom mutation.
+
+        *Subtree mutation*
+
+        Classical Koza-style subtree mutation, i.e. a node is randomly
+        selected and is (along with its subtree) replaced with a randomly
+        generated subtree of maximum depth ``max_depth``\ .
+
+        To use this mutation set the ``mutation_type`` argument to
+        ``('subtree', max_depth)`` and replace ``max_depth`` with the desired
+        maximum depth of the newly generated subtree. Nevertheless,
+        the mutation sill observes the total depth and nodes limit (see
+        :ref:`Limits <evo.gp.Gp.limits>`).
+
+        *Custom mutation*
+
+        A custom mutation specified by a callable which will receive the
+        parent as its argument.
+
+        The callable should take two arguments: the :class:`Gp` object of
+        the running algorithm and the parent, and it should return the
+        offspring. The parent is copied prior to its passing into the
+        callable so any modification of it is safe with respect to other
+        individuals in the population.
+
+        To use this mutation set the ``mutation_type`` argument to
+        ``('custom', callable)`` and replace ``callable`` with a callable of
+        two arguments.
+
+        .. warning:
+
+            It is the job of the callable to unset the offspring's fitness.
+
+        .. _evo.gp.Gp.limits:
+
+        .. rubric:: Limits
+
+        The limits specify constraints on the size of the individuals. The
+        limits are specified via a dictionary where the keys are the names of
+        the limits (strings) and the values specify the particular limit.
+
+        *Maximum depth*
+
+        :Name: ``'max-depth'``
+
+        This limit specifies the maximum depth an individual can have. It is
+        a hard limit, i.e. **no** individual will ever be deeper than this
+        limit. For multi-gene individuals, the limit applies per-gene.
+
+        *Maximum number of nodes*
+
+        :Name: ``'max-nodes'``
+
+        This limit specifies the maximum number of nodes an individual can
+        have. It is a hard limit, i.e. **no** individual will ever be deeper
+        than this limit. For multi-gene individuals, the limit applies per-gene.
+
+        *Maximum number of genes*
+
+        :Name: ``'max-genes''``
+
+        This limit specifies the maximum number of genes an individual can
+        have. It is a hard limit, i.e. **no** individual will ever have more
+        genes than this limit specifies.
+
         """
         multiprocessing.context.Process.__init__(self, name=name)
 
@@ -170,6 +321,12 @@ class Gp(multiprocessing.context.Process):
             self.mutate_method, self.mutate_method_args = \
                 self.setup_mutation(kwargs['mutation_type'])
 
+        self.limits = {'max-genes': 1,
+                       'max-depth': float('inf'),
+                       'max-nodes': float('inf')}
+        if 'limits' in kwargs:
+            self.limits.update(kwargs['limits'])
+
         self.stats = None
         if 'stats' in kwargs:
             self.stats = kwargs['stats']
@@ -183,9 +340,17 @@ class Gp(multiprocessing.context.Process):
         self.population = []
         self.population_sorted = False
 
-        self.iterations = 0
         self.start_time = None
+        """
+        The time of start of the algorithm, including the population
+        initialisation.
+        """
         self.end_time = None
+        """
+        The time of end of the algorithm, excluding the final garbage
+        collection, cleanup, etc.
+        """
+        self.iterations = 0
         """
         The number of elapsed iterations of the algorithm (either generations
         in the generational mode or just iterations in the steady-state mode).
@@ -238,9 +403,8 @@ class Gp(multiprocessing.context.Process):
                 else:
                     children = [a]
 
-                while (children and
-                               len(offspring) <
-                               self.pop_strategy.get_offspring_number()):
+                while (children and len(offspring) <
+                       self.pop_strategy.get_offspring_number()):
                     o = children.pop()
                     if self.generator.random() < self.mutation_prob:
                         o = self.mutate(o.copy())
@@ -259,21 +423,64 @@ class Gp(multiprocessing.context.Process):
     def setup_crossover(self, crossover_type):
         """Helper method for the constructor which sets up the crossover method.
         """
-        if crossover_type == 'subtree':
-            crossover_method = self.subtree_crossover
-            crossover_method_args = ()
-        else:
+        try:
+            valid = True
+            if crossover_type == 'subtree':
+                crossover_method = self.subtree_crossover
+                crossover_method_args = ()
+            elif crossover_type[0] == 'cr-high-level':
+                crossover_method = self.cr_high_level_crossover
+                crossover_method_args = (crossover_type[1],)
+            elif crossover_type[0] == 'probabilistic':
+                crossover_method = self.probabilistic_crossover
+                probs_methods = []
+                for prob, subcrossover in crossover_type[1:]:
+                    cm, cma = self.setup_crossover(subcrossover)
+                    if not probs_methods:
+                        probs_methods.append([prob, (cm, cma)])
+                    else:
+                        probs_methods.append([probs_methods[-1][0] + prob,
+                                              (cm, cma)])
+                for i in range(len(probs_methods)):
+                    probs_methods[i][0] = (probs_methods[i][0] /
+                                           probs_methods[-1][0])
+
+                crossover_method_args = (tuple(probs_methods),)
+                return crossover_method, crossover_method_args
+            elif crossover_type[0] == 'custom':
+                crossover_method = self.custom_crossover
+                crossover_method_args = crossover_type[1]
+            else:
+                valid = False
+        except Exception as e:
+            raise ValueError('Invalid crossover type.', e)
+
+        if not valid:
             raise ValueError('Invalid crossover type.')
+
+        # noinspection PyUnboundLocalVariable
         return crossover_method, crossover_method_args
 
     def setup_mutation(self, mutation_type):
         """Helper method for the constructor which sets up the mutation method.
         """
-        if mutation_type[0] == 'subtree':
-            mutation_method = self.subtree_mutate
-            mutation_method_args = (mutation_type[1],)
-        else:
+        try:
+            valid = True
+            if mutation_type[0] == 'subtree':
+                mutation_method = self.subtree_mutate
+                mutation_method_args = (mutation_type[1],)
+            elif mutation_type[0] == 'custom':
+                mutation_method = self.custom_mutate
+                mutation_method_args = (mutation_type[1],)
+            else:
+                valid = False
+        except Exception as e:
+            raise ValueError('Invalid crossover type.', e)
+
+        if not valid:
             raise ValueError('Invalid crossover type.')
+
+        # noinspection PyUnboundLocalVariable
         return mutation_method, mutation_method_args
 
     def crossover(self, o1, o2):
@@ -299,8 +506,17 @@ class Gp(multiprocessing.context.Process):
         return self.mutate_method(i, *self.mutate_method_args)
 
     def subtree_crossover(self, o1, o2):
-        g1 = o1.genotype
-        g2 = o2.genotype
+        if o1.genes_num == 1:
+            k1 = 0
+        else:
+            k1 = self.generator.randrange(o1.genes_num)
+        if o2.genes_num == 1:
+            k2 = 0
+        else:
+            k2 = self.generator.randrange(o2.genes_num)
+
+        g1 = o1.genotype[k1]
+        g2 = o2.genotype[k2]
 
         s1 = g1.get_subtree_size()
         s2 = g2.get_subtree_size()
@@ -312,25 +528,79 @@ class Gp(multiprocessing.context.Process):
         n2 = g2.get_nth_node(p2)
 
         r1, r2 = evo.gp.support.swap_subtrees(n1, n2)
-        o1.genotype = r1
-        o2.genotype = r2
+        o1.genotype[k1] = r1
+        o2.genotype[k2] = r2
 
         o1.set_fitness(None)
         o2.set_fitness(None)
         return [o1, o2]
 
-    def subtree_mutate(self, i, max_depth):
-        g = i.genotype
+    def cr_high_level_crossover(self, o1, o2, rate):
+        max_genes = self.limits['max-genes']
+        if o1.genes_num == 1 and o2.genes_num == 1:
+            return self.subtree_crossover(o1, o2)
 
+        from_g1 = []
+        g1 = []
+        for g in o1.genotype:
+            if self.generator.random() < rate:
+                from_g1.append(g)
+            else:
+                g1.append(g)
+        if len(g1) == 0:
+            g1.append(from_g1.pop(self.generator.randrange(len(from_g1))))
+
+        from_g2 = []
+        g2 = []
+        for g in o2.genotype:
+            if self.generator.random() < rate:
+                from_g2.append(g)
+            else:
+                g2.append(g)
+        if len(g2) == 0:
+            g2.append(from_g2.pop(self.generator.randrange(len(from_g2))))
+
+        g1.extend(from_g2[:min(len(from_g2), max_genes - len(g1))])
+        g2.extend(from_g1[:min(len(from_g1), max_genes - len(g2))])
+
+        o1.genotype = g1
+        o2.genotype = g2
+
+        o1.set_fitness(None)
+        o2.set_fitness(None)
+        return [o1, o2]
+
+    def probabilistic_crossover(self, o1, o2, probs_methods):
+        r = self.generator.random()
+        method = None
+        for p, m in probs_methods:
+            method = m
+            if p >= r:
+                break
+        return method[0](o1, o2, *method[1])
+
+    def custom_crossover(self, o1, o2, external):
+        return external(self, o1, o2)
+
+    def subtree_mutate(self, i, max_depth):
+        if i.genes_num == 1:
+            k = 0
+        else:
+            k = self.generator.randrange(i.genes_num)
+
+        g = i.genotype[k]
         s = g.get_subtree_size()
         p = self.generator.randrange(s)
         n = g.get_nth_node(p)
 
         subtree = evo.gp.support.generate_grow(self.functions, self.terminals,
                                                max_depth, self.generator)
-        i.genotype = evo.gp.support.replace_subtree(n, subtree)
+        i.genotype[k] = evo.gp.support.replace_subtree(n, subtree)
         i.set_fitness(None)
         return i
+
+    def custom_mutate(self, i, external):
+        return external(self, i)
 
     def top_individuals(self, k):
         Gp.LOG.debug('Obtaining top %d individuals...', k)

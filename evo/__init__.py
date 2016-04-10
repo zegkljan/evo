@@ -164,10 +164,13 @@ class IndividualInitializer(object):
     Derive from this class to implement particular initializer.
     """
 
-    def initialize(self):
+    def initialize(self, limits: dict):
         """Returns an initial individual.
 
         Override this method to implement your initialization mechanism.
+
+        :param dict limits: dictionary with limits imposed on the individuals by
+            the caller
         """
         raise NotImplementedError()
 
@@ -178,12 +181,14 @@ class PopulationInitializer(object):
     Derive from this class to implement particular initializer.
     """
 
-    def initialize(self, pop_size):
+    def initialize(self, pop_size: int, limits: dict):
         """Returns an initial population.
 
         Override this method to implement your initialization mechanism.
 
         :param int pop_size: size of the population to initialize
+        :param dict limits: dictionary with limits imposed on the individuals by
+            the caller
         """
         raise NotImplementedError()
 
@@ -191,16 +196,16 @@ class PopulationInitializer(object):
 class SimplePopulationInitializer(PopulationInitializer):
     LOG = logging.getLogger(__name__ + '.SimplePopulationInitializer')
 
-    def __init__(self, individual_initializer):
+    def __init__(self, individual_initializer: IndividualInitializer):
         PopulationInitializer.__init__(self)
         self.individual_initializer = individual_initializer
 
-    def initialize(self, pop_size):
+    def initialize(self, pop_size: int, limits: dict=None):
         SimplePopulationInitializer.LOG.info('Initializing population of size '
                                              '%d', pop_size)
         population = []
         for _ in range(pop_size):
-            population.append(self.individual_initializer.initialize())
+            population.append(self.individual_initializer.initialize(limits))
         SimplePopulationInitializer.LOG.info('Population initialized.')
         return population
 

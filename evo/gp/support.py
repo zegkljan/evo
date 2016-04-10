@@ -62,15 +62,15 @@ class GpNode(evo.utils.tree.TreeNode):
         self.parent.child_changed(self.parent_index, data)
 
 
-class TreeIndividual(evo.Individual):
-    """A class representing an individual as a tree.
+class ForestIndividual(evo.Individual):
+    """A class representing an individual as a forest, i.e. a set of trees.
     """
 
-    def __init__(self, genotype: GpNode):
+    def __init__(self, genotype: list):
         """Creates the individual.
 
-        :param evo.gp.support.GpNode genotype: the genotype of the individual,
-            i.e. the tree root
+        :param genotype: the list of genes (the roots of the trees) of the
+            individual
         """
         evo.Individual.__init__(self)
         self.genotype = genotype
@@ -78,44 +78,102 @@ class TreeIndividual(evo.Individual):
     def __str__(self):
         if hasattr(self, 'str'):
             return str(self.str)
-        return str(self.genotype)
+        return str([str(g) for g in self.genotype])
+
+    @property
+    def genes_num(self):
+        """The number of genes the individual has.
+        """
+        return len(self.genotype)
 
     def copy(self, carry_evaluation=True, carry_data=True):
-        clone = TreeIndividual(self.genotype.clone())
+        cg = [g.clone() for g in self.genotype]
+        clone = ForestIndividual(cg)
         evo.Individual.copy_evaluation(self, clone, carry_evaluation)
         evo.Individual.copy_data(self, clone, carry_data)
         return clone
 
 
-def generate_full_grow(inners, leaves, depth, generator):
-    if depth <= 0:
-        node_gen = generator.choice(leaves)
-        node = node_gen()
-        node.children = None
-        return node
+def generate_tree(inners, leaves, depth, nodes, generator, full):
+    """Generates a tree from the given list of inner and leaf nodes.
 
-    root_gen = generator.choice(inners)
-    root = root_gen()
-    arity = root.get_arity()
-    if arity == 0:
-        root.children = None
-        return root
-    root.children = [None] * arity
-    for i in range(arity):
-        child = generate_full_grow(inners, leaves, depth - 1, generator)
-        root.children[i] = child
-        child.parent = root
-        child.parent_index = i
+    This function provides both the grow method and the full method of
+    generating trees. It is controlled by the argument ``full``\ . The two
+    lists  must be disjunctive, i.e. one must contain only inners, other must
+    contain only leaves otherwise the algorithm will not work properly.
+
+    The ``inners`` and ``leaves`` lists must contain callables that,
+    when called without arguments, create an instance of a :class:`.GpNode`\ .
+
+    :param inners: list of node producers that can be anywhere in the tree
+    :param leaves: list of node producers that will be used only when a limit
+        is reached
+    :param depth: maximum depth the generated tree will have; 1 is a single node
+    :param nodes: maximum number of nodes the generated tree will have
+    :param generator: random number generator used for choosing the nodes
+    :param full: if set to ``True`` the full method will be used, otherwise
+        grow will be used
+    """
+    level = []
+    current_parent = None
+    child_index = 0
+    root = None
+    must_create = 1
+    this_level = 0
+    next_level = 0
+    while nodes > 0 and must_create > 0:
+        if nodes == 1 or depth == 1:
+            pool = leaves
+        else:
+            selected_functions = [f for f in inners
+                                  if f().get_arity() < nodes - must_create + 1]
+            if full:
+                pool = selected_functions
+                if not pool:
+                    pool = leaves
+            else:
+                pool = selected_functions + leaves
+
+        node = generator.choice(pool)()
+        arity = node.get_arity()
+        must_create = must_create - 1 + arity
+
+        if arity == 0:
+            node.children = None
+        else:
+            node.children = [None] * arity
+
+        if current_parent is None:
+            current_parent = node
+            root = node
+            this_level = arity
+            next_level = 0
+            depth -= 1
+            if arity == 0:
+                break
+        else:
+            this_level -= 1
+            next_level += arity
+            if this_level == 0:
+                this_level = next_level
+                next_level = 0
+                depth -= 1
+            current_parent.children[child_index] = node
+            node.parent = current_parent
+            node.parent_index = child_index
+            child_index += 1
+            if arity > 0:
+                level.append(node)
+
+            if child_index == current_parent.get_arity():
+                child_index = 0
+                if level:
+                    current_parent = level.pop(0)
+                while level and current_parent.get_arity() == 0:
+                    current_parent = level.pop(0)
+        nodes -= 1
+
     return root
-
-
-def generate_grow(functions, terminals, depth, generator):
-    return generate_full_grow(functions + terminals, terminals, depth,
-                              generator)
-
-
-def generate_full(functions, terminals, depth, generator):
-    return generate_full_grow(functions, terminals, depth, generator)
 
 
 class RampedHalfHalfInitializer(evo.PopulationInitializer):
@@ -132,18 +190,31 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
 
     .. seealso::
 
-        Function :func:`evo.gp.support.generate_grow`
-            Performs the initialisation by the "grow" method.
-        Function :func:`evo.gp.support.generate_full`
-            Performs the initialisation by the "full" method.
+        Function :func:`evo.gp.support.generate_tree`
+            Performs the initialisation of the trees by the grow and full
+            methods.
     """
     LOG = logging.getLogger(__name__ + '.RampedHalfHalfInitializer')
 
-    def __init__(self, functions, terminals, max_depth, **kwargs):
+    def __init__(self, functions, terminals, max_depth: int, max_genes: int,
+                 **kwargs):
         """Creates the initializer.
 
+        The ``max_genes`` argument specifies the maximum number of genes an
+        individual can have. For a classical GP (i.e. only a single tree per
+        individual), set this argument to 1.
+
         The optional ``min_depth`` keyword argument can be used to generate
-        trees from this depth instead of 0.
+        trees from this depth instead of 1.
+
+        The optional ``max_tries`` argument limits number of tries of
+        generation a tree as well as the number of tries of generation the
+        whole individual. If a generated tree is identical to one or more
+        other trees (genes) in the genotype, it is thrown away and generated
+        again from scratch unless this was tried ``max_tries`` times.
+        Similarly, if a generated individual (i.e. a set of genes) is
+        identical to another individual in the population it is thrown away
+        and generated again unless this was tried ``max_tries`` times.
 
         :param functions: functional nodes to pick from, must have arity greater
             than zero
@@ -152,37 +223,40 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
         :type terminals: :class:`list` of :class:`evo.gp.support.GpNode`
         :param int max_depth: maximum depth of the derivation trees; must be
             finite
+        :param max_genes: the maximum number of genes (trees) that an individual
+            can have
         :keyword generator: a random number generator; if ``None`` or not set
             calls to the methods of standard python module :mod:`random` will be
             performed instead
         :type generator: :class:`random.Random` or ``None``
-        :keyword int min_depth: starting minimum depth of the trees; default 0
+        :keyword int min_depth: starting minimum depth of the trees; default 1
             (i.e. a single node)
         :keyword int max_tries: the maximum number of attempts to recreate a new
             individual if an identical one is already in the population; default
-            is 100
+            is 10
         """
         super().__init__()
 
         self.functions = functions
         self.terminals = terminals
         self.max_depth = max_depth
+        self.max_genes = max_genes
 
         self.generator = random
         if 'generator' in kwargs:
             self.generator = kwargs['generator']
 
-        self.min_depth = 0
+        self.min_depth = 1
         if 'min_depth' in kwargs:
             self.min_depth = kwargs['min_depth']
             if self.min_depth > self.max_depth:
                 raise ValueError('min_depth must not be greater than max_depth')
 
-        self.max_tries = 100
+        self.max_tries = 10
         if 'max_tries' in kwargs:
             self.max_tries = kwargs['max_tries']
 
-    def initialize(self, pop_size):
+    def initialize(self, pop_size, limits):
         RampedHalfHalfInitializer.LOG.info('Initializing population of size '
                                            '%d', pop_size)
         levels_num = self.max_depth - self.min_depth + 1
@@ -200,7 +274,7 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
                                            len(remainder_setups))
 
         pop = []
-        trees_set = set()
+        genotypes_set = set()
         for d in range(levels_num):
             max_depth = self.min_depth + d
             RampedHalfHalfInitializer.LOG.debug('Initializing %d. level; '
@@ -220,36 +294,56 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
                                                 'with grow method.',
                                                 individuals_per_setup + g)
             for _ in range(individuals_per_setup + g):
-                tree = generate_grow(self.functions, self.terminals, max_depth,
-                                     self.generator)
+                n_genes = self.generator.randrange(self.max_genes) + 1
+                genes = self._generate_genes(max_depth, n_genes, False)
                 tries = self.max_tries
-                tree_str = str(tree)
-                while tree_str in trees_set and tries >= 0:
-                    tree = generate_grow(self.functions, self.terminals,
-                                         max_depth, self.generator)
-                    tree_str = str(tree)
+                genes_str = ','.join([str(tree) for tree in genes])
+                while genes_str in genotypes_set and tries > 0:
+                    genes = self._generate_genes(max_depth, n_genes, False)
+                    genes_str = ','.join([str(tree) for tree in genes])
                     tries -= 1
-                trees_set.add(tree_str)
-                pop.append(TreeIndividual(tree))
+                genotypes_set.add(genes_str)
+                pop.append(ForestIndividual(genes))
 
             # full
             RampedHalfHalfInitializer.LOG.debug('Initializing %d individuals '
                                                 'with full method.',
                                                 individuals_per_setup + g)
             for _ in range(individuals_per_setup + f):
-                tree = generate_full(self.functions, self.terminals, max_depth,
-                                     self.generator)
+                n_genes = self.generator.randrange(self.max_genes) + 1
+                genes = self._generate_genes(max_depth, n_genes, True)
                 tries = self.max_tries
-                tree_str = str(tree)
-                while tree_str in trees_set and tries >= 0:
-                    tree = generate_full(self.functions, self.terminals,
-                                         max_depth, self.generator)
-                    tree_str = str(tree)
+                genes_str = ','.join([str(tree) for tree in genes])
+                while genes_str in genotypes_set and tries > 0:
+                    genes = self._generate_genes(max_depth, n_genes, True)
+                    genes_str = ','.join([str(tree) for tree in genes])
                     tries -= 1
-                trees_set.add(tree_str)
-                pop.append(TreeIndividual(tree))
+                genotypes_set.add(genes_str)
+                pop.append(ForestIndividual(genes))
         RampedHalfHalfInitializer.LOG.info('Initialization complete.')
         return pop
+
+    def _generate_genes(self, max_depth, max_nodes, n_genes, full):
+        genes = []
+        genes_strs = []
+        for n in range(n_genes):
+            tree, tree_str = self._generate_gene(genes_strs, max_depth,
+                                                 max_nodes, full)
+            genes.append(tree)
+            genes_strs.append(tree_str)
+        return genes
+
+    def _generate_gene(self, genes_strs, max_depth, max_nodes, full):
+        tree = generate_tree(self.functions, self.terminals, max_depth,
+                             max_nodes, self.generator, full)
+        tree_str = str(tree)
+        tries = self.max_tries
+        while tree_str in genes_strs and tries > 0:
+            tree = generate_tree(self.functions, self.terminals,
+                                 max_depth, max_nodes, self.generator, full)
+            tree_str = str(tree)
+            tries -= 1
+        return tree, tree_str
 
 
 def swap_subtrees(s1: GpNode, s2: GpNode):

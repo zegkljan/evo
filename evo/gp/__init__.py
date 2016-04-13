@@ -138,7 +138,8 @@ class Gp(multiprocessing.context.Process):
         Classical Koza-style subtree crossover, i.e. a node is randomly
         chosen at each tree and the subtrees beneath these nodes are swapped
         between the trees. If a parent has more than 1 gene, the node is
-        picked from a random gene.
+        picked from a random gene. The crossover observes the
+        :ref:`Limits <evo.gp.Gp.limits>`\ .
 
         To use this crossover set the ``crossover_type`` argument to
         ``'subtree'``\ .
@@ -151,16 +152,17 @@ class Gp(multiprocessing.context.Process):
         Each gene in the parents is selected for the crossover with a
         probability ``cr_rate``\ . Then the genes that were selected are
         swapped between the parents. If any of the parents' number of genes
-        exceeds the limit ``g_max`` then the excess genes (from the end) are
-        thrown away.
+        exceeds the limit ``max-genes`` (defined in
+        :ref:`Limits <evo.gp.Gp.limits>`) then the excess genes (from the end)
+        are thrown away.
 
         This crossover assumes that the order of the genes is not important.
         Also, if the number of genes in both parents is 1, subtree crossover
         is used instead.
 
         To use this crossover set the ``crossover_type`` argument to
-        ``('cr-high-level', cr_rate, g_max)`` and substitute ``cr_rate`` and
-        ``g_max`` for the actual crossover rate and maximum number of genes.
+        ``('cr-high-level', cr_rate)`` and substitute ``cr_rate`` for the actual
+        crossover rate.
 
         *Probabilistic meta-crossover*
 
@@ -215,7 +217,7 @@ class Gp(multiprocessing.context.Process):
 
         Classical Koza-style subtree mutation, i.e. a node is randomly
         selected and is (along with its subtree) replaced with a randomly
-        generated subtree of maximum depth ``max_depth``\ .
+        generated subtree.
 
         To use this mutation set the ``mutation_type`` argument to
         ``('subtree', max_depth)`` and replace ``max_depth`` with the desired
@@ -363,7 +365,7 @@ class Gp(multiprocessing.context.Process):
         try:
             self.start_time = time.time()
             self.population = self.population_initializer.initialize(
-                self.pop_strategy.get_parents_number())
+                self.pop_strategy.get_parents_number(), self.limits)
 
             self._run()
         finally:
@@ -515,21 +517,41 @@ class Gp(multiprocessing.context.Process):
         else:
             k2 = self.generator.randrange(o2.genes_num)
 
+        max_depth = self.limits['max-depth']
+        max_size = self.limits['max-nodes']
+
         g1 = o1.genotype[k1]
+        size_1 = g1.get_subtree_size()
+        nodes_depth_1 = g1.get_nodes_bfs(compute_depths=True)
         g2 = o2.genotype[k2]
+        size_2 = g2.get_subtree_size()
+        nodes_depth_2 = g2.get_nodes_bfs(compute_depths=True)
 
-        s1 = g1.get_subtree_size()
-        s2 = g2.get_subtree_size()
+        nodes_depth_f_2 = []
+        while not nodes_depth_f_2:
+            point_1, point_depth_1 = self.generator.choice(nodes_depth_1)
+            point_tree_depth_1 = point_1.get_subtree_depth()
+            point_tree_size_1 = point_1.get_subtree_size()
 
-        p1 = self.generator.randrange(s1)
-        p2 = self.generator.randrange(s2)
+            for point_2, point_depth_2 in nodes_depth_2:
+                if point_tree_depth_1 + point_depth_2 - 1 > max_depth:
+                    continue
+                if point_depth_1 + point_2.get_subtree_depth() - 1 > max_depth:
+                    continue
+                if size_1 - point_tree_size_1 + point_2.get_subtree_size() > \
+                        max_size:
+                    continue
+                if point_tree_size_1 + size_2 - point_2.get_subtree_size() > \
+                        max_size:
+                    continue
+                nodes_depth_f_2.append((point_2, point_depth_2))
 
-        n1 = g1.get_nth_node(p1)
-        n2 = g2.get_nth_node(p2)
+        point_2, _ = self.generator.choice(nodes_depth_f_2)
 
-        r1, r2 = evo.gp.support.swap_subtrees(n1, n2)
-        o1.genotype[k1] = r1
-        o2.genotype[k2] = r2
+        # noinspection PyUnboundLocalVariable
+        root_1, root_2 = evo.gp.support.swap_subtrees(point_1, point_2)
+        o1.genotype[k1] = root_1
+        o2.genotype[k2] = root_2
 
         o1.set_fitness(None)
         o2.set_fitness(None)
@@ -590,11 +612,16 @@ class Gp(multiprocessing.context.Process):
 
         g = i.genotype[k]
         s = g.get_subtree_size()
-        p = self.generator.randrange(s)
-        n = g.get_nth_node(p)
-
-        subtree = evo.gp.support.generate_grow(self.functions, self.terminals,
-                                               max_depth, self.generator)
+        nodes_depths = g.get_nodes_bfs(compute_depths=True)
+        n, d = self.generator.choice(nodes_depths)
+        ns = n.get_subtree_size()
+        subtree = evo.gp.support.generate_tree(self.functions, self.terminals,
+                                               min(self.limits['max-depth'] -
+                                                   d + 1,
+                                                   max_depth),
+                                               self.limits['max-nodes'] - s +
+                                               ns,
+                                               self.generator, False)
         i.genotype[k] = evo.gp.support.replace_subtree(n, subtree)
         i.set_fitness(None)
         return i

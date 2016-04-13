@@ -259,7 +259,12 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
     def initialize(self, pop_size, limits):
         RampedHalfHalfInitializer.LOG.info('Initializing population of size '
                                            '%d', pop_size)
-        levels_num = self.max_depth - self.min_depth + 1
+        max_nodes = limits['max-nodes']
+        max_depth = min(self.max_depth, limits['max-depth'])
+        max_genes = min(self.max_genes, limits['max-genes'])
+        if self.min_depth > max_depth:
+            raise ValueError('min-depth must not be greater than max-depth')
+        levels_num = max_depth - self.min_depth + 1
         individuals_per_setup = pop_size // (2 * levels_num)
         remainder = pop_size - individuals_per_setup * 2 * levels_num
         remainder_setups = self.generator.sample(
@@ -294,12 +299,14 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
                                                 'with grow method.',
                                                 individuals_per_setup + g)
             for _ in range(individuals_per_setup + g):
-                n_genes = self.generator.randrange(self.max_genes) + 1
-                genes = self._generate_genes(max_depth, n_genes, False)
+                n_genes = self.generator.randrange(max_genes) + 1
+                genes = self._generate_genes(max_depth, max_nodes, n_genes,
+                                             False)
                 tries = self.max_tries
                 genes_str = ','.join([str(tree) for tree in genes])
                 while genes_str in genotypes_set and tries > 0:
-                    genes = self._generate_genes(max_depth, n_genes, False)
+                    genes = self._generate_genes(max_depth, max_nodes,
+                                                 n_genes, False)
                     genes_str = ','.join([str(tree) for tree in genes])
                     tries -= 1
                 genotypes_set.add(genes_str)
@@ -310,12 +317,14 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
                                                 'with full method.',
                                                 individuals_per_setup + g)
             for _ in range(individuals_per_setup + f):
-                n_genes = self.generator.randrange(self.max_genes) + 1
-                genes = self._generate_genes(max_depth, n_genes, True)
+                n_genes = self.generator.randrange(max_genes) + 1
+                genes = self._generate_genes(max_depth, max_nodes, n_genes,
+                                             True)
                 tries = self.max_tries
                 genes_str = ','.join([str(tree) for tree in genes])
                 while genes_str in genotypes_set and tries > 0:
-                    genes = self._generate_genes(max_depth, n_genes, True)
+                    genes = self._generate_genes(max_depth, max_nodes, n_genes,
+                                                 True)
                     genes_str = ','.join([str(tree) for tree in genes])
                     tries -= 1
                 genotypes_set.add(genes_str)

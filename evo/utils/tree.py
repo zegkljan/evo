@@ -4,6 +4,7 @@ with trees (data structure).
 """
 
 import copy
+import itertools
 
 
 class TreeNode(object):
@@ -67,37 +68,17 @@ class TreeNode(object):
             return 1
         return max([n.get_subtree_depth() for n in self.children]) + 1
 
-    def get_nth_node(self, n):
-        """Iterates through the tree in breadth-first fashion and returns the
-        ``n``-th node encountered. This node is included (i.e. it's the 0th
-        node).
-        """
-        o = [self]
-        while o:
-            node = o.pop(0)
-            if n == 0:
-                return node
-            n -= 1
-            if not node.is_leaf():
-                o.extend(node.children)
-        return None
+    def get_depth(self):
+        """Returns the depth of this node in the tree it resides in.
 
-    def get_filtered_nth_node(self, n, predicate):
-        """Iterates through the tree in breadth-first fashion and returns the
-        ``n``-th node encountered for which ``predicate(node)`` is ``True``.
-        This node is included (i.e. it's the 0th node if it comes ``True``
-        from the predicate).
+        If the node is the root node of the tree, 1 is returned.
         """
-        o = [self]
-        while o:
-            node = o.pop(0)
-            if predicate(node):
-                if n == 0:
-                    return node
-                n -= 1
-            if not node.is_leaf():
-                o.extend(node.children)
-        return None
+        node = self
+        n = 1
+        while node.parent is not None:
+            node = node.parent
+            n += 1
+        return n
 
     def get_nodes_dfs(self, from_start=True, predicate=None):
         """Returns a list of all nodes below this node (incl.) in depth-first
@@ -144,7 +125,8 @@ class TreeNode(object):
                     o.extend(node.children)
         return ret
 
-    def get_nodes_bfs(self, from_start=True, predicate=None):
+    def get_nodes_bfs(self, from_start=True, predicate=None,
+                      compute_depths=False):
         """Returns a list of all nodes below this node (incl.) in breadth-first
         order.
 
@@ -156,6 +138,13 @@ class TreeNode(object):
         for which calling ``predicate(node)`` (``node`` is the tested node)
         yields ``False``. If it is ``None`` (the default) then no filtering
         is done, otherwise it must be a callable object.
+
+        If the optional ``compute_depths`` argument is ``True`` (default is
+        ``False``\ ) the output list is a list of 2-tuples with the node in
+        the first position and the depth the node is in in the second
+        position. The depths are computed "on the fly" during assembly of
+        the list and therefore is more efficient than calling the
+        :meth:`.get_depth` method on each of the nodes.
 
         Example:
         Suppose that the tree looks like::
@@ -176,18 +165,23 @@ class TreeNode(object):
         ``predicate = lambda node: node.is_leaf()`` (i.e. it is supposed to keep
         only the leaf nodes) then the result is ``[2, 6, 7, 8]``.
         """
-        o = [self]
-        ret = []
+        o = [(self, 1)]
+        ret_nodes = []
+        ret_depths = []
         while o:
-            node = o.pop(0)
+            node, d = o.pop(0)
             if predicate is None or predicate(node):
-                ret.append(node)
+                ret_nodes.append(node)
+                ret_depths.append(d)
             if node.children is not None:
                 if from_start:
-                    o.extend(node.children)
+                    o.extend(zip(node.children, itertools.repeat(d + 1)))
                 else:
-                    o.extend(reversed(node.children))
-        return ret
+                    o.extend(zip(reversed(node.children),
+                                 itertools.repeat(d + 1)))
+        if compute_depths:
+            return list(zip(ret_nodes, ret_depths))
+        return ret_nodes
 
     def preorder(self, fn):
         """Goes through the tree in pre-order and calls ``fn(node)`` on each

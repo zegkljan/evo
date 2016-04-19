@@ -173,12 +173,13 @@ class BackpropagationFitness(evo.Fitness):
         return fitness
 
     def get_eval(self, individual):
+        args = self.get_args()
         if individual.genes_num == 1:
-            return individual.genotype[0].eval(args=self.get_args())
-        yhats = [g.eval(args=self.get_args()) for g in individual.genotype]
+            return individual.genotype[0].eval(args=args)
+        yhats = [g.eval(args=args) for g in individual.genotype]
         if len(yhats) == 1:
             yhats = yhats[0][:, numpy.newaxis]
-        yhats = numpy.row_stack(numpy.broadcast(*yhats))
+        yhats = numpy.column_stack(numpy.broadcast(*yhats)).T
         return yhats
 
     def _check_output(self, yhat, individual):
@@ -322,6 +323,70 @@ class RegressionFitness(BackpropagationFitness):
         if f1 < f2:
             return 1
         return 0
+
+
+class RegressionFitnessRst(RegressionFitness):
+
+    def __init__(self, handled_errors, train_inputs, train_output,
+                 var_mapping: dict,
+                 updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
+                 min_steps=0, fit: bool = False):
+        super().__init__(handled_errors, train_inputs, train_output,
+                         var_mapping, updater, steps, min_steps, fit)
+        self.full_args = self.args
+        self.full_ssw = self.ssw
+        self.full_inputs = self.train_inputs
+        self.full_output = self.train_output
+
+    def resample_subset(self, generator):
+        self.subset_frac = 0.8
+        n = self.full_inputs.shape[0]
+        perm = generator.sample(range(n), max(1, int(n * self.subset_frac)))
+        self.train_inputs = self.full_inputs[perm, :]
+        self.train_output = self.full_output[perm]
+        self.args = evo.sr.prepare_args(self.train_inputs,
+                                        self.var_mapping)
+        self.ssw = numpy.sum(
+            (self.train_output - self.train_output.mean()) ** 2)
+
+    def evaluate(self, individual: evo.gp.support.ForestIndividual):
+        for g in individual.genotype:
+            g.clear_cache()
+        super().evaluate(individual)
+        subset_args = self.args
+        self.args = self.full_args
+        subset_ssw = self.ssw
+        self.ssw = self.full_ssw
+        subset_tr_in = self.train_inputs
+        self.train_inputs = self.full_inputs
+        subset_tr_out = self.train_output
+        self.train_output = self.full_output
+
+        try:
+            for g in individual.genotype:
+                g.clear_cache()
+            yhats = self.get_eval(individual)
+            check = self._check_output(yhats, individual)
+            if check is not None:
+                return check
+            if self.fit:
+                self.fit_outputs(individual, yhats)
+            fitness = self.get_error(yhats, individual)
+        except self.errors as e:
+            BackpropagationFitness.LOG.debug(
+                'Exception occurred during evaluation, assigning fitness %f',
+                self.error_fitness, exc_info=True)
+            fitness = self.error_fitness
+        individual.set_fitness(fitness)
+        if self.bsf is None or self.compare(individual, self.bsf) < 0:
+            self.bsf = individual.copy()
+
+        self.args = subset_args
+        self.ssw = subset_ssw
+        self.train_inputs = subset_tr_in
+        self.train_output = subset_tr_out
+
+        return fitness
 
 
 def full_model_str(individual: evo.gp.support.ForestIndividual,

@@ -384,7 +384,7 @@ class Power(MathNode):
         return 1
 
     def operation(self, *args):
-        return numpy.power(args[0], self.power)
+        return args[0] ** self.power
 
     def infix(self, **kwargs):
         return Power.INFIX_FMT.format(self.children[0].infix(**kwargs),
@@ -435,7 +435,7 @@ class PSqrt(MathNode):
         return 1
 
     def operation(self, *args):
-        return numpy.sqrt(args[0])
+        return numpy.sqrt(numpy.abs(args[0]))
 
     def infix(self, **kwargs) -> str:
         return PSqrt.INFIX_FMT.format(self.children[0].infix(**kwargs))
@@ -459,6 +459,26 @@ class Sigmoid(MathNode):
 
     def infix(self, **kwargs):
         return Sigmoid.INFIX_FMT.format(self.children[0].infix(**kwargs))
+
+
+class Tanh(MathNode):
+    """Hyperbolic tangent
+    """
+    INFIX_FMT = 'tanh({0})'
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.data['name'] = 'tanh'
+
+    @staticmethod
+    def get_arity():
+        return 1
+
+    def operation(self, *args):
+        return numpy.tanh(args[0])
+
+    def infix(self, **kwargs):
+        return Tanh.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
 
 class Sinc(MathNode):
@@ -498,6 +518,27 @@ class Softplus(MathNode):
 
     def operation(self, *args):
         return numpy.log1p(numpy.exp(args[0]))
+
+    def infix(self, **kwargs):
+        return Softplus.INFIX_FMT.format(self.children[0].infix(**kwargs))
+
+
+class Gauss(MathNode):
+    """The Gauss-function simplified to the core structural form:
+    :math:`gauss(x) = \\mathrm{e}^{-x^2}`.
+    """
+    INFIX_FMT = 'gauss({0})'
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.data['name'] = 'gauss'
+
+    @staticmethod
+    def get_arity():
+        return 1
+
+    def operation(self, *args):
+        return numpy.exp(-(args[0] ** 2))
 
     def infix(self, **kwargs):
         return Softplus.INFIX_FMT.format(self.children[0].infix(**kwargs))

@@ -329,7 +329,7 @@ class Power(WeightedNode, evo.sr.Power):
         super().__init__(**kwargs)
 
     def derivative(self, arg_no: int, x):
-        return self.power * numpy.power(x[:, 0], self.power - 1)
+        return self.power * (x[:, 0] ** (self.power - 1))
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
@@ -362,6 +362,30 @@ class Sigmoid(WeightedNode, evo.sr.Sigmoid):
                 repr(self.bias[0]), repr(self.weights[0]),
                 self.children[0].infix(**kwargs))
         return ('sig({0:' + num_format + '} + '
+                '{1:' + num_format + '} * {2})').format(
+            self.bias[0], self.weights[0],
+            self.children[0].infix(**kwargs))
+
+
+class Tanh(WeightedNode, evo.sr.Tanh):
+    """Weighted version of :class:`evo.sr.Tanh`\ .
+
+    .. seealso:: :class:`evo.sr.Tanh`
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def derivative(self, arg_no: int, x):
+        a = numpy.tanh(x[:, 0])
+        return 1 - a ** 2
+
+    def full_infix(self, **kwargs):
+        num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return 'tanh({0} + {1} * {2})'.format(
+                repr(self.bias[0]), repr(self.weights[0]),
+                self.children[0].infix(**kwargs))
+        return ('tanh({0:' + num_format + '} + '
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
@@ -416,6 +440,30 @@ class Softplus(WeightedNode, evo.sr.Softplus):
             self.children[0].infix(**kwargs))
 
 
+class Gauss(WeightedNode, evo.sr.Gauss):
+    """Weighted version of :class:`evo.sr.Gauss`\ .
+
+    .. seealso:: :class:`evo.sr.Gauss`
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def derivative(self, arg_no: int, x):
+        a = self.operation(x[:, 0])
+        return -2 * a * x[:, 0]
+
+    def full_infix(self, **kwargs):
+        num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return 'gauss({0} + {1} * {2})'.format(
+                repr(self.bias[0]), repr(self.weights[0]),
+                self.children[0].infix(**kwargs))
+        return ('gauss({0:' + num_format + '} + '
+                '{1:' + num_format + '} * {2})').format(
+            self.bias[0], self.weights[0],
+            self.children[0].infix(**kwargs))
+
+
 def backpropagate(root: WeightedNode, cost_derivative: callable, true_output,
                   args, datapts_no=1, output_transform: callable=None,
                   output_transform_derivative: callable=None):
@@ -464,7 +512,7 @@ def backpropagate(root: WeightedNode, cost_derivative: callable, true_output,
             return y
     if output_transform_derivative is None:
         def output_transform_derivative(y):
-            if y.ndim == 1:
+            if y.ndim <= 1:
                 return 1
             return numpy.ones((1, y.shape[1]))
     o = [root]

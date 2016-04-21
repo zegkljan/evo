@@ -26,7 +26,7 @@ class MathNode(evo.gp.support.GpNode):
         dest.cache = self.cache
         dest._cache = self._cache
 
-    def eval(self, args: dict=None):
+    def eval(self, args):
         """Evaluates this node.
 
         If :attr:`.cache` is set to ``True`` and there is a cached value it is
@@ -38,7 +38,7 @@ class MathNode(evo.gp.support.GpNode):
             You shouldn't override this method. Override :meth:`.operation`
             instead.
 
-        :param args: values to set to variables, keyed by variable names
+        :param args: values to set to variables
         :return: result of the evaluation
         """
         if self.cache and self._cache is not None:
@@ -52,7 +52,7 @@ class MathNode(evo.gp.support.GpNode):
 
         return result
 
-    def eval_child(self, child_no: int, args: dict=None):
+    def eval_child(self, child_no: int, args):
         """Evaluates the child specified by its number and returns the result.
 
         The children are counted from 0. The ``args`` argument has the same
@@ -61,7 +61,7 @@ class MathNode(evo.gp.support.GpNode):
         Override this method to implement default scheme of children evaluation.
 
         :param child_no: zero-based index of the children
-        :param args: values to set to variables, keyed by variable names
+        :param args: values to set to variables
 
         .. seealso: :meth:`.eval`
         """
@@ -558,7 +558,7 @@ class Const(MathNode):
     def get_arity():
         return 0
 
-    def eval(self, args: dict=None):
+    def eval(self, args):
         return self.value
 
     def infix(self, **kwargs):
@@ -573,16 +573,17 @@ class Variable(MathNode):
     """A variable.
     """
 
-    def __init__(self, name=None, **kwargs):
+    def __init__(self, name=None, index=None, **kwargs):
         super().__init__(**kwargs)
         self.data['name'] = name
+        self.index = index
 
     @staticmethod
     def get_arity():
         return 0
 
-    def eval(self, args: dict=None):
-        return args[self.data['name']]
+    def eval(self, args):
+        return args[:, self.index]
 
     def infix(self, **kwargs):
         return self.data['name']
@@ -590,7 +591,6 @@ class Variable(MathNode):
     def operation(self, *args):
         raise NotImplementedError('Variable does no operation.')
 
-
-def prepare_args(train_inputs, var_mapping):
-    args = {var_mapping[num]: train_inputs[:, num] for num in var_mapping}
-    return args
+    def copy_contents(self, dest):
+        super().copy_contents(dest)
+        dest.index = self.index

@@ -21,8 +21,7 @@ class BackpropagationFitness(evo.Fitness):
 
     LOG = logging.getLogger(__name__ + '.BackpropagationFitness')
 
-    def __init__(self, error_fitness, handled_errors, var_mapping: dict,
-                 cost_derivative,
+    def __init__(self, error_fitness, handled_errors, cost_derivative,
                  updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
                  min_steps=0, fit: bool=False):
         """
@@ -38,10 +37,6 @@ class BackpropagationFitness(evo.Fitness):
             *handled_errors* argument
         :param handled_errors: additional errors (exceptions) that should be
             caught when applying a gene to the data
-        :param var_mapping: mapping from :class:`int` to :class:`str` that maps
-            a number of an input variable to variable name (the number of
-            feature is the number of corresponding column in the
-            ``train_inputs`` argument)
         :param steps: number of steps the optimisation algorithm will do prior
             to each error evaluation
 
@@ -63,7 +58,6 @@ class BackpropagationFitness(evo.Fitness):
         """
         super().__init__()
         self.error_fitness = error_fitness
-        self.var_mapping = var_mapping
         self.errors = tuple([ZeroDivisionError, FloatingPointError] +
                             handled_errors)
         self.cost_derivative = cost_derivative
@@ -92,8 +86,7 @@ class BackpropagationFitness(evo.Fitness):
         raise NotImplementedError()
 
     def get_args(self):
-        inputs = self.get_train_inputs()
-        return evo.sr.prepare_args(inputs, self.var_mapping)
+        return self.get_train_inputs()
 
     def steps_number(self, individual):
         ret = self.steps
@@ -239,7 +232,6 @@ class RegressionFitness(BackpropagationFitness):
     """
 
     def __init__(self, handled_errors, train_inputs, train_output,
-                 var_mapping: dict,
                  updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
                  min_steps=0, fit: bool=False):
         """
@@ -249,14 +241,12 @@ class RegressionFitness(BackpropagationFitness):
         :param train_output: target values of the datapoints: an N x 1 matrix
             where N is the number of datapoints
         """
-        super().__init__(-numpy.inf, handled_errors, var_mapping,
-                         lambda yhat, y: yhat - y, updater, steps, min_steps,
-                         fit)
+        super().__init__(-numpy.inf, handled_errors, lambda yhat, y: yhat - y,
+                         updater, steps, min_steps, fit)
         self.train_inputs = train_inputs
         self.train_output = numpy.array(train_output, copy=False)
-        self.ssw = numpy.sum((self.train_output - self.train_output.mean()) **
-                             2)
-        self.args = evo.sr.prepare_args(train_inputs, var_mapping)
+        self.ssw = numpy.sum(
+            (self.train_output - self.train_output.mean()) ** 2)
 
     def get_train_inputs(self):
         return self.train_inputs
@@ -268,7 +258,7 @@ class RegressionFitness(BackpropagationFitness):
         return self.train_inputs.shape[0]
 
     def get_args(self):
-        return self.args
+        return self.train_inputs
 
     def get_error(self, outputs, individual):
         e = self.get_errors(outputs, individual)
@@ -337,12 +327,10 @@ class RegressionFitness(BackpropagationFitness):
 class RegressionFitnessRst(RegressionFitness):
 
     def __init__(self, handled_errors, train_inputs, train_output,
-                 var_mapping: dict,
                  updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
                  min_steps=0, fit: bool = False):
-        super().__init__(handled_errors, train_inputs, train_output,
-                         var_mapping, updater, steps, min_steps, fit)
-        self.full_args = self.args
+        super().__init__(handled_errors, train_inputs, train_output, updater,
+                         steps, min_steps, fit)
         self.full_ssw = self.ssw
         self.full_inputs = self.train_inputs
         self.full_output = self.train_output
@@ -353,8 +341,6 @@ class RegressionFitnessRst(RegressionFitness):
         perm = generator.sample(range(n), max(1, int(n * self.subset_frac)))
         self.train_inputs = self.full_inputs[perm, :]
         self.train_output = self.full_output[perm]
-        self.args = evo.sr.prepare_args(self.train_inputs,
-                                        self.var_mapping)
         self.ssw = numpy.sum(
             (self.train_output - self.train_output.mean()) ** 2)
 
@@ -362,8 +348,6 @@ class RegressionFitnessRst(RegressionFitness):
         for g in individual.genotype:
             g.clear_cache()
         super().evaluate(individual)
-        subset_args = self.args
-        self.args = self.full_args
         subset_ssw = self.ssw
         self.ssw = self.full_ssw
         subset_tr_in = self.train_inputs
@@ -390,7 +374,6 @@ class RegressionFitnessRst(RegressionFitness):
         if self.bsf is None or self.compare(individual, self.bsf) < 0:
             self.bsf = individual.copy()
 
-        self.args = subset_args
         self.ssw = subset_ssw
         self.train_inputs = subset_tr_in
         self.train_output = subset_tr_out
@@ -407,11 +390,10 @@ class RegressionFitnessMaxError(RegressionFitness):
             return self.updater.update(root, error[1], prev_error[1])
 
     def __init__(self, handled_errors, train_inputs, train_output,
-                 var_mapping: dict,
                  updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
                  min_steps=0, fit: bool = False):
-        super().__init__(handled_errors, train_inputs, train_output,
-                         var_mapping, updater, steps, min_steps, fit)
+        super().__init__(handled_errors, train_inputs, train_output, updater,
+                         steps, min_steps, fit)
 
         # noinspection PyProtectedMember
         self.updater = self.__class__._Updater(self.updater)

@@ -373,7 +373,7 @@ class Gp(multiprocessing.context.Process):
             if self.fitness.get_bsf() is None:
                 Gp.LOG.info('Finished. No BSF acquired.')
             else:
-                Gp.LOG.info('Finished. Fitness: %f %s %s',
+                Gp.LOG.info('Finished. Fitness: %s %s %s',
                             self.fitness.get_bsf().get_fitness(),
                             pprint.pformat(self.fitness.get_bsf().get_data()),
                             str(self.fitness.get_bsf().genotype))
@@ -413,7 +413,7 @@ class Gp(multiprocessing.context.Process):
                     offspring.append(o)
             self.population = self.pop_strategy.combine_populations(
                 self.population, offspring, elites)
-            Gp.LOG.info('Finished iteration %d time %.1f. Best fitness: %f | '
+            Gp.LOG.info('Finished iteration %d time %.1f. Best fitness: %s | '
                         '%s | %s',
                         self.iterations, time.time() - self.start_time,
                         self.fitness.get_bsf().get_fitness(),

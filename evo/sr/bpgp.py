@@ -127,7 +127,7 @@ class BackpropagationFitness(evo.Fitness):
                 otf, otf_d = self.get_output_transformation(individual, yhats)
             fitness = prev_fitness = self.get_error(yhats, individual)
             BackpropagationFitness.LOG.debug('Optimising inner parameters...')
-            BackpropagationFitness.LOG.debug('Initial error: %f', fitness)
+            BackpropagationFitness.LOG.debug('Initial fitness: %f', fitness)
             for i in range(self.min_steps, max(self.get_max_steps(individual),
                                                self.min_steps + 1)):
                 updated = False
@@ -154,13 +154,13 @@ class BackpropagationFitness(evo.Fitness):
                                                                 yhats)
                 prev_fitness = fitness
                 fitness = self.get_error(yhats, individual)
-                if abs(fitness - prev_fitness) < 1e-10:
+                if not self.has_improved(prev_fitness, fitness):
                     BackpropagationFitness.LOG.debug('Improvement below '
                                                      'threshold, stopping '
                                                      'inner learning.')
                     break
                 BackpropagationFitness.LOG.debug(
-                    'Step %d error: %f Full model: %s', i, fitness,
+                    'Step %d fitness: %f Full model: %s', i, fitness,
                     [g.infix() for g in individual.genotype])
         except self.errors as e:
             BackpropagationFitness.LOG.debug(
@@ -227,6 +227,12 @@ class BackpropagationFitness(evo.Fitness):
     def get_output_transformation(self, individual, yhats):
         raise NotImplementedError()
 
+    def has_improved(self, prev_fitness, fitness):
+        """Returns ``true`` if the fitness is considered to be improved
+        compared to the previous fitness.
+        """
+        return abs(prev_fitness - fitness) > 1e-10
+
 
 class RegressionFitness(BackpropagationFitness):
     """This is a class that uses backpropagation to fit to static target values.
@@ -265,6 +271,15 @@ class RegressionFitness(BackpropagationFitness):
         return self.args
 
     def get_error(self, outputs, individual):
+        e = self.get_errors(outputs, individual)
+        sse = e.dot(e)
+        r2 = 1 - sse / self.ssw
+        mse = sse / numpy.alen(e)
+        individual.set_data('R2', r2)
+        individual.set_data('MSE', mse)
+        return r2
+
+    def get_errors(self, outputs, individual):
         intercept = individual.get_data('intercept')
         coefficients = individual.get_data('coefficients')
         if coefficients is not None:
@@ -274,13 +289,7 @@ class RegressionFitness(BackpropagationFitness):
                 outputs = outputs.dot(coefficients)
         if intercept is not None:
             outputs = outputs + intercept
-        e = self.get_train_output() - outputs
-        sse = e.dot(e)
-        r2 = 1 - sse / self.ssw
-        mse = sse / numpy.alen(e)
-        individual.set_data('R2', r2)
-        individual.set_data('MSE', mse)
-        return r2
+        return self.get_train_output() - outputs
 
     def fit_outputs(self, individual, outputs):
         target = self.get_train_output()
@@ -387,6 +396,46 @@ class RegressionFitnessRst(RegressionFitness):
         self.train_output = subset_tr_out
 
         return fitness
+
+
+class RegressionFitnessMaxError(RegressionFitness):
+    class _Updater(object):
+        def __init__(self, upd):
+            self.updater = upd
+
+        def update(self, root, error, prev_error):
+            return self.updater.update(root, error[1], prev_error[1])
+
+    def __init__(self, handled_errors, train_inputs, train_output,
+                 var_mapping: dict,
+                 updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
+                 min_steps=0, fit: bool = False):
+        super().__init__(handled_errors, train_inputs, train_output,
+                         var_mapping, updater, steps, min_steps, fit)
+
+        # noinspection PyProtectedMember
+        self.updater = self.__class__._Updater(self.updater)
+        self.error_fitness = (numpy.inf, self.error_fitness)
+
+    def get_error(self, outputs, individual):
+        e = self.get_errors(outputs, individual)
+        sse = e.dot(e)
+        r2 = 1 - sse / self.ssw
+        mse = sse / numpy.alen(e)
+        individual.set_data('R2', r2)
+        individual.set_data('MSE', mse)
+        max_e = numpy.abs(e).max()
+        return max_e, r2
+
+    def fitness_cmp(self, f1, f2):
+        if f1[0] < f2[0]:
+            return -1
+        if f1[0] > f2[0]:
+            return 1
+        return super().fitness_cmp(f1[1], f2[1])
+
+    def has_improved(self, prev_fitness, fitness):
+        return super().has_improved(prev_fitness[1], fitness[1])
 
 
 def full_model_str(individual: evo.gp.support.ForestIndividual,

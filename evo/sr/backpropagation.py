@@ -559,69 +559,6 @@ def backpropagate(root: WeightedNode, cost_derivative: callable, true_output,
             o.extend(node.children)
 
 
-def sgd_step(root: WeightedNode, train_inputs, train_output,
-             cost_derivative: callable, var_mapping: dict, minibatch_size=None,
-             eta=0.01, generator: random.Random=None):
-    """Performs one step (epoch) of a Stochastic Gradient Descent algorithm.
-
-    Performs one step of the SGD algorithm by creating a "minibatch" (of size
-    ``minibatch_size``) from the supplied training data (``train_inputs`` and
-    ``train_output``), evaluating it by the tree, computing the gradient using
-    :func:`backpropagate` and updating the weights and biases based on the
-    gradient and the learning rate ``eta``.
-
-    The ``var_mapping`` argument is responsible for mapping the input variables
-    to variable names of the tree. It is supposed to be a dict with keys being
-    integers counting from 0 and values being variable names in the tree. The
-    keys are supposed to correspond to the column indices to ``train_inputs``.
-
-    .. note::
-
-        The training data arrays will be shuffled in order to randomly assemble
-        the minibatch. If the arrays need to be unchanged, copy them beforehand.
-
-    :param root: root of the tree to be updated
-    :param train_inputs: training inputs; one row is expected to be one
-        datapoint
-    :param train_output: training outputs; one row is expected to be one
-        datapoint
-    :param cost_derivative: derivative of the error function, see
-        :func:`backpropagate`
-    :param minibatch_size: number of datapoints in the minibatch
-    :param eta: learning rate, default is 0.01
-    """
-    if generator is None:
-        generator = random
-
-    if minibatch_size == train_inputs.shape[0]:
-        mb_input = train_inputs
-        mb_output = train_output
-    else:
-        mb_indices = generator.sample(range(train_inputs.shape[0]), minibatch_size)
-        mb_input = train_inputs[mb_indices, :]
-        mb_output = train_output[mb_indices]
-
-    args = {var_mapping[num]: mb_input[:, num] for num in var_mapping}
-
-    root.clear_cache()
-    backpropagate(root, cost_derivative, mb_output, args, minibatch_size)
-
-    factor = eta / minibatch_size
-
-    def update(node: WeightedNode):
-        if not isinstance(node, WeightedNode):
-            return
-        if node.tune_bias:
-            d_bias = numpy.sum(node.d_bias, axis=0)
-            node.bias = node.bias - factor * d_bias
-
-        if node.tune_weights:
-            d_weights = numpy.sum(node.d_weights, axis=0)
-            node.weights = node.weights - factor * d_weights
-
-    root.preorder(update)
-
-
 class WeightsUpdater(object):
     """This is a base class for algorithms for updating weights on trees.
     """

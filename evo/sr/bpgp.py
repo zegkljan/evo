@@ -2,9 +2,10 @@
 """TODO
 """
 
-import logging
-import numpy
 import functools
+import logging
+
+import numpy
 
 import evo
 import evo.gp
@@ -125,11 +126,17 @@ class BackpropagationFitness(evo.Fitness):
                                                self.min_steps + 1)):
                 updated = False
                 for n in range(individual.genes_num):
-                    evo.sr.backpropagation.backpropagate(
-                        individual.genotype[n], self.cost_derivative,
-                        self.get_train_output(), self.get_args(),
-                        self.get_train_input_cases(), output_transform=otf(n),
-                        output_transform_derivative=otf_d(n))
+                    try:
+                        individual.genotype[n].backpropagate(
+                            args=self.get_args(),
+                            datapts_no=self.get_train_input_cases(),
+                            cost_derivative=self.cost_derivative,
+                            true_output=self.get_train_output(),
+                            output_transform=otf(n),
+                            output_transform_derivative=otf_d(n)
+                        )
+                    except AttributeError:
+                        continue
                     gene_updated = self.updater.update(individual.genotype[n],
                                                        fitness, prev_fitness)
                     updated = updated or gene_updated

@@ -3,9 +3,18 @@ learning of tree expressions.
 """
 
 import numpy
-import random
 
 import evo.sr
+
+
+def identity(x):
+    """Returns the argument."""
+    return x
+
+
+def identity_d(_):
+    """Returns 1 (derivative of :meth:`identity`\ )."""
+    return 1
 
 
 class WeightedNode(evo.sr.MathNode):
@@ -82,6 +91,51 @@ class WeightedNode(evo.sr.MathNode):
         :return: the string representation of the tree
         """
         raise NotImplementedError()
+
+    def backpropagate(self, args, datapts_no: int,
+                      cost_derivative: callable=None, true_output=None,
+                      output_transform: callable=None,
+                      output_transform_derivative: callable=None):
+        if output_transform is None:
+            output_transform = identity
+        if output_transform_derivative is None:
+            output_transform_derivative = identity_d
+
+        # bias derivative
+        self.data['d_bias'] = numpy.empty((datapts_no, self.bias.size))
+        # if this is the root call, do it differently
+        if cost_derivative is not None and true_output is not None:
+            for i in range(self.bias.size):
+                cd = cost_derivative(output_transform(self.eval(args)),
+                                     true_output)
+                otfd = output_transform_derivative(self.eval(args))
+                nd = self.derivative(i, self.argument)
+                self.data['d_bias'][:, i] = cd * otfd * nd
+        else:
+            for i in range(self.bias.size):
+                pd = self.parent.data['d_bias'][:, self.parent_index]
+                pw = self.parent.weights[self.parent_index]
+                sd = self.derivative(i, self.argument)
+                self.data['d_bias'][:, i] = pd * pw * sd
+
+        # weights derivative
+        inputs = None
+        if self.tune_weights is True:
+            raw = [c.eval(args) for c in self.children]
+            if len(raw) == 1:
+                inputs = numpy.array(raw)
+            else:
+                inputs = numpy.column_stack(numpy.broadcast(*raw))
+        elif self.tune_weights:
+            raw = [self.children[i].eval(args) if self.tune_weights[i] else 0
+                   for i in range(len(self.children))]
+            inputs = numpy.column_stack(numpy.broadcast(*raw))
+        if inputs is not None and len(inputs) > 0:
+            self.data['d_weights'] = self.data['d_bias'] * inputs.T
+
+        for c in self.children:
+            if isinstance(c, WeightedNode):
+                c.backpropagate(args, datapts_no)
 
 
 class Add2(WeightedNode, evo.sr.Add2):
@@ -462,101 +516,6 @@ class Gauss(WeightedNode, evo.sr.Gauss):
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
-
-
-def backpropagate(root: WeightedNode, cost_derivative: callable, true_output,
-                  args, datapts_no=1, output_transform: callable=None,
-                  output_transform_derivative: callable=None):
-    """Computes the gradient of the cost function in weights and biases using
-    the back-propagation algorithm.
-
-    Computes the partial derivatives of the error (cost) function with respect
-    to the weights and biases of the given tree.
-
-    The partial derivatives are stored in the nodes in the ``d_bias`` and
-    ``d_weights`` attributes. If node's
-    :attr:`BackpropagatableNode.tune_weights` is set to ``False`` then the
-    weight partial derivatives are not computed at all. On the other hand,
-    bias partial derivative is always computed because it is needed for the
-    computation of the children's values.
-
-    The back-propagation runs from the root to the leaves. However, if a node
-    that is not an instance of :class:`BackpropagatableNode` is encountered the
-    propagation through this node is not performed, hence cutting its subtree
-    off the algorithm.
-
-    The ``cost_function`` represents the derivative of the error function with
-    respect to the tree's output. It is supposed to be a callable of two
-    arguments, the first argument being the tree's output, the second argument
-    being the true output.
-
-    The ``datapts_no`` argument is used to tell the backprop. algorithm how many
-    datapoints the propagation is computed for. Defaults to 1. This number must
-    match with the actual number of datapoints otherwise there will be errors.
-
-    .. note::
-
-        This function does not perform any learning. It merely computes the
-        gradient.
-
-    :param root: root of the tree that is subject to optimisation
-    :param cost_derivative: derivative of the error function
-    :param true_output: the desired output
-    :param args: arguments for evaluation
-    :param datapts_no: number of datapoints present in evaluation
-    :param output_transform: transformation of the output value(s)
-    :param output_transform_derivative: derivative of the output transform
-    """
-    if output_transform is None:
-        def output_transform(y):
-            return y
-    if output_transform_derivative is None:
-        def output_transform_derivative(y):
-            if y.ndim <= 1:
-                return 1
-            return numpy.ones((1, y.shape[1]))
-    o = [root]
-    while o:
-        node = o.pop(0)
-        if not isinstance(node, WeightedNode):
-            continue
-        # bias derivative
-        # if root, do it different
-        if node is root:
-            node.data['d_bias'] = numpy.empty((datapts_no, node.bias.size))
-            for i in range(node.bias.size):
-                cd = cost_derivative(output_transform(node.eval(args)),
-                                     true_output)
-                otfd = output_transform_derivative(node.eval(args))
-                nd = node.derivative(i, node.argument)
-                node.data['d_bias'][:, i] = cd * otfd * nd
-        else:
-            node.data['d_bias'] = numpy.empty((datapts_no, len(node.bias)))
-            for i in range(len(node.bias)):
-                pd = node.parent.data['d_bias'][:, node.parent_index]
-                pw = node.parent.weights[node.parent_index]
-                nd = node.derivative(i, node.argument)
-                node.data['d_bias'][:, i] = pd * pw * nd
-
-        # weights derivative
-        inputs = None
-        if node.tune_weights is True:
-            raw = [x.eval(args) for x in node.children]
-            if len(raw) == 1:
-                inputs = numpy.array(raw)
-            else:
-                inputs = numpy.column_stack(numpy.broadcast(*raw))
-        elif node.tune_weights:
-            # noinspection PyUnresolvedReferences
-            raw = [node.children[i].eval(args) if node.tune_weights[i] else 0
-                   for i
-                   in range(len(node.children))]
-            inputs = numpy.column_stack(numpy.broadcast(*raw))
-        if inputs is not None and len(inputs) > 0:
-            node.data['d_weights'] = node.data['d_bias'] * inputs.T
-
-        if not node.is_leaf():
-            o.extend(node.children)
 
 
 class WeightsUpdater(object):

@@ -130,8 +130,9 @@ class BackpropagationFitness(evo.Fitness):
                         self.get_train_output(), self.get_args(),
                         self.get_train_input_cases(), output_transform=otf(n),
                         output_transform_derivative=otf_d(n))
-                    updated = updated or self.updater.update(
-                        individual.genotype[n], fitness, prev_fitness)
+                    gene_updated = self.updater.update(individual.genotype[n],
+                                                       fitness, prev_fitness)
+                    updated = updated or gene_updated
 
                 if not updated:
                     BackpropagationFitness.LOG.debug(

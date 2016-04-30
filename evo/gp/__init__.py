@@ -493,7 +493,6 @@ class Gp(multiprocessing.context.Process):
         :param evo.gp.support.TreeIndividual o1: first parent
         :param evo.gp.support.TreeIndividual o2: second parent
         """
-        Gp.LOG.debug('Performing crossover of individuals %s, %s', o1, o2)
         assert self.crossover_method is not None
         # noinspection PyArgumentList
         return self.crossover_method(o1, o2, *self.crossover_method_args)
@@ -510,6 +509,8 @@ class Gp(multiprocessing.context.Process):
         return self.mutate_method(i, *self.mutate_method_args)
 
     def subtree_crossover(self, o1, o2):
+        Gp.LOG.debug('Performing subtree crossover of individuals %s, %s', o1,
+                     o2)
         if o1.genes_num == 1:
             k1 = 0
         else:
@@ -560,6 +561,8 @@ class Gp(multiprocessing.context.Process):
         return [o1, o2]
 
     def cr_high_level_crossover(self, o1, o2, rate):
+        Gp.LOG.debug('Performing high-level crossover of individuals %s, %s',
+                     o1, o2)
         max_genes = self.limits['max-genes']
         if o1.genes_num == 1 and o2.genes_num == 1:
             return self.subtree_crossover(o1, o2)
@@ -595,6 +598,8 @@ class Gp(multiprocessing.context.Process):
         return [o1, o2]
 
     def probabilistic_crossover(self, o1, o2, probs_methods):
+        Gp.LOG.debug('Performing probabilistic crossover of individuals %s, %s',
+                     o1, o2)
         r = self.generator.random()
         method = None
         for p, m in probs_methods:
@@ -607,6 +612,7 @@ class Gp(multiprocessing.context.Process):
         return external(self, o1, o2)
 
     def subtree_mutate(self, i, max_depth):
+        Gp.LOG.debug('Performing mutation of individual %s', i)
         if i.genes_num == 1:
             k = 0
         else:

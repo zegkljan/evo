@@ -696,7 +696,7 @@ class RpropPlus(RpropBase):
             upd = True
             d_bias = numpy.sum(node.data['d_bias'], axis=0)
             if 'prev_d_bias' not in node.data:
-                node.data['prev_d_bias'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_bias'] = numpy.zeros(d_bias.size)
 
             if 'delta_bias' not in node.data:
                 node.data['delta_bias'] = (numpy.ones(node.bias.shape) *
@@ -707,13 +707,13 @@ class RpropPlus(RpropBase):
 
             self.upd(node.bias, d_bias, node.data['prev_d_bias'],
                      node.data['delta_bias'], node.data['prev_bias_update'],
-                     node.get_arity())
+                     node.bias.size)
 
         if node.tune_weights and 'd_weights' in node.data:
             upd = True
             d_weights = numpy.sum(node.data['d_weights'], axis=0)
             if 'prev_d_weights' not in node.data:
-                node.data['prev_d_weights'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_weights'] = numpy.zeros(d_weights.size)
 
             if 'delta_weights' not in node.data:
                 node.data['delta_weights'] = (numpy.ones(node.weights.shape) *
@@ -724,7 +724,7 @@ class RpropPlus(RpropBase):
 
             self.upd(node.weights, d_weights, node.data['prev_d_weights'],
                      node.data['delta_weights'],
-                     node.data['prev_weight_update'], node.get_arity())
+                     node.data['prev_weight_update'], node.weights.size)
 
         if upd:
             self.updated = True
@@ -763,27 +763,27 @@ class RpropMinus(RpropBase):
             upd = True
             d_bias = numpy.sum(node.d_bias, axis=0)
             if 'prev_d_bias' not in node.data:
-                node.data['prev_d_bias'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_bias'] = numpy.zeros(d_bias.size)
 
             if 'delta_bias' not in node.data:
                 node.data['delta_bias'] = (numpy.ones(node.bias.shape) *
                                            self.delta_init)
 
             self.upd(node.bias, d_bias, node.data['prev_d_bias'],
-                     node.data['delta_bias'], node.get_arity())
+                     node.data['delta_bias'], node.bias.size)
 
         if node.tune_weights and 'd_weights' in node.data:
             upd = True
             d_weights = numpy.sum(node.data['d_weights'], axis=0)
             if 'prev_d_weights' not in node.data:
-                node.data['prev_d_weights'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_weights'] = numpy.zeros(d_weights.size)
 
             if 'delta_weights' not in node.data:
                 node.data['delta_weights'] = (numpy.ones(node.weights.shape) *
                                               self.delta_init)
 
             self.upd(node.weights, d_weights, node.data['prev_d_weights'],
-                     node.data['delta_weights'], node.get_arity())
+                     node.data['delta_weights'], node.weights.size)
 
         if upd:
             self.updated = True
@@ -833,7 +833,7 @@ class IRpropPlus(RpropBase):
             upd = True
             d_bias = numpy.sum(node.data['d_bias'], axis=0)
             if 'prev_d_bias' not in node.data:
-                node.data['prev_d_bias'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_bias'] = numpy.zeros(d_bias.size)
 
             if 'delta_bias' not in node.data:
                 node.data['delta_bias'] = (numpy.ones(node.bias.shape) *
@@ -844,13 +844,13 @@ class IRpropPlus(RpropBase):
 
             self.upd(node.bias, d_bias, node.data['prev_d_bias'],
                      node.data['delta_bias'], node.data['prev_bias_update'],
-                     node.get_arity())
+                     node.bias.size)
 
         if node.tune_weights and 'd_weights' in node.data:
             upd = True
             d_weights = numpy.sum(node.data['d_weights'], axis=0)
             if 'prev_d_weights' not in node.data:
-                node.data['prev_d_weights'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_weights'] = numpy.zeros(d_weights.size)
 
             if 'delta_weights' not in node.data:
                 node.data['delta_weights'] = numpy.ones(node.weights.shape) *\
@@ -861,7 +861,7 @@ class IRpropPlus(RpropBase):
 
             self.upd(node.weights, d_weights, node.data['prev_d_weights'],
                      node.data['delta_weights'],
-                     node.data['prev_weight_update'], node.get_arity())
+                     node.data['prev_weight_update'], node.weights.size)
 
         if upd:
             self.updated = True
@@ -905,27 +905,27 @@ class IRpropMinus(RpropBase):
             upd = True
             d_bias = numpy.sum(node.data['d_bias'], axis=0)
             if 'prev_d_bias' not in node.data:
-                node.data['prev_d_bias'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_bias'] = numpy.zeros(d_bias.size)
 
             if 'delta_bias' not in node.data:
                 node.data['delta_bias'] = (numpy.ones(node.bias.shape) *
                                            self.delta_init)
 
             self.upd(node.bias, d_bias, node.data['prev_d_bias'],
-                     node.data['delta_bias'], node.get_arity())
+                     node.data['delta_bias'], node.bias.size)
 
         if node.tune_weights and 'd_weights' in node.data:
             upd = True
             d_weights = numpy.sum(node.data['d_weights'], axis=0)
             if 'prev_d_weights' not in node.data:
-                node.data['prev_d_weights'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_weights'] = numpy.zeros(d_weights.size)
 
             if 'delta_weights' not in node.data:
                 node.data['delta_weights'] = numpy.ones(node.weights.shape) *\
                                      self.delta_init
 
             self.upd(node.weights, d_weights, node.data['prev_d_weights'],
-                     node.data['delta_weights'], node.get_arity())
+                     node.data['delta_weights'], node.weights.size)
 
         if upd:
             self.updated = True

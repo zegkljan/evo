@@ -127,7 +127,8 @@ class BackpropagationFitness(evo.Fitness):
                 updated = False
                 for n in range(individual.genes_num):
                     try:
-                        individual.genotype[n].backpropagate(
+                        base = individual.genotype[n]
+                        base.backpropagate(
                             args=self.get_args(),
                             datapts_no=self.get_train_input_cases(),
                             cost_derivative=self.cost_derivative,
@@ -137,8 +138,8 @@ class BackpropagationFitness(evo.Fitness):
                         )
                     except AttributeError:
                         continue
-                    gene_updated = self.updater.update(individual.genotype[n],
-                                                       fitness, prev_fitness)
+                    gene_updated = self.updater.update(base, fitness,
+                                                       prev_fitness)
                     updated = updated or gene_updated
 
                 if not updated:

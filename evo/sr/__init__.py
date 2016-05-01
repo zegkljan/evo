@@ -346,7 +346,7 @@ class Exp(MathNode):
 class Abs(MathNode):
     """Absolute value.
     """
-    INFIX_FMT = '|{0}|'
+    INFIX_FMT = 'abs({0})'
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -442,9 +442,9 @@ class PSqrt(MathNode):
 
 
 class Sigmoid(MathNode):
-    """Sigmoid function: :math:`sig(x) = \\frac{1}{1 + \\mathrm{e}^{-x}}`
+    """Sigmoid function: :math:`sigmoid(x) = \\frac{1}{1 + \\mathrm{e}^{-x}}`
     """
-    INFIX_FMT = 'sigm({0})'
+    INFIX_FMT = 'sigmoid({0})'
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

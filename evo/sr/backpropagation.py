@@ -7,6 +7,8 @@ import numpy
 import evo.sr
 
 
+# Helper functions for the case of no output transformation
+
 def identity(x):
     """Returns the argument."""
     return x
@@ -16,6 +18,8 @@ def identity_d(_):
     """Returns 1 (derivative of :meth:`identity`\ )."""
     return 1
 
+
+# backpropagation supporting nodes
 
 class WeightedNode(evo.sr.MathNode):
     """An abstract class for nodes that have a weight and/or bias assigned for
@@ -136,7 +140,6 @@ class WeightedNode(evo.sr.MathNode):
         for c in self.children:
             if isinstance(c, WeightedNode):
                 c.backpropagate(args, datapts_no)
-
 
 class Add2(WeightedNode, evo.sr.Add2):
     """Weighted version of :class:`evo.sr.Add2`\ .
@@ -517,6 +520,109 @@ class Gauss(WeightedNode, evo.sr.Gauss):
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
 
+
+class LincombVariable(WeightedNode, evo.sr.Variable):
+    def __init__(self, num_vars=1, names=None, **kwargs):
+        super().__init__(**kwargs)
+        self.num_vars = num_vars
+        self.data['varname'] = self.data['name']
+        self.data['name'] = 'T({}, {})'.format(self.data['name'], self.index)
+        if names is None:
+            self.data['names'] = ['x{0}'.format(i) for i in range(num_vars)]
+        else:
+            self.data['names'] = names
+
+        self.bias = numpy.zeros(1)
+        self.weights = numpy.zeros(num_vars)
+        self.weights[self.index] = 1
+
+    def eval(self, args):
+        if self.cache and self._cache is not None:
+            return self._cache
+
+        if args.shape[1] != self.num_vars:
+            raise ValueError('Inconsistent number of variables and shape of '
+                             'arguments.')
+        self.argument = args
+
+        result = self.argument.dot(self.weights) + self.bias
+
+        if self.cache:
+            self._cache = result
+
+        return result
+
+    def full_infix(self, **kwargs) -> str:
+        num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            ws = [repr(self.weights[i]) for i in range(self.weights.size)]
+            b = repr(self.bias[0])
+        else:
+            ws = [('{0:' + num_format + '}').format(self.weights[i])
+                  for i in range(self.weights.size)]
+            b = ('{0:' + num_format + '}').format(self.bias[0])
+        v = ['{0} * {1}'.format(ws[i], self.data['names'][i])
+             for i in range(self.weights.size)]
+        v2 = []
+        for e in v:
+            if not v2:
+                v2.append(e)
+                continue
+            if e.startswith('-'):
+                v2.append(' - ')
+                v2.append(e[1:])
+            else:
+                v2.append(' + ')
+                v2.append(e)
+        if b.startswith('-'):
+            v2.append(' - ')
+            v2.append(b[1:])
+        else:
+            v2.append(' + ')
+            v2.append(b)
+        r = '(' + ''.join(v2) + ')'
+        return r
+
+    def backpropagate(self, args, datapts_no: int,
+                      cost_derivative: callable = None, true_output=None,
+                      output_transform: callable = None,
+                      output_transform_derivative: callable = None):
+        if output_transform is None:
+            output_transform = identity
+        if output_transform_derivative is None:
+            output_transform_derivative = identity_d
+
+        # bias derivative
+        self.data['d_bias'] = numpy.empty((datapts_no, 1))
+        # if this is the root call, do it differently
+        if cost_derivative is not None and true_output is not None:
+            cd = cost_derivative(output_transform(self.eval(args)),
+                                 true_output)
+            otfd = output_transform_derivative(self.eval(args))
+            db = cd * otfd
+        else:
+            pd = self.parent.data['d_bias'][:, self.parent_index]
+            pw = self.parent.weights[self.parent_index]
+            db = pd * pw
+        self.data['d_bias'][:, 0] = db
+
+        # weights derivative
+        inputs = None
+        if self.tune_weights is True:
+            inputs = self.argument
+        elif self.tune_weights:
+            inputs = self.argument.copy()
+            inputs[:, numpy.logical_not(self.tune_weights)] = 0
+        if inputs is not None and len(inputs) > 0:
+            self.data['d_weights'] = (numpy.squeeze(self.data['d_bias']) *
+                                      inputs.T).T
+
+    def copy_contents(self, dest):
+        super().copy_contents(dest)
+        dest.num_vars = self.num_vars
+
+
+# Weight updaters
 
 class WeightsUpdater(object):
     """This is a base class for algorithms for updating weights on trees.

@@ -110,7 +110,7 @@ class BackpropagationFitness(evo.Fitness):
         otf = lambda _: None
         otf_d = lambda _: None
         try:
-            yhats = self.get_eval(individual)
+            yhats = self.get_eval(individual, self.get_args())
             BackpropagationFitness.LOG.debug('Checking output...')
             check = self._check_output(yhats, individual)
             if check is not None:
@@ -146,7 +146,7 @@ class BackpropagationFitness(evo.Fitness):
                     BackpropagationFitness.LOG.debug(
                         'No update occurred, stopping inner learning.')
                     break
-                yhats = self.get_eval(individual)
+                yhats = self.get_eval(individual, self.get_args())
                 check = self._check_output(yhats, individual)
                 if check is not None:
                     return check
@@ -174,8 +174,7 @@ class BackpropagationFitness(evo.Fitness):
             self.bsf = individual.copy()
         return fitness
 
-    def get_eval(self, individual):
-        args = self.get_args()
+    def get_eval(self, individual, args):
         if individual.genes_num == 1:
             return individual.genotype[0].eval(args=args)
         yhats = [g.eval(args=args) for g in individual.genotype]
@@ -278,17 +277,21 @@ class RegressionFitness(BackpropagationFitness):
         individual.set_data('MSE', mse)
         return r2
 
-    def get_errors(self, outputs, individual):
+    def get_output(self, outputs, individual):
         intercept = individual.get_data('intercept')
         coefficients = individual.get_data('coefficients')
         if coefficients is not None:
             if not isinstance(outputs, numpy.ndarray) or outputs.ndim == 1:
-                outputs = outputs * coefficients
+                output = outputs * coefficients
             else:
-                outputs = outputs.dot(coefficients)
+                output = outputs.dot(coefficients)
         if intercept is not None:
-            outputs = outputs + intercept
-        return self.get_train_output() - outputs
+            output = output + intercept
+        return output
+
+    def get_errors(self, outputs, individual):
+        output = self.get_output(outputs, individual)
+        return self.get_train_output() - output
 
     def fit_outputs(self, individual, outputs):
         target = self.get_train_output()

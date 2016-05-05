@@ -3,12 +3,13 @@
 Programming.
 """
 
+import enum
+import gc
 import logging
 import multiprocessing
 import pprint
-import gc
-import time
 import random
+import time
 
 import evo
 import evo.gp.support
@@ -22,6 +23,12 @@ class Gp(multiprocessing.context.Process):
     """
 
     LOG = logging.getLogger(__name__ + '.Gp')
+
+    class CallbackSituation(enum.Enum):
+        iteration_start = 1
+        iteration_end = 2
+        end = 3
+        start = 4
 
     @staticmethod
     def generations(g):
@@ -118,9 +125,11 @@ class Gp(multiprocessing.context.Process):
 
             The default is no limits.
         :keyword evo.support.Stats stats: stats saving class
-        :keyword callback: a callable which will be called at the beginning of
-            every generation with a single argument which is the algorithm
-            instance itself (i.e. instance of this class)
+        :keyword callback: a callable which will be called during the
+            evolution. It must take two arguments, first one is the algorithm
+            instance itself (i.e. instance of this class), and the second is a
+            :class:`.CallbackSituation` value specifying where is the
+            callback called.
 
         .. _evo.gp.Gp.xover-types:
 
@@ -367,7 +376,11 @@ class Gp(multiprocessing.context.Process):
             self.population = self.population_initializer.initialize(
                 self.pop_strategy.get_parents_number(), self.limits)
 
+            if self.callback is not None:
+                self.callback(self, Gp.CallbackSituation.start)
             self._run()
+            if self.callback is not None:
+                self.callback(self, Gp.CallbackSituation.end)
         finally:
             self.end_time = time.time()
             if self.fitness.get_bsf() is None:
@@ -390,7 +403,7 @@ class Gp(multiprocessing.context.Process):
         while not self.stop(self):
             Gp.LOG.debug('Starting iteration %d', self.iterations)
             if self.callback is not None:
-                self.callback(self)
+                self.callback(self, Gp.CallbackSituation.iteration_start)
 
             elites = self.top_individuals(self.pop_strategy.get_elites_number())
 
@@ -419,9 +432,9 @@ class Gp(multiprocessing.context.Process):
                         self.fitness.get_bsf().get_fitness(),
                         str(self.fitness.get_bsf()),
                         self.fitness.get_bsf().get_data())
+            if self.callback is not None:
+                self.callback(self, Gp.CallbackSituation.iteration_end)
             self.iterations += 1
-        if self.callback is not None:
-            self.callback(self)
         Gp.LOG.info('Finished evolution.')
 
     def setup_crossover(self, crossover_type):

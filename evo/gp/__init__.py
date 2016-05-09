@@ -428,7 +428,7 @@ class Gp(multiprocessing.context.Process):
                 self.population, offspring, elites)
             Gp.LOG.info('Finished iteration %d time %.1f. Best fitness: %s | '
                         '%s | %s',
-                        self.iterations, time.time() - self.start_time,
+                        self.iterations, self.get_runtime(),
                         self.fitness.get_bsf().get_fitness(),
                         str(self.fitness.get_bsf()),
                         self.fitness.get_bsf().get_data())
@@ -664,3 +664,6 @@ class Gp(multiprocessing.context.Process):
                 break
         Gp.LOG.debug('Obtained top individuals: %s', str(tops))
         return tops
+
+    def get_runtime(self):
+        return time.time() - self.start_time

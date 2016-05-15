@@ -5,6 +5,8 @@ subclasses of :class:`evo.gp.support.GpNode` for use in symbolic regression
 tasks.
 """
 
+import textwrap
+
 import numpy
 
 import evo.gp.support
@@ -111,10 +113,54 @@ class MathNode(evo.gp.support.GpNode):
     def infix(self, **kwargs) -> str:
         raise NotImplementedError()
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        """Returns a MATLAB-compatible expression of the subtree rooted in
+        this node.
+
+        The function names are going to be identical to the name of the class
+        of the node, prefixed with an optional prefix that can be specified
+        in the parameters. The exceptions are functions that are already
+        MATLAB builtins which are going to be used instead of the custom
+        function names.
+
+        :param data_name: the optional name to give to the argument of the
+            expression (i.e. to the input data at variable-nodes), default is
+            ``'X'``
+        :param function_name_prefix: the optional prefix to the name of the
+            functions used in the expression, default is empty string (i.e. no
+            prefix)
+        """
+        raise NotImplementedError()
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        """Returns a MATLAB-compatible definition of the function this node
+        performs. The returned string is meant to be a content of a MATLAB
+        m-file of function.
+
+        The function name is going to be identical to the name of the class
+        of the node, prefixed with an optional prefix that can be specified
+        in the parameters.
+
+        The arguments to the function are going to be named according to the
+        ``argname`` parameter. In case of functiof of more than one argument,
+        this name is going to be suffixed with increasing numbers starting from
+        1, e.g. ``X1, X2, ...``\ .
+
+        :param argname: the optional name to give to the argument of the
+            function, default is ``'X'``
+        :param outname: the optional name to give to the output variable of
+            the function, default is ``'Y'``
+        :param function_name_prefix: the optional prefix to the name of the
+            function, default is empty string (i.e. no prefix)
+        """
+        raise NotImplementedError()
+
 
 class Add2(MathNode):
     """Addition of two operands: ``a + b``
     """
+
     INFIX_FMT = '({0} + {1})'
 
     def __init__(self, **kwargs):
@@ -131,6 +177,15 @@ class Add2(MathNode):
     def infix(self, **kwargs):
         return Add2.INFIX_FMT.format(self.children[0].infix(**kwargs),
                                      self.children[1].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c1 = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        c2 = self.children[1].to_matlab_expr(data_name, function_name_prefix)
+        return '({arg1} + {arg2})'.format(arg1=c1, arg2=c2)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None
 
 
 class Sub2(MathNode):
@@ -153,6 +208,15 @@ class Sub2(MathNode):
         return Sub2.INFIX_FMT.format(self.children[0].infix(**kwargs),
                                      self.children[1].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c1 = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        c2 = self.children[1].to_matlab_expr(data_name, function_name_prefix)
+        return '({arg1} - {arg2})'.format(arg1=c1, arg2=c2)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None
+
 
 class Mul2(MathNode):
     """Multiplication of two operands: ``a * b``
@@ -173,6 +237,15 @@ class Mul2(MathNode):
     def infix(self, **kwargs):
         return Mul2.INFIX_FMT.format(self.children[0].infix(**kwargs),
                                      self.children[1].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c1 = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        c2 = self.children[1].to_matlab_expr(data_name, function_name_prefix)
+        return '({arg1} .* {arg2})'.format(arg1=c1, arg2=c2)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None
 
 
 class Div2(MathNode):
@@ -200,6 +273,15 @@ class Div2(MathNode):
         return Div2.INFIX_FMT.format(self.children[0].infix(**kwargs),
                                      self.children[1].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c1 = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        c2 = self.children[1].to_matlab_expr(data_name, function_name_prefix)
+        return '({arg1} ./ {arg2})'.format(arg1=c1, arg2=c2)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None
+
 
 class IDiv2(MathNode):
     """Integer division of the first operand by the second one: ``a // b``
@@ -225,6 +307,15 @@ class IDiv2(MathNode):
     def infix(self, **kwargs) -> str:
         return IDiv2.INFIX_FMT.format(self.children[0].infix(**kwargs),
                                       self.children[1].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c1 = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        c2 = self.children[1].to_matlab_expr(data_name, function_name_prefix)
+        return 'idivide({arg1}, {arg2}, \'floor\')'.format(arg1=c1, arg2=c2)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None
 
 
 class PDiv2(MathNode):
@@ -254,6 +345,23 @@ class PDiv2(MathNode):
         return PDiv2.INFIX_FMT.format(self.children[0].infix(**kwargs),
                                       self.children[1].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c1 = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        c2 = self.children[1].to_matlab_expr(data_name, function_name_prefix)
+        return '{pfx}{fn}({arg1}, {arg2})'.format(
+            arg1=c1, arg2=c2, pfx=function_name_prefix,
+            fn=self.__class__.__name__)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return textwrap.dedent('''
+        function {out} = {prefix}{name}({arg}1, {arg}2)
+        {out} = {arg}1 ./ {arg}2;
+        {out}({arg}2 == 0) = 1;
+        end
+        '''.format(arg=argname, out=outname, prefix=function_name_prefix,
+                   name=self.__class__.__name__)).strip()
+
 
 class PIDiv2(MathNode):
     """Protected integer division of the first operand by the second one,
@@ -282,6 +390,23 @@ class PIDiv2(MathNode):
         return PIDiv2.INFIX_FMT.format(self.children[0].infix(**kwargs),
                                        self.children[1].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c1 = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        c2 = self.children[1].to_matlab_expr(data_name, function_name_prefix)
+        return '{pfx}{fn}({arg1}, {arg2})'.format(
+            arg1=c1, arg2=c2, pfx=function_name_prefix,
+            fn=self.__class__.__name__)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return textwrap.dedent('''
+        function {out} = {prefix}{name}({arg}1, {arg}2)
+        {out} = idivide({arg}1, {arg}2, 'floor');
+        {out}({arg}2 == 0) = 1;
+        end
+        '''.format(arg=argname, out=outname, prefix=function_name_prefix,
+                   name=self.__class__.__name__)).strip()
+
 
 class Sin(MathNode):
     """The sine function.
@@ -301,6 +426,14 @@ class Sin(MathNode):
 
     def infix(self, **kwargs):
         return Sin.INFIX_FMT.format(self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'sin({arg})'.format(arg=c)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None
 
 
 class Cos(MathNode):
@@ -322,6 +455,14 @@ class Cos(MathNode):
     def infix(self, **kwargs):
         return Cos.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'cos({arg})'.format(arg=c)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None
+
 
 class Exp(MathNode):
     """The natural exponential function.
@@ -342,6 +483,14 @@ class Exp(MathNode):
     def infix(self, **kwargs):
         return Exp.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'exp({arg})'.format(arg=c)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None
+
 
 class Abs(MathNode):
     """Absolute value.
@@ -361,6 +510,14 @@ class Abs(MathNode):
 
     def infix(self, **kwargs):
         return Abs.INFIX_FMT.format(self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'abs({arg})'.format(arg=c)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None
 
 
 class Power(MathNode):
@@ -394,6 +551,14 @@ class Power(MathNode):
         super().copy_contents(dest)
         dest.power = self.power
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return '({arg} .^ {exp})'.format(arg=c, exp=repr(self.power))
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None
+
 
 class Sqrt(MathNode):
     """Square root.
@@ -419,6 +584,14 @@ class Sqrt(MathNode):
     def infix(self, **kwargs) -> str:
         return Sqrt.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'sqrt({arg})'.format(arg=c)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None
+
 
 class PSqrt(MathNode):
     """Protected square root, returns the square root of the absolute value of
@@ -440,6 +613,20 @@ class PSqrt(MathNode):
     def infix(self, **kwargs) -> str:
         return PSqrt.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return '{pfx}{fn}({arg})'.format(arg=c, pfx=function_name_prefix,
+                                         fn=self.__class__.__name__)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return textwrap.dedent('''
+        function {out} = {prefix}{name}({arg})
+        {out} = sqrt(abs({arg}))
+        end
+        '''.format(arg=argname, out=outname, prefix=function_name_prefix,
+                   name=self.__class__.__name__)).strip()
+
 
 class Sigmoid(MathNode):
     """Sigmoid function: :math:`sigmoid(x) = \\frac{1}{1 + \\mathrm{e}^{-x}}`
@@ -460,6 +647,20 @@ class Sigmoid(MathNode):
     def infix(self, **kwargs):
         return Sigmoid.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return '{pfx}{fn}({arg})'.format(arg=c, pfx=function_name_prefix,
+                                      fn=self.__class__.__name__)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return textwrap.dedent('''
+        function {out} = {prefix}{name}({arg})
+        {out} = sqrt(abs({arg}))
+        end
+        '''.format(arg=argname, out=outname, prefix=function_name_prefix,
+                   name=self.__class__.__name__)).strip()
+
 
 class Tanh(MathNode):
     """Hyperbolic tangent
@@ -479,6 +680,14 @@ class Tanh(MathNode):
 
     def infix(self, **kwargs):
         return Tanh.INFIX_FMT.format(self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'tanh({arg})'.format(arg=c)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None
 
 
 class Sinc(MathNode):
@@ -501,6 +710,14 @@ class Sinc(MathNode):
     def infix(self, **kwargs):
         return Sinc.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'sinc({arg})'.format(arg=c)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None
+
 
 class Softplus(MathNode):
     """The softplus or rectifier function:
@@ -522,6 +739,20 @@ class Softplus(MathNode):
     def infix(self, **kwargs):
         return Softplus.INFIX_FMT.format(self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return '{pfx}{fn}({arg})'.format(arg=c, pfx=function_name_prefix,
+                                         fn=self.__class__.__name__)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return textwrap.dedent('''
+        function {out} = {prefix}{name}({arg})
+        {out} = log1p(exp({arg}));
+        end
+        '''.format(arg=argname, out=outname, prefix=function_name_prefix,
+                   name=self.__class__.__name__)).strip()
+
 
 class Gauss(MathNode):
     """The Gauss-function simplified to the core structural form:
@@ -542,6 +773,20 @@ class Gauss(MathNode):
 
     def infix(self, **kwargs):
         return Softplus.INFIX_FMT.format(self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return '{pfx}{fn}({arg})'.format(arg=c, pfx=function_name_prefix,
+                                         fn=self.__class__.__name__)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return textwrap.dedent('''
+        function {out} = {prefix}{name}({arg})
+        {out} = exp(-({arg} .^ 2));
+        end
+        '''.format(arg=argname, out=outname, prefix=function_name_prefix,
+                   name=self.__class__.__name__)).strip()
 
 
 class Const(MathNode):
@@ -567,6 +812,13 @@ class Const(MathNode):
     def copy_contents(self, dest):
         super().copy_contents(dest)
         dest.value = self.value
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        return repr(self.value)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None
 
 
 class Variable(MathNode):
@@ -594,3 +846,10 @@ class Variable(MathNode):
     def copy_contents(self, dest):
         super().copy_contents(dest)
         dest.index = self.index
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        return '{var}(:, {idx})'.format(var=data_name, idx=self.index + 1)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None

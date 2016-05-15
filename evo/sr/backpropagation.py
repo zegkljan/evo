@@ -2,6 +2,8 @@
 learning of tree expressions.
 """
 
+import textwrap
+
 import numpy
 
 import evo.sr
@@ -10,12 +12,12 @@ import evo.sr
 # Helper functions for the case of no output transformation
 
 def identity(x):
-    """Returns the argument."""
+    """Just returns the argument."""
     return x
 
 
 def identity_d(_):
-    """Returns 1 (derivative of :meth:`identity`\ )."""
+    """Returns 1 (derivative of :func:`identity`\ )."""
     return 1
 
 
@@ -141,6 +143,7 @@ class WeightedNode(evo.sr.MathNode):
             if isinstance(c, WeightedNode):
                 c.backpropagate(args, datapts_no)
 
+
 class Add2(WeightedNode, evo.sr.Add2):
     """Weighted version of :class:`evo.sr.Add2`\ .
 
@@ -172,6 +175,13 @@ class Add2(WeightedNode, evo.sr.Add2):
             self.weights[0], self.weights[1],
             self.children[0].infix(**kwargs),
             self.children[1].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c1 = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        c2 = self.children[1].to_matlab_expr(data_name, function_name_prefix)
+        return '({w1} .* {arg1} + {w2} .* {arg2})'.format(
+            arg1=c1, arg2=c2, w1=repr(self.weights[0]),
+            w2=repr(self.weights[1]))
 
 
 class Sub2(WeightedNode, evo.sr.Sub2):
@@ -210,6 +220,13 @@ class Sub2(WeightedNode, evo.sr.Sub2):
             self.children[0].infix(**kwargs),
             self.children[1].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c1 = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        c2 = self.children[1].to_matlab_expr(data_name, function_name_prefix)
+        return '({w1} .* {arg1} - {w2} .* {arg2})'.format(
+            arg1=c1, arg2=c2, w1=repr(self.weights[0]),
+            w2=repr(self.weights[1]))
+
 
 class Mul2(WeightedNode, evo.sr.Mul2):
     """Weighted version of :class:`evo.sr.Mul2`\ .
@@ -246,6 +263,12 @@ class Mul2(WeightedNode, evo.sr.Mul2):
             self.bias[0], self.bias[1],
             self.children[0].infix(**kwargs),
             self.children[1].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c1 = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        c2 = self.children[1].to_matlab_expr(data_name, function_name_prefix)
+        return '(({b1} + {arg1}) .* ({b2} + {arg2}))'.format(
+            arg1=c1, arg2=c2, b1=repr(self.bias[0]), b2=repr(self.bias[1]))
 
 
 class Div2(WeightedNode, evo.sr.Div2):
@@ -284,6 +307,12 @@ class Div2(WeightedNode, evo.sr.Div2):
             self.children[0].infix(**kwargs),
             self.children[1].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c1 = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        c2 = self.children[1].to_matlab_expr(data_name, function_name_prefix)
+        return '(({b1} + {arg1}) ./ ({b2} + {arg2}))'.format(
+            arg1=c1, arg2=c2, b1=repr(self.bias[0]), b2=repr(self.bias[1]))
+
 
 class Sin(WeightedNode, evo.sr.Sin):
     """Weighted version of :class:`evo.sr.Sin`\ .
@@ -306,6 +335,11 @@ class Sin(WeightedNode, evo.sr.Sin):
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'sin({w} .* {arg} + {b})'.format(arg=c, w=repr(self.weights[0]),
+                                                b=repr(self.bias[0]))
 
 
 class Cos(WeightedNode, evo.sr.Cos):
@@ -330,6 +364,11 @@ class Cos(WeightedNode, evo.sr.Cos):
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'cos({w} .* {arg} + {b})'.format(arg=c, w=repr(self.weights[0]),
+                                                b=repr(self.bias[0]))
+
 
 class Exp(WeightedNode, evo.sr.Exp):
     """Weighted version of :class:`evo.sr.Exp`\ .
@@ -352,6 +391,11 @@ class Exp(WeightedNode, evo.sr.Exp):
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'exp({w} .* {arg} + {b})'.format(arg=c, w=repr(self.weights[0]),
+                                                b=repr(self.bias[0]))
 
 
 class Abs(WeightedNode, evo.sr.Abs):
@@ -376,6 +420,11 @@ class Abs(WeightedNode, evo.sr.Abs):
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'abs({w} .* {arg} + {b})'.format(arg=c, w=repr(self.weights[0]),
+                                                b=repr(self.bias[0]))
+
 
 class Power(WeightedNode, evo.sr.Power):
     """Weighted version of :class:`evo.sr.Power`\ .
@@ -398,6 +447,12 @@ class Power(WeightedNode, evo.sr.Power):
         return base.format(
             self.bias[0], self.weights[0], self.power,
             self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return '(({w} .* {arg} + {b}) .^ {exp})'.format(
+            arg=c, exp=repr(self.power), w=repr(self.weights[0]),
+            b=repr(self.bias[0]))
 
 
 class Sigmoid(WeightedNode, evo.sr.Sigmoid):
@@ -423,6 +478,12 @@ class Sigmoid(WeightedNode, evo.sr.Sigmoid):
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return '{pfx}{fn}({w} .* {arg} + {b})'.format(
+            arg=c, pfx=function_name_prefix, fn=self.__class__.__name__,
+            w=repr(self.weights[0]), b=repr(self.bias[0]))
+
 
 class Tanh(WeightedNode, evo.sr.Tanh):
     """Weighted version of :class:`evo.sr.Tanh`\ .
@@ -446,6 +507,11 @@ class Tanh(WeightedNode, evo.sr.Tanh):
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'tanh({w} .* {arg} + {b})'.format(arg=c, w=repr(self.weights[0]),
+                                                 b=repr(self.bias[0]))
 
 
 class Sinc(WeightedNode, evo.sr.Sinc):
@@ -472,6 +538,11 @@ class Sinc(WeightedNode, evo.sr.Sinc):
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'sinc({w} .* {arg} + {b})'.format(arg=c, w=repr(self.weights[0]),
+                                                 b=repr(self.bias[0]))
+
 
 class Softplus(WeightedNode, evo.sr.Softplus):
     """Weighted version of :class:`evo.sr.Softplus`\ .
@@ -496,6 +567,12 @@ class Softplus(WeightedNode, evo.sr.Softplus):
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return '{pfx}{fn}({w} .* {arg} + {b})'.format(
+            arg=c, pfx=function_name_prefix, fn=self.__class__.__name__,
+            w=repr(self.weights[0]), b=repr(self.bias[0]))
+
 
 class Gauss(WeightedNode, evo.sr.Gauss):
     """Weighted version of :class:`evo.sr.Gauss`\ .
@@ -519,6 +596,12 @@ class Gauss(WeightedNode, evo.sr.Gauss):
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return '{pfx}{fn}({w} .* {arg} + {b})'.format(
+            arg=c, pfx=function_name_prefix, fn=self.__class__.__name__,
+            w=repr(self.weights[0]), b=repr(self.bias[0]))
 
 
 class LincombVariable(WeightedNode, evo.sr.Variable):
@@ -620,6 +703,22 @@ class LincombVariable(WeightedNode, evo.sr.Variable):
     def copy_contents(self, dest):
         super().copy_contents(dest)
         dest.num_vars = self.num_vars
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        w_str = ', '.join([repr(w) for w in self.weights])
+        w_str = '[' + w_str + ']'
+        return '{pfx}{fn}({arg}, {w}, {i})(:, {idx})'.format(
+            arg=data_name, idx=self.index + 1, w=w_str, i=repr(self.bias[0]),
+            pfx=function_name_prefix, fn=self.__class__.__name__)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return textwrap.dedent('''
+        function {out} = {prefix}{name}({arg}, coeffs, intercept)
+        {out} = {arg} * coeffs' + intercept;
+        end
+        '''.format(arg=argname, out=outname, prefix=function_name_prefix,
+                   name=self.__class__.__name__)).strip()
 
 
 # Weight updaters

@@ -2,8 +2,10 @@
 """TODO
 """
 
+import copy
 import functools
 import logging
+import textwrap
 
 import numpy
 
@@ -12,6 +14,73 @@ import evo.gp
 import evo.gp.support
 import evo.sr
 import evo.sr.backpropagation
+
+
+class FittedForestIndividual(evo.gp.support.ForestIndividual):
+    def __init__(self, genotype: list, intercept, coefficients):
+        super().__init__(genotype)
+        self.intercept = intercept
+        self.coefficients = coefficients
+
+    def __str__(self):
+        if hasattr(self, 'str'):
+            return str(self.str)
+        return '{interc} + {coeffs} * {genes}'.format(
+            interc=self.intercept, coeffs=self.coefficients,
+            genes=str([str(g) for g in self.genotype]))
+
+    def copy(self, carry_evaluation=True, carry_data=True):
+        cg = [g.clone() for g in self.genotype]
+        clone = FittedForestIndividual(cg,
+                                       copy.deepcopy(self.intercept),
+                                       copy.deepcopy(self.coefficients))
+        evo.Individual.copy_evaluation(self, clone, carry_evaluation)
+        evo.Individual.copy_data(self, clone, carry_data)
+        return clone
+
+    def to_matlab(self, function_name='_bp_mggp_fn'):
+        coeff_mat_str = ', '.join([repr(c) for c in self.coefficients])
+        coeff_mat_str = '[' + coeff_mat_str + ']'
+        intercept_str = repr(self.intercept)
+
+        gene_exprs = ';\n         '.join(
+            [g.to_matlab_expr() for g in self.genotype])
+
+        all_funcs = set()
+        for g in self.genotype:
+            for n in g.get_nodes_bfs():
+                f = n.to_matlab_def()
+                if f is not None:
+                    all_funcs.add(f)
+        all_funcs = sorted(all_funcs)
+
+        matlab_str = textwrap.dedent('''
+        function out = {fname}(X)
+
+        intercept = {intercept};
+        coefficients = {coeffs};
+        genes = [{genes}];
+
+        out = intercept + coefficients * genes;
+
+        end
+        ''').format(fname=function_name,
+                    intercept=intercept_str,
+                    coeffs=coeff_mat_str,
+                    genes=gene_exprs).strip()
+
+        return '\n\n'.join([matlab_str] + all_funcs)
+
+
+class FittedForestIndividualInitializer(evo.PopulationInitializer):
+    def __init__(self, other: evo.PopulationInitializer):
+        self.other = other
+
+    def initialize(self, pop_size: int, limits: dict):
+        pop = self.other.initialize(pop_size, limits)
+        return [FittedForestIndividual(
+            i.genotype, 0.0, numpy.zeros((len(i.genotype),)))
+                for i in pop]
 
 
 # noinspection PyAbstractClass
@@ -89,21 +158,21 @@ class BackpropagationFitness(evo.Fitness):
     def get_args(self):
         return self.get_train_inputs()
 
-    def steps_number(self, individual):
+    def steps_number(self, individual: FittedForestIndividual):
         ret = self.steps
         return ret
 
-    def steps_depth(self, individual):
+    def steps_depth(self, individual: FittedForestIndividual):
         ret = self.steps - sum(g.get_subtree_depth() for g
                                in individual.genotype)
         return ret
 
-    def steps_nodes(self, individual):
+    def steps_nodes(self, individual: FittedForestIndividual):
         ret = self.steps - sum(g.get_subtree_size() for g
                                in individual.genotype)
         return ret
 
-    def evaluate(self, individual: evo.gp.support.ForestIndividual):
+    def evaluate(self, individual: FittedForestIndividual):
         BackpropagationFitness.LOG.debug('Evaluating individual %s',
                                          individual.__str__())
 
@@ -174,7 +243,7 @@ class BackpropagationFitness(evo.Fitness):
             self.bsf = individual.copy()
         return fitness
 
-    def get_eval(self, individual, args):
+    def get_eval(self, individual: FittedForestIndividual, args):
         if individual.genes_num == 1:
             return individual.genotype[0].eval(args=args)
         yhats = [g.eval(args=args) for g in individual.genotype]
@@ -183,7 +252,7 @@ class BackpropagationFitness(evo.Fitness):
         yhats = numpy.column_stack(numpy.broadcast(*yhats)).T
         return yhats
 
-    def _check_output(self, yhat, individual):
+    def _check_output(self, yhat, individual: FittedForestIndividual):
         if numpy.any(numpy.logical_or(numpy.isinf(yhat),
                                       numpy.isnan(yhat))):
             BackpropagationFitness.LOG.debug('NaN or inf in output, assigning '
@@ -192,7 +261,7 @@ class BackpropagationFitness(evo.Fitness):
             return self.error_fitness
         return None
 
-    def get_error(self, outputs, individual):
+    def get_error(self, outputs, individual: FittedForestIndividual):
         """Computes the error of the individual.
 
         :param outputs: a vector of outputs of the individual
@@ -222,10 +291,11 @@ class BackpropagationFitness(evo.Fitness):
     def get_bsf(self) -> evo.Individual:
         return self.bsf
 
-    def fit_outputs(self, individual, outputs):
+    def fit_outputs(self, individual: FittedForestIndividual, outputs):
         raise NotImplementedError()
 
-    def get_output_transformation(self, individual, yhats):
+    def get_output_transformation(self, individual: FittedForestIndividual,
+                                  yhats):
         raise NotImplementedError()
 
     def has_improved(self, prev_fitness, fitness):
@@ -268,7 +338,7 @@ class RegressionFitness(BackpropagationFitness):
     def get_args(self):
         return self.train_inputs
 
-    def get_error(self, outputs, individual):
+    def get_error(self, outputs, individual: FittedForestIndividual):
         e = self.get_errors(outputs, individual)
         sse = e.dot(e)
         r2 = 1 - sse / self.ssw
@@ -277,9 +347,9 @@ class RegressionFitness(BackpropagationFitness):
         individual.set_data('MSE', mse)
         return r2
 
-    def get_output(self, outputs, individual):
-        intercept = individual.get_data('intercept')
-        coefficients = individual.get_data('coefficients')
+    def get_output(self, outputs, individual: FittedForestIndividual):
+        intercept = individual.intercept
+        coefficients = individual.coefficients
         if coefficients is not None:
             if not isinstance(outputs, numpy.ndarray) or outputs.ndim == 1:
                 output = outputs * coefficients
@@ -289,11 +359,11 @@ class RegressionFitness(BackpropagationFitness):
             output = output + intercept
         return output
 
-    def get_errors(self, outputs, individual):
+    def get_errors(self, outputs, individual: FittedForestIndividual):
         output = self.get_output(outputs, individual)
         return self.get_train_output() - output
 
-    def fit_outputs(self, individual, outputs):
+    def fit_outputs(self, individual: FittedForestIndividual, outputs):
         target = self.get_train_output()
         if not isinstance(outputs, numpy.ndarray):
             base = numpy.empty((target.shape[0], 2))
@@ -305,14 +375,15 @@ class RegressionFitness(BackpropagationFitness):
         base[:, 0] = 1
         base[:, 1:] = outputs
         w = numpy.linalg.lstsq(base, target)[0]
-        individual.set_data('intercept', w[0])
-        individual.set_data('coefficients', w[1:])
+        individual.intercept = w[0]
+        individual.coefficients = w[1:]
 
-    def get_output_transformation(self, individual, yhats):
+    def get_output_transformation(self, individual: FittedForestIndividual,
+                                  yhats):
         def otf(n):
             def f(y):
-                i = individual.get_data('intercept')
-                c = individual.get_data('coefficients')
+                i = individual.intercept
+                c = individual.coefficients
                 if c.size == 1:
                     return i + c[0] * y
                 mask = numpy.ones(len(c), dtype=bool)
@@ -324,7 +395,7 @@ class RegressionFitness(BackpropagationFitness):
             return f
 
         def otf_d(n):
-            return lambda _: individual.get_data('coefficients')[n]
+            return lambda _: individual.coefficients[n]
 
         return otf, otf_d
 
@@ -432,11 +503,11 @@ class RegressionFitnessMaxError(RegressionFitness):
         return super().has_improved(prev_fitness[1], fitness[1])
 
 
-def full_model_str(individual: evo.gp.support.ForestIndividual,
+def full_model_str(individual: FittedForestIndividual,
                    **kwargs) -> str:
     nf = kwargs.get('num_format', '.3f')
-    ic = individual.get_data('intercept')
-    co = individual.get_data('coefficients')
+    ic = individual.intercept
+    co = individual.coefficients
     if nf == 'repr':
         strs = ['{}'.format(repr(ic))]
         for c, g in zip(co, individual.genotype):

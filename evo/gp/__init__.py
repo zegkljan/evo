@@ -389,7 +389,7 @@ class Gp(multiprocessing.context.Process):
                 Gp.LOG.info('Finished. Fitness: %s %s %s',
                             self.fitness.get_bsf().get_fitness(),
                             pprint.pformat(self.fitness.get_bsf().get_data()),
-                            str(self.fitness.get_bsf().genotype))
+                            str(self.fitness.get_bsf()))
             Gp.LOG.info('Performing garbage collection.')
             gc.collect()
             try:

@@ -39,12 +39,14 @@ class FittedForestIndividual(evo.gp.support.ForestIndividual):
         return clone
 
     def to_matlab(self, function_name='_bp_mggp_fn'):
-        coeff_mat_str = ', '.join([repr(c) for c in self.coefficients])
+        coeff_mat_str = '; '.join([repr(c) for c in self.coefficients])
         coeff_mat_str = '[' + coeff_mat_str + ']'
         intercept_str = repr(self.intercept)
 
-        gene_exprs = ';\n         '.join(
-            [g.to_matlab_expr() for g in self.genotype])
+        gene_exprs = '\n'.join(['g{} = {};'.format(i, g.to_matlab_expr())
+                                for i, g in enumerate(self.genotype)])
+        genes_str = '[' + ' '.join(['g{}'.format(i)
+                                    for i in range(len(self.genotype))]) + ']'
 
         all_funcs = set()
         for g in self.genotype:
@@ -59,15 +61,17 @@ class FittedForestIndividual(evo.gp.support.ForestIndividual):
 
         intercept = {intercept};
         coefficients = {coeffs};
-        genes = [{genes}];
+        {gene_exprs}
+        genes = {genes_str};
 
-        out = intercept + coefficients * genes;
+        out = intercept + genes * coefficients;
 
         end
         ''').format(fname=function_name,
                     intercept=intercept_str,
                     coeffs=coeff_mat_str,
-                    genes=gene_exprs).strip()
+                    gene_exprs=gene_exprs,
+                    genes_str=genes_str).strip()
 
         return '\n\n'.join([matlab_str] + all_funcs)
 

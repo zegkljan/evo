@@ -622,7 +622,7 @@ class PSqrt(MathNode):
                       function_name_prefix='') -> str:
         return textwrap.dedent('''
         function {out} = {prefix}{name}({arg})
-        {out} = sqrt(abs({arg}))
+        {out} = sqrt(abs({arg}));
         end
         '''.format(arg=argname, out=outname, prefix=function_name_prefix,
                    name=self.__class__.__name__)).strip()
@@ -656,7 +656,7 @@ class Sigmoid(MathNode):
                       function_name_prefix='') -> str:
         return textwrap.dedent('''
         function {out} = {prefix}{name}({arg})
-        {out} = sqrt(abs({arg}))
+        {out} = 1 ./ (1 + exp(-{arg}));
         end
         '''.format(arg=argname, out=outname, prefix=function_name_prefix,
                    name=self.__class__.__name__)).strip()

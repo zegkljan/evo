@@ -707,15 +707,16 @@ class LincombVariable(WeightedNode, evo.sr.Variable):
     def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
         w_str = ', '.join([repr(w) for w in self.weights])
         w_str = '[' + w_str + ']'
-        return '{pfx}{fn}({arg}, {w}, {i})(:, {idx})'.format(
+        return '{pfx}{fn}({arg}, {w}, {i}, {idx})'.format(
             arg=data_name, idx=self.index + 1, w=w_str, i=repr(self.bias[0]),
             pfx=function_name_prefix, fn=self.__class__.__name__)
 
     def to_matlab_def(self, argname='X', outname='Y',
                       function_name_prefix='') -> str:
         return textwrap.dedent('''
-        function {out} = {prefix}{name}({arg}, coeffs, intercept)
+        function {out} = {prefix}{name}({arg}, coeffs, intercept, index)
         {out} = {arg} * coeffs' + intercept;
+        {out} = {out}(:, index);
         end
         '''.format(arg=argname, out=outname, prefix=function_name_prefix,
                    name=self.__class__.__name__)).strip()

@@ -2,8 +2,9 @@
 """ TODO docstring
 """
 
-import logging
 import copy
+import logging
+from builtins import round
 
 __version__ = '0.0.1.dev1'
 
@@ -146,7 +147,7 @@ class Fitness(object):
         All arguments have exactly the same meaning as in
         :meth:`evo.Fitness.compare`.
         """
-        return self.compare(i1, i2, *args) <= 0
+        return self.compare(i1, i2, *args) < 0
 
     def get_bsf(self) -> Individual:
         """Returns the best solution encountered so far.
@@ -347,10 +348,15 @@ class GenerationalPopulationStrategy(PopulationStrategy):
     def __init__(self, pop_size, elites_num):
         """
         :param pop_size: (parent) population size
-        :param elites_num: number of elites
+        :param elites_num: number of elites; if it is a float form range
+            [0, 1) then it is considered as a fraction of the ``pop_size``
+            and that fraction is going to be used as the number of elites
+            (after rounding)
         """
         self.pop_size = pop_size
         self.elites_num = elites_num
+        if 0 <= elites_num < 1:
+            self.elites_num = int(round(pop_size * elites_num))
 
     def get_elites_number(self):
         return self.elites_num

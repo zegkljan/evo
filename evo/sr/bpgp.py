@@ -3,6 +3,7 @@
 """
 
 import copy
+import enum
 import functools
 import logging
 import textwrap
@@ -85,6 +86,19 @@ class FittedForestIndividualInitializer(evo.PopulationInitializer):
         return [FittedForestIndividual(
             i.genotype, 0.0, numpy.zeros((len(i.genotype),)))
                 for i in pop]
+
+
+class ErrorMeasure(enum.Enum):
+    R2 = 0
+    MSE = 1
+    MAE = 2
+
+    @property
+    def worst(self):
+        if self is ErrorMeasure.R2:
+            return -numpy.inf
+        if self is ErrorMeasure.MSE or self is ErrorMeasure.MAE:
+            return numpy.inf
 
 
 # noinspection PyAbstractClass
@@ -315,20 +329,26 @@ class RegressionFitness(BackpropagationFitness):
 
     def __init__(self, handled_errors, train_inputs, train_output,
                  updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
-                 min_steps=0, fit: bool=False):
+                 min_steps=0, fit: bool=False,
+                 fitness_measure: ErrorMeasure=ErrorMeasure.R2):
         """
         :param train_inputs: feature variables' values: an N x M matrix where N
             is the number of datapoints (the same N as in ``target`` argument)
             and M is the number of feature variables
         :param train_output: target values of the datapoints: an N x 1 matrix
             where N is the number of datapoints
+        :param fitness_measure: specifies which error measure is going to be
+            used as fitness, including the correct comparison for determining
+            the better of two individuals
         """
-        super().__init__(-numpy.inf, handled_errors, lambda yhat, y: yhat - y,
-                         updater, steps, min_steps, fit)
+        super().__init__(fitness_measure.worst, handled_errors,
+                         lambda yhat, y: yhat - y, updater, steps, min_steps,
+                         fit)
         self.train_inputs = train_inputs
         self.train_output = numpy.array(train_output, copy=False)
         self.ssw = numpy.sum(
             (self.train_output - self.train_output.mean()) ** 2)
+        self.fitness_measure = fitness_measure
 
     def get_train_inputs(self):
         return self.train_inputs
@@ -347,9 +367,17 @@ class RegressionFitness(BackpropagationFitness):
         sse = e.dot(e)
         r2 = 1 - sse / self.ssw
         mse = sse / numpy.alen(e)
+        mae = numpy.sum(numpy.abs(e)) / numpy.alen(e)
         individual.set_data('R2', r2)
         individual.set_data('MSE', mse)
-        return r2
+        individual.set_data('MAE', mae)
+        if self.fitness_measure is ErrorMeasure.R2:
+            return r2
+        if self.fitness_measure is ErrorMeasure.MSE:
+            return mse
+        if self.fitness_measure is ErrorMeasure.MAE:
+            return mae
+        raise ValueError('Invalid value of fitness_measure.')
 
     def get_output(self, outputs, individual: FittedForestIndividual):
         intercept = individual.intercept
@@ -404,10 +432,17 @@ class RegressionFitness(BackpropagationFitness):
         return otf, otf_d
 
     def fitness_cmp(self, f1, f2):
-        if f1 > f2:
-            return -1
-        if f1 < f2:
-            return 1
+        if self.fitness_measure is ErrorMeasure.R2:
+            if f1 > f2:
+                return -1
+            if f1 < f2:
+                return 1
+        elif (self.fitness_measure is ErrorMeasure.MSE or
+              self.fitness_measure is ErrorMeasure.MAE):
+            if f1 < f2:
+                return -1
+            if f1 > f2:
+                return 1
         return 0
 
 

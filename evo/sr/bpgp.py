@@ -5,7 +5,9 @@
 import copy
 import enum
 import functools
+import itertools
 import logging
+import operator
 import textwrap
 
 import numpy
@@ -111,7 +113,8 @@ class BackpropagationFitness(evo.Fitness):
 
     def __init__(self, error_fitness, handled_errors, cost_derivative,
                  updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
-                 min_steps=0, fit: bool=False):
+                 min_steps=0, fit: bool=False,
+                 synchronize_lincomb_vars: bool=False):
         """
         The ``var_mapping`` argument is responsible for mapping the input
         variables to variable names of a tree. It is supposed to be a dict with
@@ -143,6 +146,12 @@ class BackpropagationFitness(evo.Fitness):
             the ``steps`` argument is set to); default is 0
         :param fit: if ``True`` the output of the genomes will be
             additionally transformed using the :meth:`.fit_outputs` method.
+        :param synchronize_lincomb_vars: if ``True`` the leaves of type
+            :class:`evo.sr.backpropagation.LincombVariable` are
+            *syncrhonized*\ , meaning that after the backpropagation the
+            partial derivatives are summed up and set to those with the same
+            index, effectively making a single affine transformation from all
+            these leaf nodes
         """
         super().__init__()
         self.error_fitness = error_fitness
@@ -161,6 +170,7 @@ class BackpropagationFitness(evo.Fitness):
             self.get_max_steps = self.steps_nodes
         self.min_steps = min_steps
         self.fit = fit
+        self.synchronize_lincomb_vars = synchronize_lincomb_vars
 
         self.bsf = None
 
@@ -211,23 +221,8 @@ class BackpropagationFitness(evo.Fitness):
             BackpropagationFitness.LOG.debug('Initial fitness: %f', fitness)
             for i in range(self.min_steps, max(self.get_max_steps(individual),
                                                self.min_steps + 1)):
-                updated = False
-                for n in range(individual.genes_num):
-                    try:
-                        base = individual.genotype[n]
-                        base.backpropagate(
-                            args=self.get_args(),
-                            datapts_no=self.get_train_input_cases(),
-                            cost_derivative=self.cost_derivative,
-                            true_output=self.get_train_output(),
-                            output_transform=otf(n),
-                            output_transform_derivative=otf_d(n)
-                        )
-                    except AttributeError:
-                        continue
-                    gene_updated = self.updater.update(base, fitness,
-                                                       prev_fitness)
-                    updated = updated or gene_updated
+                self.backpropagate_bases(individual, otf, otf_d)
+                updated = self.update_bases(fitness, individual, prev_fitness)
 
                 if not updated:
                     BackpropagationFitness.LOG.debug(
@@ -260,6 +255,52 @@ class BackpropagationFitness(evo.Fitness):
         if self.bsf is None or self.compare(individual, self.bsf) < 0:
             self.bsf = individual.copy()
         return fitness
+
+    def backpropagate_bases(self, individual, transform, tansform_derivative):
+        for n in range(individual.genes_num):
+            try:
+                base = individual.genotype[n]
+                base.backpropagate(
+                    args=self.get_args(),
+                    datapts_no=self.get_train_input_cases(),
+                    cost_derivative=self.cost_derivative,
+                    true_output=self.get_train_output(),
+                    output_transform=transform(n),
+                    output_transform_derivative=tansform_derivative(n)
+                )
+            except AttributeError:
+                continue
+        if self.synchronize_lincomb_vars:
+            self.synchronize_lincombs(individual.genotype)
+
+    def synchronize_lincombs(self, roots: list):
+        lcs = list(itertools.chain.from_iterable(
+            [root.get_nodes_dfs(predicate=lambda n: isinstance(
+                n, evo.sr.backpropagation.LincombVariable))
+             for root in roots]))
+        key = operator.attrgetter('index')
+        lcs.sort(key=key)
+        for i, g in itertools.groupby(lcs, key=key):
+            g = list(g)
+            if len(g) <= 1:
+                continue
+            b = 0.0
+            w = 0.0
+            for v in g:
+                b = b + v.data['d_bias']
+                w = w + v.data['d_weights']
+            for v in g:
+                v.data['d_bias'] = numpy.copy(b)
+                v.data['d_weights'] = numpy.copy(w)
+
+    def update_bases(self, fitness, individual, prev_fitness):
+        updated = False
+        for n in range(individual.genes_num):
+            base = individual.genotype[n]
+            gene_updated = self.updater.update(base, fitness,
+                                               prev_fitness)
+            updated = updated or gene_updated
+        return updated
 
     def get_eval(self, individual: FittedForestIndividual, args):
         if individual.genes_num == 1:
@@ -330,6 +371,7 @@ class RegressionFitness(BackpropagationFitness):
     def __init__(self, handled_errors, train_inputs, train_output,
                  updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
                  min_steps=0, fit: bool=False,
+                 synchronize_lincomb_vars: bool=False,
                  fitness_measure: ErrorMeasure=ErrorMeasure.R2):
         """
         :param train_inputs: feature variables' values: an N x M matrix where N
@@ -343,7 +385,7 @@ class RegressionFitness(BackpropagationFitness):
         """
         super().__init__(fitness_measure.worst, handled_errors,
                          lambda yhat, y: yhat - y, updater, steps, min_steps,
-                         fit)
+                         fit, synchronize_lincomb_vars)
         self.train_inputs = train_inputs
         self.train_output = numpy.array(train_output, copy=False)
         self.ssw = numpy.sum(

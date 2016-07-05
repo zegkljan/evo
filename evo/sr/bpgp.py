@@ -86,7 +86,7 @@ class FittedForestIndividualInitializer(evo.PopulationInitializer):
     def initialize(self, pop_size: int, limits: dict):
         pop = self.other.initialize(pop_size, limits)
         return [FittedForestIndividual(
-            i.genotype, 0.0, numpy.zeros((len(i.genotype),)))
+            i.genotype, 0.0, numpy.ones((len(i.genotype),)))
                 for i in pop]
 
 
@@ -94,13 +94,13 @@ class ErrorMeasure(enum.Enum):
     R2 = 0
     MSE = 1
     MAE = 2
+    WORST_CASE_AE = 3
 
     @property
     def worst(self):
         if self is ErrorMeasure.R2:
             return -numpy.inf
-        if self is ErrorMeasure.MSE or self is ErrorMeasure.MAE:
-            return numpy.inf
+        return numpy.inf
 
 
 # noinspection PyAbstractClass
@@ -296,11 +296,12 @@ class BackpropagationFitness(evo.Fitness):
     def update_bases(self, fitness, individual, prev_fitness):
         updated = False
         for n in range(individual.genes_num):
-            base = individual.genotype[n]
-            gene_updated = self.updater.update(base, fitness,
-                                               prev_fitness)
+            gene_updated = self.update_base(fitness, individual.genotype[n], prev_fitness)
             updated = updated or gene_updated
         return updated
+
+    def update_base(self, fitness, base, prev_fitness):
+        return self.updater.update(base, fitness, prev_fitness)
 
     def get_eval(self, individual: FittedForestIndividual, args):
         if individual.genes_num == 1:
@@ -330,7 +331,7 @@ class BackpropagationFitness(evo.Fitness):
         raise NotImplementedError()
 
     def sort(self, population, reverse=False, *args):
-        population.sort(key=functools.cmp_to_key(self.compare))
+        population.sort(key=functools.cmp_to_key(self.compare), reverse=reverse)
         return True
 
     def compare(self, i1, i2, *args):
@@ -406,19 +407,24 @@ class RegressionFitness(BackpropagationFitness):
 
     def get_error(self, outputs, individual: FittedForestIndividual):
         e = self.get_errors(outputs, individual)
+        ae = numpy.abs(e)
         sse = e.dot(e)
         r2 = 1 - sse / self.ssw
         mse = sse / numpy.alen(e)
-        mae = numpy.sum(numpy.abs(e)) / numpy.alen(e)
+        mae = numpy.sum(ae) / numpy.alen(e)
+        worst_case_ae = ae.max()
         individual.set_data('R2', r2)
         individual.set_data('MSE', mse)
         individual.set_data('MAE', mae)
+        individual.set_data('WORST_CASE_AE', worst_case_ae)
         if self.fitness_measure is ErrorMeasure.R2:
             return r2
         if self.fitness_measure is ErrorMeasure.MSE:
             return mse
         if self.fitness_measure is ErrorMeasure.MAE:
             return mae
+        if self.fitness_measure is ErrorMeasure.WORST_CASE_AE:
+            return worst_case_ae
         raise ValueError('Invalid value of fitness_measure.')
 
     def get_output(self, outputs, individual: FittedForestIndividual):
@@ -479,8 +485,7 @@ class RegressionFitness(BackpropagationFitness):
                 return -1
             if f1 < f2:
                 return 1
-        elif (self.fitness_measure is ErrorMeasure.MSE or
-              self.fitness_measure is ErrorMeasure.MAE):
+        else:
             if f1 < f2:
                 return -1
             if f1 > f2:
@@ -488,6 +493,8 @@ class RegressionFitness(BackpropagationFitness):
         return 0
 
 
+# experimental, not maintained for now
+# noinspection PyTypeChecker,PyArgumentList,PyAttributeOutsideInit
 class RegressionFitnessRst(RegressionFitness):
 
     def __init__(self, handled_errors, train_inputs, train_output,
@@ -543,45 +550,6 @@ class RegressionFitnessRst(RegressionFitness):
         self.train_output = subset_tr_out
 
         return fitness
-
-
-class RegressionFitnessMaxError(RegressionFitness):
-    class _Updater(object):
-        def __init__(self, upd):
-            self.updater = upd
-
-        def update(self, root, error, prev_error):
-            return self.updater.update(root, error[1], prev_error[1])
-
-    def __init__(self, handled_errors, train_inputs, train_output,
-                 updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
-                 min_steps=0, fit: bool = False):
-        super().__init__(handled_errors, train_inputs, train_output, updater,
-                         steps, min_steps, fit)
-
-        # noinspection PyProtectedMember
-        self.updater = self.__class__._Updater(self.updater)
-        self.error_fitness = (numpy.inf, self.error_fitness)
-
-    def get_error(self, outputs, individual):
-        e = self.get_errors(outputs, individual)
-        sse = e.dot(e)
-        r2 = 1 - sse / self.ssw
-        mse = sse / numpy.alen(e)
-        individual.set_data('R2', r2)
-        individual.set_data('MSE', mse)
-        max_e = numpy.abs(e).max()
-        return max_e, r2
-
-    def fitness_cmp(self, f1, f2):
-        if f1[0] < f2[0]:
-            return -1
-        if f1[0] > f2[0]:
-            return 1
-        return super().fitness_cmp(f1[1], f2[1])
-
-    def has_improved(self, prev_fitness, fitness):
-        return super().has_improved(prev_fitness[1], fitness[1])
 
 
 def full_model_str(individual: FittedForestIndividual,

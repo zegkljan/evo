@@ -636,13 +636,13 @@ class Gp(multiprocessing.context.Process):
         nodes_depths = g.get_nodes_bfs(compute_depths=True)
         n, d = self.generator.choice(nodes_depths)
         ns = n.get_subtree_size()
-        subtree = evo.gp.support.generate_tree(self.functions, self.terminals,
-                                               min(self.limits['max-depth'] -
+        subtree = evo.gp.support.generate_tree_full_grow(self.functions, self.terminals,
+                                                         min(self.limits['max-depth'] -
                                                    d + 1,
                                                    max_depth),
-                                               self.limits['max-nodes'] - s +
-                                               ns,
-                                               self.generator, False)
+                                                         self.limits['max-nodes'] - s +
+                                                         ns,
+                                                         self.generator, False)
         i.genotype[k] = evo.gp.support.replace_subtree(n, subtree)
         i.set_fitness(None)
         return i

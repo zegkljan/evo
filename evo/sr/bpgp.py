@@ -10,13 +10,13 @@ import logging
 import operator
 import textwrap
 
-import numpy
-
 import evo
 import evo.gp
 import evo.gp.support
 import evo.sr
 import evo.sr.backpropagation
+import evo.utils
+import numpy
 
 
 class FittedForestIndividual(evo.gp.support.ForestIndividual):
@@ -29,7 +29,8 @@ class FittedForestIndividual(evo.gp.support.ForestIndividual):
         if hasattr(self, 'str'):
             return str(self.str)
         return '{interc} + {coeffs} * {genes}'.format(
-            interc=self.intercept, coeffs=self.coefficients,
+            interc=self.intercept,
+            coeffs=str(self.coefficients).replace('\n', ''),
             genes=str([str(g) for g in self.genotype]))
 
     def copy(self, carry_evaluation=True, carry_data=True):
@@ -219,8 +220,9 @@ class BackpropagationFitness(evo.Fitness):
             fitness = prev_fitness = self.get_error(yhats, individual)
             BackpropagationFitness.LOG.debug('Optimising inner parameters...')
             BackpropagationFitness.LOG.debug('Initial fitness: %f', fitness)
-            for i in range(self.min_steps, max(self.get_max_steps(individual),
-                                               self.min_steps + 1)):
+            ms = max(self.get_max_steps(individual),
+                     self.min_steps + max(0, min(self.min_steps, 1)))
+            for i in range(self.min_steps, ms):
                 self.backpropagate_bases(individual, otf, otf_d)
                 updated = self.update_bases(fitness, individual, prev_fitness)
 
@@ -307,10 +309,8 @@ class BackpropagationFitness(evo.Fitness):
         if individual.genes_num == 1:
             return individual.genotype[0].eval(args=args)
         yhats = [g.eval(args=args) for g in individual.genotype]
-        if len(yhats) == 1:
-            yhats = yhats[0][:, numpy.newaxis]
-        yhats = numpy.column_stack(numpy.broadcast(*yhats)).T
-        return yhats
+        yhats2 = evo.utils.column_stack(*yhats)
+        return yhats2
 
     def _check_output(self, yhat, individual: FittedForestIndividual):
         if numpy.any(numpy.logical_or(numpy.isinf(yhat),
@@ -368,6 +368,8 @@ class BackpropagationFitness(evo.Fitness):
 class RegressionFitness(BackpropagationFitness):
     """This is a class that uses backpropagation to fit to static target values.
     """
+
+    LOG = logging.getLogger(__name__ + '.RegressionFitness')
 
     def __init__(self, handled_errors, train_inputs, train_output,
                  updater: evo.sr.backpropagation.WeightsUpdater, steps=10,

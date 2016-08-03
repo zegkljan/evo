@@ -4,6 +4,8 @@
 
 import logging
 
+import numpy
+
 LOG = logging.getLogger(__name__)
 
 
@@ -249,3 +251,35 @@ def nested_update(base: dict, update: dict, inplace=True) -> dict:
         else:
             base[k] = v
     return base
+
+
+def efficient_column_stack(*args, min_rows: int=1):
+    l = min_rows
+    for a in args:
+        try:
+            if a.size < min_rows:
+                raise ValueError('Input arrays must not be smaller than '
+                                 'minimum number of rows required.')
+            l = max(l, a.size)
+        except AttributeError:
+            pass
+    ars = []
+    for a in args:
+        try:
+            s = a.size
+        except AttributeError:
+            s = 1
+        if s == 1:
+            ars.append(numpy.repeat(a, l)[numpy.newaxis, :])
+        else:
+            ars.append(numpy.array(a, copy=False, subok=True, ndmin=2))
+    result = numpy.array(numpy.vstack(ars).T, copy=True)
+    del ars
+    del args
+    return result
+
+
+def broadcast_column_stack(*args, min_rows: int=1):
+    return numpy.column_stack(numpy.broadcast(*args)).T
+
+column_stack = efficient_column_stack

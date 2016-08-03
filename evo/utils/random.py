@@ -4,7 +4,6 @@ numbers and number generators.
 """
 
 import enum
-
 import random
 
 __author__ = 'Jan Žegklitz'

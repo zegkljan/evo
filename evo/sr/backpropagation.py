@@ -4,9 +4,9 @@ learning of tree expressions.
 
 import textwrap
 
-import numpy
-
 import evo.sr
+import evo.utils
+import numpy
 
 
 # Helper functions for the case of no output transformation
@@ -131,13 +131,13 @@ class WeightedNode(evo.sr.MathNode):
             if len(raw) == 1:
                 inputs = numpy.array(raw)
             else:
-                inputs = numpy.column_stack(numpy.broadcast(*raw))
+                inputs = evo.utils.column_stack(*raw)
         elif self.tune_weights:
             raw = [self.children[i].eval(args) if self.tune_weights[i] else 0
                    for i in range(len(self.children))]
-            inputs = numpy.column_stack(numpy.broadcast(*raw))
+            inputs = evo.utils.column_stack(*raw)
         if inputs is not None and len(inputs) > 0:
-            self.data['d_weights'] = self.data['d_bias'] * inputs.T
+            self.data['d_weights'] = self.data['d_bias'] * inputs
 
         for c in self.children:
             if isinstance(c, WeightedNode):

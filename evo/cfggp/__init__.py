@@ -2,9 +2,9 @@
 """ TODO docstring
 """
 
+import gc
 import multiprocessing.context
 import random
-import gc
 
 import evo
 import evo.ge

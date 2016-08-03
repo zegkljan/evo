@@ -6,19 +6,18 @@
     Grammatical Evolution. Springer US, 2003. 33-47.
 """
 
-import multiprocessing.context
 import gc
-import math
 import logging
+import math
+import multiprocessing.context
 import pprint
-
 import random
 
 import evo
+import evo.ge.support
 import evo.utils
 import evo.utils.grammar
 import evo.utils.random
-import evo.ge.support
 
 __author__ = 'Jan Žegklitz'
 

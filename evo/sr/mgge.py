@@ -2,18 +2,16 @@
 """This module implements various symbolic regression solvers.
 """
 
-import logging
-
-import numpy
-import numpy.linalg
 import copy
-
 import functools
+import logging
 
 import evo
 import evo.ge
-import evo.utils.tree
 import evo.utils.grammar
+import evo.utils.tree
+import numpy
+import numpy.linalg
 
 __author__ = 'Jan Žegklitz'
 

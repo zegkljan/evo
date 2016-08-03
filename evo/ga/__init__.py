@@ -2,11 +2,10 @@
 """This package contains an implementation of a genetic algorithm.
 """
 
-import multiprocessing.context
-import gc
-
-import random
 import functools
+import gc
+import multiprocessing.context
+import random
 
 import evo
 import evo.utils.random

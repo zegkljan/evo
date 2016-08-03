@@ -2,10 +2,9 @@
 
 import unittest
 
-import numpy as np
-
 import evo.sr as sr
 import evo.sr.backpropagation as bp
+import numpy as np
 
 
 class Identity(sr.MathNode):

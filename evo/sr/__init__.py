@@ -7,9 +7,8 @@ tasks.
 
 import textwrap
 
-import numpy
-
 import evo.gp.support
+import numpy
 
 
 # noinspection PyAbstractClass

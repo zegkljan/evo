@@ -62,6 +62,14 @@ class Individual(object):
             return self._data
         return self._data.get(key)
 
+    def delete_data(self, key):
+        """Deletes the data under the given key.
+
+        If there is no such key, nothing happens.
+        """
+        if key in self._data:
+            del self._data[key]
+
     @staticmethod
     def copy_evaluation(from_individual, to_individual, do_copy):
         """Copies the fitness value from `from_individual` to `to_individual` if

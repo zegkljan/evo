@@ -123,6 +123,8 @@ class WeightedNode(evo.sr.MathNode):
                 pw = self.parent.weights[self.parent_index]
                 sd = self.derivative(i, self.argument)
                 self.data['d_bias'][:, i] = pd * pw * sd
+        del self.argument
+        self.argument = None
 
         # weights derivative
         inputs = None
@@ -696,6 +698,8 @@ class LincombVariable(WeightedNode, evo.sr.Variable):
         elif self.tune_weights:
             inputs = self.argument.copy()
             inputs[:, numpy.logical_not(self.tune_weights)] = 0
+        del self.argument
+        self.argument = None
         if inputs is not None and len(inputs) > 0:
             self.data['d_weights'] = (numpy.squeeze(self.data['d_bias']) *
                                       inputs.T).T
@@ -727,13 +731,22 @@ class LincombVariable(WeightedNode, evo.sr.Variable):
 class WeightsUpdater(object):
     """This is a base class for algorithms for updating weights on trees.
     """
-    def __init__(self):
+    def __init__(self, delete_derivatives: bool=True):
         self.updated = False
+        self.delete_derivatives = delete_derivatives
 
     def update(self, root: WeightedNode, error, prev_error) -> bool:
         self.updated = False
-        root.preorder(self.update_node)
+        root.preorder(self.do_update)
         return self.updated
+
+    def do_update(self, node):
+        self.update_node(node)
+        if self.delete_derivatives:
+            if 'd_bias' in node.data:
+                del node.data['d_bias']
+            if 'd_weights' in node.data:
+                del node.data['d_weights']
 
     def update_node(self, node):
         raise NotImplementedError()
@@ -743,8 +756,8 @@ class RpropBase(WeightsUpdater):
     """This is a base class for Rprop algorithm variants.
     """
     def __init__(self, delta_init=0.1, delta_min=1e-6, delta_max=50,
-                 eta_minus=0.5, eta_plus=1.2):
-        super().__init__()
+                 eta_minus=0.5, eta_plus=1.2, **kwargs):
+        super().__init__(**kwargs)
         self.delta_init = delta_init
         self.eta_plus = eta_plus
         self.delta_max = delta_max

@@ -47,8 +47,9 @@ class FittedForestIndividual(evo.gp.support.ForestIndividual):
         coeff_mat_str = '[' + coeff_mat_str + ']'
         intercept_str = repr(self.intercept)
 
-        gene_exprs = '\n'.join(['g{} = {};'.format(i, g.to_matlab_expr())
-                                for i, g in enumerate(self.genotype)])
+        gene_exprs = '\n'.join(
+            ['g{{{}}} = {};'.format(i + 1, g.to_matlab_expr())
+             for i, g in enumerate(self.genotype)])
         genes_str = '[' + ' '.join(['g{}'.format(i)
                                     for i in range(len(self.genotype))]) + ']'
 
@@ -65,8 +66,13 @@ class FittedForestIndividual(evo.gp.support.ForestIndividual):
 
         intercept = {intercept};
         coefficients = {coeffs};
+        g = cell({num_bases}, 1);
         {gene_exprs}
-        genes = {genes_str};
+        lengths = unique(cellfun(@(v)(length(v)), g));
+        genes = zeros(max(lengths), {num_bases});
+        for i = 1:{num_bases}
+            genes(:, i) = g{i};
+        end
 
         out = intercept + genes * coefficients;
 
@@ -74,8 +80,8 @@ class FittedForestIndividual(evo.gp.support.ForestIndividual):
         ''').format(fname=function_name,
                     intercept=intercept_str,
                     coeffs=coeff_mat_str,
-                    gene_exprs=gene_exprs,
-                    genes_str=genes_str).strip()
+                    num_bases=self.genes_num,
+                    gene_exprs=gene_exprs).strip()
 
         return '\n\n'.join([matlab_str] + all_funcs)
 

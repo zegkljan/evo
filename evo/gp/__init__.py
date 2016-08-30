@@ -371,6 +371,7 @@ class Gp(multiprocessing.context.Process):
         """Runs the GE algorithm.
         """
         Gp.LOG.info('Starting algorithm.')
+        # noinspection PyBroadException
         try:
             self.start_time = time.time()
             self.population = self.population_initializer.initialize(
@@ -381,17 +382,21 @@ class Gp(multiprocessing.context.Process):
             self._run()
             if self.callback is not None:
                 self.callback(self, Gp.CallbackSituation.end)
+        except:
+            Gp.LOG.warning('Evolution terminated by exception.', exc_info=True)
         finally:
             self.end_time = time.time()
             if self.fitness.get_bsf() is None:
                 Gp.LOG.info('Finished. No BSF acquired.')
             else:
-                Gp.LOG.info('Finished. Fitness: %s %s %s',
-                            self.fitness.get_bsf().get_fitness(),
-                            pprint.pformat(self.fitness.get_bsf().get_data()),
-                            str(self.fitness.get_bsf()))
-            Gp.LOG.info('Performing garbage collection.')
-            gc.collect()
+                Gp.LOG.info('Finished.')
+                Gp.LOG.info('BSF: %s', str(self.fitness.get_bsf()))
+                Gp.LOG.info('BSF fitness: %s',
+                            self.fitness.get_bsf().get_fitness())
+                Gp.LOG.info('BSF data: %s',
+                            pprint.pformat(self.fitness.get_bsf().get_data()))
+            Gp.LOG.debug('Performing garbage collection.')
+            Gp.LOG.debug('Collected %d objects.', gc.collect())
             try:
                 if self.stats is not None:
                     self.stats.cleanup()
@@ -636,13 +641,10 @@ class Gp(multiprocessing.context.Process):
         nodes_depths = g.get_nodes_bfs(compute_depths=True)
         n, d = self.generator.choice(nodes_depths)
         ns = n.get_subtree_size()
-        subtree = evo.gp.support.generate_tree_full_grow(self.functions, self.terminals,
-                                                         min(self.limits['max-depth'] -
-                                                   d + 1,
-                                                   max_depth),
-                                                         self.limits['max-nodes'] - s +
-                                                         ns,
-                                                         self.generator, False)
+        subtree = evo.gp.support.generate_tree_full_grow(
+            self.functions, self.terminals,
+            min(self.limits['max-depth'] - d + 1, max_depth),
+            self.limits['max-nodes'] - s + ns, self.generator, False)
         i.genotype[k] = evo.gp.support.replace_subtree(n, subtree)
         i.set_fitness(None)
         return i

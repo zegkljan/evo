@@ -647,7 +647,7 @@ class GeFitness(evo.Fitness):
         self.skip_if_evaluated = skip_if_evaluated
         self.bsf = None
 
-    def evaluate(self, individual):
+    def evaluate_individual(self, individual: evo.Individual):
         """
         :param evo.ge.support.CodonGenotypeIndividual individual: individual to
             decode
@@ -665,8 +665,6 @@ class GeFitness(evo.Fitness):
         fitness = self.evaluate_phenotype(phenotype, individual)
 
         individual.set_fitness(fitness)
-        if self.bsf is None or self.is_better(individual, self.bsf):
-            self.bsf = individual.copy()
         return fitness
 
     def decode(self, individual):

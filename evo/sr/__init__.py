@@ -166,8 +166,7 @@ class Add2(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = '+'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 2
 
     def operation(self, *args):
@@ -196,8 +195,7 @@ class Sub2(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = '-'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 2
 
     def operation(self, *args):
@@ -226,8 +224,7 @@ class Mul2(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = '*'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 2
 
     def operation(self, *args):
@@ -261,8 +258,7 @@ class Div2(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = '/'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 2
 
     def operation(self, *args):
@@ -296,8 +292,7 @@ class IDiv2(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = '//'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 2
 
     def operation(self, *args):
@@ -327,8 +322,7 @@ class PDiv2(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = '{/}'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 2
 
     def operation(self, *args):
@@ -372,8 +366,7 @@ class PIDiv2(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = '{//}'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 2
 
     def operation(self, *args):
@@ -416,8 +409,7 @@ class Sin(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = 'sin'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 1
 
     def operation(self, *args):
@@ -444,8 +436,7 @@ class Cos(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = 'cos'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 1
 
     def operation(self, *args):
@@ -472,8 +463,7 @@ class Exp(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = 'exp'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 1
 
     def operation(self, *args):
@@ -500,8 +490,7 @@ class Abs(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = 'abs'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 1
 
     def operation(self, *args):
@@ -535,8 +524,7 @@ class Power(MathNode):
         self.data['name'] = 'pow' + str(power)
         self.power = power
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 1
 
     def operation(self, *args):
@@ -573,8 +561,7 @@ class Sqrt(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = 'sqrt'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 1
 
     def operation(self, *args):
@@ -602,8 +589,7 @@ class PSqrt(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = 'psqrt'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 1
 
     def operation(self, *args):
@@ -636,8 +622,7 @@ class Sigmoid(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = 'sigm'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 1
 
     def operation(self, *args):
@@ -670,8 +655,7 @@ class Tanh(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = 'tanh'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 1
 
     def operation(self, *args):
@@ -699,8 +683,7 @@ class Sinc(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = 'sinc'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 1
 
     def operation(self, *args):
@@ -728,8 +711,7 @@ class Softplus(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = 'softplus'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 1
 
     def operation(self, *args):
@@ -763,8 +745,7 @@ class Gauss(MathNode):
         super().__init__(**kwargs)
         self.data['name'] = 'gauss'
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 1
 
     def operation(self, *args):
@@ -798,8 +779,7 @@ class Const(MathNode):
         self.data['name'] = str(val)
         self.value = val
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 0
 
     def eval(self, args):
@@ -829,8 +809,7 @@ class Variable(MathNode):
         self.data['name'] = name
         self.index = index
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         return 0
 
     def eval(self, args):

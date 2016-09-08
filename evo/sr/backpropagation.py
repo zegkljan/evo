@@ -96,7 +96,8 @@ class WeightedNode(evo.sr.MathNode):
         :keyword num_format: format for weights and biases
         :return: the string representation of the tree
         """
-        raise NotImplementedError()
+        return '[{}]'.format(
+            ', '.join([c.infix(**kwargs) for c in self.children]))
 
     def backpropagate(self, args, datapts_no: int,
                       cost_derivative: callable=None, true_output=None,

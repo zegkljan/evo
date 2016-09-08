@@ -431,7 +431,7 @@ class Gp(multiprocessing.context.Process):
                     offspring.append(o)
             self.population = self.pop_strategy.combine_populations(
                 self.population, offspring, elites)
-            Gp.LOG.info('Finished iteration %d time %.1f. Best fitness: %s | '
+            Gp.LOG.info('Iteration %d / %.1f s. BSF %s | '
                         '%s | %s',
                         self.iterations, self.get_runtime(),
                         self.fitness.get_bsf().get_fitness(),
@@ -587,29 +587,59 @@ class Gp(multiprocessing.context.Process):
 
         from_g1 = []
         g1 = []
-        for g in o1.genotype:
+        c_from_g1 = []
+        c_g1 = []
+        if not hasattr(o1, 'coefficients'):
+            c_from_g1 = None
+            c_g1 = None
+        for i, g in enumerate(o1.genotype):
             if self.generator.random() < rate:
                 from_g1.append(g)
+                if c_from_g1 is not None:
+                    c_from_g1.append(o1.coefficients[i])
             else:
                 g1.append(g)
+                if c_g1 is not None:
+                    c_g1.append(o1.coefficients[i])
         if len(g1) == 0:
-            g1.append(from_g1.pop(self.generator.randrange(len(from_g1))))
+            n = self.generator.randrange(len(from_g1))
+            g1.append(from_g1.pop(n))
+            if c_from_g1 is not None and c_g1 is not None:
+                c_g1.append(c_from_g1.pop(n))
 
         from_g2 = []
         g2 = []
-        for g in o2.genotype:
+        c_from_g2 = []
+        c_g2 = []
+        if not hasattr(o2, 'coefficients'):
+            c_from_g2 = None
+            c_g2 = None
+        for i, g in enumerate(o2.genotype):
             if self.generator.random() < rate:
                 from_g2.append(g)
+                if c_from_g2 is not None:
+                    c_from_g2.append(o2.coefficients[i])
             else:
                 g2.append(g)
+                if c_g2 is not None:
+                    c_g2.append(o2.coefficients[i])
         if len(g2) == 0:
-            g2.append(from_g2.pop(self.generator.randrange(len(from_g2))))
+            n = self.generator.randrange(len(from_g2))
+            g2.append(from_g2.pop(n))
+            if c_from_g2 is not None and c_g2 is not None:
+                c_g2.append(c_from_g2.pop(n))
 
         g1.extend(from_g2[:min(len(from_g2), max_genes - len(g1))])
         g2.extend(from_g1[:min(len(from_g1), max_genes - len(g2))])
 
         o1.genotype = g1
         o2.genotype = g2
+
+        if c_g1 is not None and c_g2 is not None:
+            c_g1.extend(c_from_g2[:min(len(c_from_g2), max_genes - len(c_g1))])
+            c_g2.extend(c_from_g1[:min(len(c_from_g1), max_genes - len(c_g2))])
+            o1.coefficients = c_g1
+            o2.coefficients = c_g2
 
         o1.set_fitness(None)
         o2.set_fitness(None)

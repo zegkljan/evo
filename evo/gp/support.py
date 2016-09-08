@@ -11,8 +11,7 @@ import evo.utils.tree
 
 class GpNode(evo.utils.tree.TreeNode):
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         raise NotImplementedError()
 
     # noinspection PyMethodMayBeStatic

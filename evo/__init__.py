@@ -104,6 +104,18 @@ class Fitness(object):
     COMPARE_BSF = 'bsf'
 
     def evaluate(self, individual):
+        """Evaluates the given individual, checkes whether it is a new bsf or
+        not and if it is it stores it as one.
+
+        The method effectively calls methods :meth:`.evaluate_individual` and
+        :meth:`handle_bsf` in sequence.
+
+        .. seealso:: :meth:`.evaluate_individual` and :meth:`handle_bsf`
+        """
+        self.evaluate_individual(individual)
+        self.handle_bsf(individual)
+
+    def evaluate_individual(self, individual: Individual):
         """Evaluates the given individual and assigns the resulting fitness
         to the individual.
 
@@ -118,6 +130,28 @@ class Fitness(object):
         .. seealso:: :class:`.Individual`
         """
         raise NotImplementedError()
+
+    def handle_bsf(self, individual: Individual, do_not_copy: bool=False):
+        """Checks whether the given individual is best-so-far (bsf) and if it
+        is it stores it.
+
+        The bsf can be retrieved via the :meth:`.get_bsf` method.
+
+        The individual is always copied via its :meth:`evo.Individual.copy`
+        method unles turned off by setting the argument *do_not_copy* to
+        ``True``\ .
+
+        :param individual: individual to be checked for being bsf
+        :param do_not_copy: if ``True`` the bsf is stored as the individual
+            itself and not its copy
+
+        .. seealso:: :meth:`.get_bsf`
+        """
+        if self.bsf is None or self.compare(individual, self.bsf) < 0:
+            if do_not_copy:
+                self.bsf = individual
+            else:
+                self.bsf = individual.copy()
 
     def sort(self, population, reverse=False, *args):
         """Sorts ``population`` (which is expected to be a list of individuals)

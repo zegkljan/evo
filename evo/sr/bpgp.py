@@ -71,7 +71,7 @@ class FittedForestIndividual(evo.gp.support.ForestIndividual):
         lengths = unique(cellfun(@(v)(length(v)), g));
         genes = zeros(max(lengths), {num_bases});
         for i = 1:{num_bases}
-            genes(:, i) = g{i};
+            genes(:, i) = g{{i}};
         end
 
         out = intercept + genes * coefficients;
@@ -207,7 +207,7 @@ class BackpropagationFitness(evo.Fitness):
                                in individual.genotype)
         return ret
 
-    def evaluate(self, individual: FittedForestIndividual):
+    def evaluate_individual(self, individual: FittedForestIndividual):
         BackpropagationFitness.LOG.debug('Evaluating individual %s',
                                          individual.__str__())
 
@@ -226,9 +226,9 @@ class BackpropagationFitness(evo.Fitness):
             fitness = prev_fitness = self.get_error(yhats, individual)
             BackpropagationFitness.LOG.debug('Optimising inner parameters...')
             BackpropagationFitness.LOG.debug('Initial fitness: %f', fitness)
-            ms = max(self.get_max_steps(individual),
+            ms = max(self.get_max_steps(individual) + 1,
                      self.min_steps + max(0, min(self.min_steps, 1)))
-            for i in range(self.min_steps, ms):
+            for i in range(ms):
                 self.backpropagate_bases(individual, otf, otf_d)
                 updated = self.update_bases(fitness, individual, prev_fitness)
 
@@ -260,8 +260,6 @@ class BackpropagationFitness(evo.Fitness):
                 self.error_fitness, exc_info=True)
             fitness = self.error_fitness
         individual.set_fitness(fitness)
-        if self.bsf is None or self.compare(individual, self.bsf) < 0:
-            self.bsf = individual.copy()
         return fitness
 
     def backpropagate_bases(self, individual, transform, tansform_derivative):
@@ -523,7 +521,7 @@ class RegressionFitnessRst(RegressionFitness):
         self.ssw = numpy.sum(
             (self.train_output - self.train_output.mean()) ** 2)
 
-    def evaluate(self, individual: evo.gp.support.ForestIndividual):
+    def evaluate_individual(self, individual: evo.gp.support.ForestIndividual):
         for g in individual.genotype:
             g.clear_cache()
         super().evaluate(individual)
@@ -550,8 +548,6 @@ class RegressionFitnessRst(RegressionFitness):
                 self.error_fitness, exc_info=True)
             fitness = self.error_fitness
         individual.set_fitness(fitness)
-        if self.bsf is None or self.compare(individual, self.bsf) < 0:
-            self.bsf = individual.copy()
 
         self.ssw = subset_ssw
         self.train_inputs = subset_tr_in

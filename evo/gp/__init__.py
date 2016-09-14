@@ -28,9 +28,9 @@ class GpReproductionStrategy(evo.ReproductionStrategy):
 
     LOG = logging.getLogger(__name__ + '.GpReproductionStrategy')
 
-    def __init__(self, functions, terminals, generator=None, crossover_prob=0.8,
-                 crossover_type='subtree', mutation_prob=0.1,
-                 mutation_type=('subtree', 5), limits=None):
+    def __init__(self, functions, terminals, generator=None,
+                 crossover_type='subtree', mutation_type=('subtree', 5),
+                 limits=None):
         """The optional keyword argument ``generator`` can be used to pass a
         random number generator. If it is ``None`` or not present a standard
         generator is used which is the :mod:`random` module and its
@@ -54,16 +54,10 @@ class GpReproductionStrategy(evo.ReproductionStrategy):
             ``None`` or not present calls to the methods of standard python
             module :mod:`random` will be performed instead
         :type generator: :class:`random.Random` , or ``None``
-        :keyword crossover_prob: (keyword argument) probability of performing a
-            crossover; if it does not fit into interval [0, 1] it is set to 0 if
-            lower than 0 and to 1 if higher than 1; default value is 0.8
         :keyword crossover_type: (keyword argument) the type of crossover,
             for details see :ref:`Crossover types <evo.gp.Gp.xover-types>`
 
             The default value is ``'subtree'``.
-        :keyword mutation_prob: (keyword argument) probability of performing
-            a mutation; if it does not fit into interval [0, 1] it is set to
-            0 if lower than 0 and to 1 if higher than 1; default value is 0.1
         :keyword mutation_type: (keyword argument) the type of mutation, for
             details see :ref:`Mutation types <evo.gp.Gp.mutation-types>`
 
@@ -235,25 +229,11 @@ class GpReproductionStrategy(evo.ReproductionStrategy):
         if generator is not None:
             self.generator = generator
 
-        self.crossover_prob = crossover_prob
-        self.crossover_prob = max(0, self.crossover_prob)
-        self.crossover_prob = min(1, self.crossover_prob)
-        if self.crossover_prob != crossover_prob:
-            GpReproductionStrategy.LOG.warning(
-                'Crossover probability out of range. Clipped to [0, 1].')
-
         self.crossover_method = self.subtree_crossover
         self.crossover_method_args = ()
         if crossover_type is not None:
             self.crossover_method, self.crossover_method_args = \
                 self.setup_crossover(crossover_type)
-
-        self.mutation_prob = mutation_prob
-        self.mutation_prob = max(0, self.mutation_prob)
-        self.mutation_prob = min(1, self.mutation_prob)
-        if self.mutation_prob != mutation_prob:
-            GpReproductionStrategy.LOG.warning(
-                'Mutation probability out of range. Clipped to [0, 1].')
 
         self.mutate_method = self.subtree_mutate
         self.mutate_method_args = (5,)
@@ -531,6 +511,37 @@ class IndependentReproductionStrategy(GpReproductionStrategy):
           is then mutated
     """
 
+    LOG = logging.getLogger(__name__ + '.IndependentReproductionStrategy')
+
+    def __init__(self, functions, terminals, generator=None,
+                 crossover_type='subtree', mutation_type=('subtree', 5),
+                 limits=None, crossover_prob=0.8, mutation_prob=0.1):
+        """
+        :param crossover_prob: probability of performing a crossover; if it does
+            not fit into interval [0, 1] it is clipped to fit; default value is
+            0.8
+        :param mutation_prob: probability of performing a mutation; if it does
+            not fit into interval [0, 1] it is clipped to fit; default value is
+            0.1
+
+        .. seealso: :class:`GpReproductionStrategy`
+        """
+        super().__init__(functions, terminals, generator, crossover_type,
+                         mutation_type, limits)
+        self.crossover_prob = crossover_prob
+        self.crossover_prob = max(0, self.crossover_prob)
+        self.crossover_prob = min(1, self.crossover_prob)
+        if self.crossover_prob != crossover_prob:
+            IndependentReproductionStrategy.LOG.warning(
+                'Crossover probability out of range. Clipped to [0, 1].')
+
+        self.mutation_prob = mutation_prob
+        self.mutation_prob = max(0, self.mutation_prob)
+        self.mutation_prob = min(1, self.mutation_prob)
+        if self.mutation_prob != mutation_prob:
+            IndependentReproductionStrategy.LOG.warning(
+                'Mutation probability out of range. Clipped to [0, 1].')
+
     def reproduce(self, selection_strategy: evo.SelectionStrategy,
                   population_strategy: evo.PopulationStrategy, parents,
                   offspring):
@@ -546,6 +557,90 @@ class IndependentReproductionStrategy(GpReproductionStrategy):
             o = children.pop()
             if self.generator.random() < self.mutation_prob:
                 o = self.mutate(o.copy())
+            offspring.append(o)
+
+
+class ChoiceReproductionStrategy(GpReproductionStrategy):
+    """This class represents a reproduction strategy where the individual is
+    either copied or crossed over or mutated.
+
+    That means that an individual is subject to crossover with a probability
+    **px**\ , or it is subject to mutation with a probability **pm** or it is
+    just copied to the next generation with probability **pc** while it holds
+    that **px + pm + pc = 1**\ . Summed up, the things that can happen to an
+    individual are these:
+
+        * individual is just copied - no crossover, no mutation
+        * individual is just mutated - no crossover
+        * individual is just crossed over - no mutation, the individual is one
+          of two offspring that are product of combining two parents
+    """
+
+    LOG = logging.getLogger(__name__ + '.ChoiceReproductionStrategy')
+
+    def __init__(self, functions, terminals, generator=None,
+                 crossover_type='subtree', mutation_type=('subtree', 5),
+                 limits=None, crossover_prob=0.8, mutation_prob=0.1):
+        """The probabilities of crossover and mutation must sum up to a number
+        from the interval [0, 1] and none of the two can be a negative number
+        (if it is it will be set to 0). The "rest" that is left (i.e. 1 -
+        crossover probability - mutation probability) is the probability of the
+        individual just being copied.
+
+        If the probabilities of crossover and mutation sum up to a number
+        greater than 1, they are scaled so that they sum up to 1 (and therefore
+        every individual will be either crossed over or mutated and never just
+        copied).
+
+        :param crossover_prob: probability of performing a crossover; if it does
+            not fit into interval [0, 1] it is clipped to fit; default value is
+            0.8
+        :param mutation_prob: probability of performing a mutation; if it does
+            not fit into interval [0, 1] it is clipped to fit; default value is
+            0.1
+
+        .. seealso: :class:`GpReproductionStrategy`
+        """
+        super().__init__(functions, terminals, generator, crossover_type,
+                         mutation_type, limits)
+        self.crossover_prob = crossover_prob
+        if self.crossover_prob < 0:
+            self.crossover_prob = 0
+            ChoiceReproductionStrategy.LOG.warning(
+                'Crossover probability is negative. Set to 0.')
+
+        self.mutation_prob = mutation_prob
+        if self.mutation_prob < 0:
+            self.mutation_prob = 0
+            ChoiceReproductionStrategy.LOG.warning(
+                'Mutation probability is negative. Set to 0.')
+
+        self.mutation_prob += self.crossover_prob
+
+        if self.mutation_prob > 1:
+            self.crossover_prob /= self.mutation_prob
+            self.mutation_prob = 1
+            ChoiceReproductionStrategy.LOG.warning(
+                'Crossover and mutation probability sum to a number higher than'
+                ' 1. Scaled to %f and %f.',
+                self.crossover_prob, self.mutation_prob - self.crossover_prob)
+
+    def reproduce(self, selection_strategy: evo.SelectionStrategy,
+                  population_strategy: evo.PopulationStrategy, parents,
+                  offspring):
+        a = selection_strategy.select_single(parents)[1]
+        r = self.generator.random()
+        if r < self.crossover_prob:
+            b = selection_strategy.select_single(parents)[1]
+            children = self.crossover(a.copy(), b.copy())
+        elif r < self.mutation_prob:
+            children = [self.mutate(a.copy())]
+        else:
+            children = [a]
+
+        while (children and len(offspring) <
+               population_strategy.get_offspring_number()):
+            o = children.pop()
             offspring.append(o)
 
 

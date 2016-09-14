@@ -20,11 +20,11 @@ import evo.utils.tree
 # noinspection PyAbstractClass
 class GpReproductionStrategy(evo.ReproductionStrategy):
     """This class is a base class for reproduction strategies for use in Genetic
-        Programming.
+    Programming.
 
-        It bundles necessary crossover and mutation operators but it is not a full
-        implementation of :class:`evo.ReproductionStrategy` and does not contain
-        the actual reproduction rules (i.e. how are the operators used)."""
+    It bundles necessary crossover and mutation operators but it is not a full
+    implementation of :class:`evo.ReproductionStrategy` and does not contain
+    the actual reproduction rules (i.e. how are the operators used)."""
 
     LOG = logging.getLogger(__name__ + '.GpReproductionStrategy')
 

@@ -335,7 +335,7 @@ class PopulationStrategy(object):
     these offspring are combined with the (parent) population.
     """
 
-    def get_parents_number(self):
+    def get_parents_number(self) -> int:
         """Returns the number of individuals in the parent population.
 
         In classical GA this is equivalent to the population size.
@@ -344,14 +344,14 @@ class PopulationStrategy(object):
         """
         raise NotImplementedError()
 
-    def get_offspring_number(self):
+    def get_offspring_number(self) -> int:
         """Returns the number of individuals created in each iteration.
 
         :rtype: :class:`int`
         """
         raise NotImplementedError()
 
-    def get_elites_number(self):
+    def get_elites_number(self) -> int:
         """Returns the number of elite individuals that are to be directly
         copied to the next iteration.
 
@@ -410,7 +410,7 @@ class GenerationalPopulationStrategy(PopulationStrategy):
         return self.pop_size - self.elites_num
 
     def combine_populations(self, parents, offspring, elites):
-        return offspring + elites
+        return elites + offspring
 
 
 class SteadyStatePopulationStrategy(PopulationStrategy):
@@ -528,3 +528,24 @@ class TournamentSelectionStrategy(SelectionStrategy):
                 best_idx = idx
         return best_idx, population[best_idx]
 
+
+class ReproductionStrategy(object):
+    """Defines how are the offspring created from the parents.
+    """
+
+    def reproduce(self,
+                  selection_strategy: SelectionStrategy,
+                  population_strategy: PopulationStrategy,
+                  parents, offspring):
+        """Produces one or more offspring based on the list of potential parents
+        and inserts them to the ``offspring`` list.
+
+        This method encapsulates a *single* reproduction event. That means that
+        this method can be called repeatedly by the driver algorithm.
+
+        :param parents: list of individuals that can be the parents
+        :type parents: :class:`list` of :class:`evo.Individual`
+        :param offspring: list of offspring individuals
+        :type offspring: :class:`list` of :class:`evo.Individual`
+        """
+        raise NotImplementedError()

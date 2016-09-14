@@ -18,37 +18,19 @@ import evo.utils.tree
 
 
 # noinspection PyAbstractClass
-class Gp(multiprocessing.context.Process):
-    """This class forms the whole GE algorithm.
-    """
+class GpReproductionStrategy(evo.ReproductionStrategy):
+    """This class is a base class for reproduction strategies for use in Genetic
+        Programming.
 
-    LOG = logging.getLogger(__name__ + '.Gp')
+        It bundles necessary crossover and mutation operators but it is not a full
+        implementation of :class:`evo.ReproductionStrategy` and does not contain
+        the actual reproduction rules (i.e. how are the operators used)."""
 
-    class CallbackSituation(enum.Enum):
-        iteration_start = 1
-        iteration_end = 2
-        end = 3
-        start = 4
+    LOG = logging.getLogger(__name__ + '.GpReproductionStrategy')
 
-    @staticmethod
-    def generations(g):
-        return lambda gp: gp.iterations >= g
-
-    @staticmethod
-    def time(seconds):
-        return lambda gp: time.time() - gp.start_time >= seconds
-
-    @staticmethod
-    def any(*args):
-        return lambda gp: any(arg(gp) for arg in args)
-
-    @staticmethod
-    def all(*args):
-        return lambda gp: all(arg(gp) for arg in args)
-
-    def __init__(self, fitness: evo.Fitness, pop_strategy, selection_strategy,
-                 population_initializer, functions, terminals, stop, name=None,
-                 **kwargs):
+    def __init__(self, functions, terminals, generator=None, crossover_prob=0.8,
+                 crossover_type='subtree', mutation_prob=0.1,
+                 mutation_type=('subtree', 5), limits=None):
         """The optional keyword argument ``generator`` can be used to pass a
         random number generator. If it is ``None`` or not present a standard
         generator is used which is the :mod:`random` module and its
@@ -62,46 +44,12 @@ class Gp(multiprocessing.context.Process):
             one is used) is assumed that it is already seeded and no seed is
             set inside this class.
 
-        :param evo.Fitness fitness: fitness used to evaluate individual
-            performance
-        :param pop_strategy: population handling strategy - determines the size
-            of the (parent) population, the number of offspring in each
-            iteration and how these should be combined with the parent
-            population
-        :type pop_strategy: :class:`evo.PopulationStrategy`
-        :param selection_strategy: selection strategy - the algorithm of
-            selection of "good" individuals from the population
-        :type selection_strategy: :class:`evo.SelectionStrategy`
-        :param population_initializer: initializer used to initialize the
-            initial population
-        :type population_initializer:
-            :class:`ge.init.PopulationInitializer`
         :param functions: a list of functions available for the program
             synthesis
         :type functions: :class:`list` of :class:`evo.gp.support.GpNode`
         :param terminals: a list of terminals (i.e. zero-arity functions)
             available for the program synthesis
         :type functions: :class:`list` of :class:`evo.gp.support.GpNode`
-        :param stop: Either a number or a callable. If it is number:
-
-                The number of generations the algorithm will run for. One
-                generation is when ``pop_size`` number of individuals were
-                created and put back to the population. In other words,
-                if the algorithm runs in generational mode then one
-                generation is one iteration of the algorithm; if the
-                algorithm runs in steady-state then one generation is half
-                the ``pop_size`` iterations (because each iteration two
-                individuals are selected, possibly crossed over and put back
-                into the population).
-
-            If it is a callable:
-
-                The callable will be called at the beginning of each
-                iteration of the algorithm with one argument which is the
-                algorithm instance (i.e. instance of this class). If the
-                return value is evaluated as ``True`` then the algorithm stops.
-        :param str name: name of the process (see
-            :class:`multiprocessing.Process`)
         :keyword generator: (keyword argument) a random number generator; if
             ``None`` or not present calls to the methods of standard python
             module :mod:`random` will be performed instead
@@ -124,12 +72,6 @@ class Gp(multiprocessing.context.Process):
             details see :ref:`Limits <evo.gp.Gp.limits>`
 
             The default is no limits.
-        :keyword evo.support.Stats stats: stats saving class
-        :keyword callback: a callable which will be called during the
-            evolution. It must take two arguments, first one is the algorithm
-            instance itself (i.e. instance of this class), and the second is a
-            :class:`.CallbackSituation` value specifying where is the
-            callback called.
 
         .. _evo.gp.Gp.xover-types:
 
@@ -177,7 +119,7 @@ class Gp(multiprocessing.context.Process):
 
         The probabilistic crossover is, in fact, not a crossover method but is
         composed of a number of other crossover methods along with
-        probabilites for each of them. In the end, each of the methods is
+        probabilities for each of them. In the end, each of the methods is
         performed with a probability assigned to it.
 
         To use this crossover set the ``crossover_type`` argument to
@@ -185,7 +127,7 @@ class Gp(multiprocessing.context.Process):
         ``p2``\ , etc. are to be substituted with probabilities, the ``m1``\,
         ``m2``\ , etc. are to be substituted with the individual crossover
         methods as if they were assigned to the ``crossover_type`` argument
-        themselves. If the probabilites don't sum up to 1 they are going to
+        themselves. If the probabilities don't sum up to 1 they are going to
         be scaled so that they do.
 
         Example: ``('probabilistic', (.4, 'subtree'), (.4, ('cr-high-level',
@@ -286,161 +228,44 @@ class Gp(multiprocessing.context.Process):
         genes than this limit specifies.
 
         """
-        multiprocessing.context.Process.__init__(self, name=name)
-
-        # Positional args
-        self.fitness = fitness
-        self.pop_strategy = pop_strategy
-        self.selection_strategy = selection_strategy
         self.functions = functions
         self.terminals = terminals
-        self.population_initializer = population_initializer
-        if isinstance(stop, int):
-            # noinspection PyProtectedMember
-            self.stop = self.generations(stop)
-        elif callable(stop):
-            self.stop = stop
-        else:
-            raise TypeError('Argument stop is neither integer nor callable.')
 
-        # Keyword args
         self.generator = random
-        if 'generator' in kwargs:
-            self.generator = kwargs['generator']
+        if generator is not None:
+            self.generator = generator
 
-        self.crossover_prob = 0.8
-        if 'crossover_prob' in kwargs:
-            self.crossover_prob = kwargs['crossover_prob']
-            self.crossover_prob = max(0, self.crossover_prob)
-            self.crossover_prob = min(1, self.crossover_prob)
+        self.crossover_prob = crossover_prob
+        self.crossover_prob = max(0, self.crossover_prob)
+        self.crossover_prob = min(1, self.crossover_prob)
+        if self.crossover_prob != crossover_prob:
+            GpReproductionStrategy.LOG.warning(
+                'Crossover probability out of range. Clipped to [0, 1].')
 
         self.crossover_method = self.subtree_crossover
         self.crossover_method_args = ()
-        if 'crossover_type' in kwargs and kwargs['crossover_type'] is not None:
+        if crossover_type is not None:
             self.crossover_method, self.crossover_method_args = \
-                self.setup_crossover(kwargs['crossover_type'])
+                self.setup_crossover(crossover_type)
 
-        self.mutation_prob = 0.1
-        if 'mutation_prob' in kwargs:
-            self.mutation_prob = kwargs['mutation_prob']
-            self.mutation_prob = max(0, self.mutation_prob)
-            self.mutation_prob = min(1, self.mutation_prob)
+        self.mutation_prob = mutation_prob
+        self.mutation_prob = max(0, self.mutation_prob)
+        self.mutation_prob = min(1, self.mutation_prob)
+        if self.mutation_prob != mutation_prob:
+            GpReproductionStrategy.LOG.warning(
+                'Mutation probability out of range. Clipped to [0, 1].')
 
         self.mutate_method = self.subtree_mutate
         self.mutate_method_args = (5,)
-        if 'mutation_type' in kwargs and kwargs['mutation_type'] is not None:
+        if mutation_type is not None:
             self.mutate_method, self.mutate_method_args = \
-                self.setup_mutation(kwargs['mutation_type'])
+                self.setup_mutation(mutation_type)
 
         self.limits = {'max-genes': 1,
                        'max-depth': float('inf'),
                        'max-nodes': float('inf')}
-        if 'limits' in kwargs:
-            self.limits.update(kwargs['limits'])
-
-        self.stats = None
-        if 'stats' in kwargs:
-            self.stats = kwargs['stats']
-
-        self.callback = None
-        if 'callback' in kwargs:
-            self.callback = kwargs['callback']
-            if not callable(self.callback):
-                raise TypeError('Keyword argument callback is not a callable.')
-
-        self.population = []
-        self.population_sorted = False
-
-        self.start_time = None
-        """
-        The time of start of the algorithm, including the population
-        initialisation.
-        """
-        self.end_time = None
-        """
-        The time of end of the algorithm, excluding the final garbage
-        collection, cleanup, etc.
-        """
-        self.iterations = 0
-        """
-        The number of elapsed iterations of the algorithm (either generations
-        in the generational mode or just iterations in the steady-state mode).
-        """
-
-    def run(self):
-        """Runs the GE algorithm.
-        """
-        Gp.LOG.info('Starting algorithm.')
-        # noinspection PyBroadException
-        try:
-            self.start_time = time.time()
-            self.population = self.population_initializer.initialize(
-                self.pop_strategy.get_parents_number(), self.limits)
-
-            if self.callback is not None:
-                self.callback(self, Gp.CallbackSituation.start)
-            self._run()
-            if self.callback is not None:
-                self.callback(self, Gp.CallbackSituation.end)
-        except:
-            Gp.LOG.warning('Evolution terminated by exception.', exc_info=True)
-        finally:
-            self.end_time = time.time()
-            if self.fitness.get_bsf() is None:
-                Gp.LOG.info('Finished. No BSF acquired.')
-            else:
-                Gp.LOG.info('Finished.')
-                Gp.LOG.info('BSF: %s', str(self.fitness.get_bsf()))
-                Gp.LOG.info('BSF fitness: %s',
-                            self.fitness.get_bsf().get_fitness())
-                Gp.LOG.info('BSF data: %s',
-                            pprint.pformat(self.fitness.get_bsf().get_data()))
-            Gp.LOG.debug('Performing garbage collection.')
-            Gp.LOG.debug('Collected %d objects.', gc.collect())
-            try:
-                if self.stats is not None:
-                    self.stats.cleanup()
-            except AttributeError:
-                pass
-
-    def _run(self):
-        Gp.LOG.info('Starting evolution.')
-        while not self.stop(self):
-            Gp.LOG.debug('Starting iteration %d', self.iterations)
-            if self.callback is not None:
-                self.callback(self, Gp.CallbackSituation.iteration_start)
-
-            elites = self.top_individuals(self.pop_strategy.get_elites_number())
-
-            Gp.LOG.debug('Processing selection.')
-            offspring = []
-            while len(offspring) < self.pop_strategy.get_offspring_number():
-                a = self.selection_strategy.select_single(self.population)[1]
-                if self.generator.random() < self.crossover_prob:
-                    b = self.selection_strategy.select_single(
-                        self.population)[1]
-                    children = self.crossover(a.copy(), b.copy())
-                else:
-                    children = [a]
-
-                while (children and len(offspring) <
-                       self.pop_strategy.get_offspring_number()):
-                    o = children.pop()
-                    if self.generator.random() < self.mutation_prob:
-                        o = self.mutate(o.copy())
-                    offspring.append(o)
-            self.population = self.pop_strategy.combine_populations(
-                self.population, offspring, elites)
-            Gp.LOG.info('Iteration %d / %.1f s. BSF %s | '
-                        '%s | %s',
-                        self.iterations, self.get_runtime(),
-                        self.fitness.get_bsf().get_fitness(),
-                        str(self.fitness.get_bsf()),
-                        self.fitness.get_bsf().get_data())
-            if self.callback is not None:
-                self.callback(self, Gp.CallbackSituation.iteration_end)
-            self.iterations += 1
-        Gp.LOG.info('Finished evolution.')
+        if limits is not None:
+            self.limits.update(limits)
 
     def setup_crossover(self, crossover_type):
         """Helper method for the constructor which sets up the crossover method.
@@ -527,8 +352,8 @@ class Gp(multiprocessing.context.Process):
         return self.mutate_method(i, *self.mutate_method_args)
 
     def subtree_crossover(self, o1, o2):
-        Gp.LOG.debug('Performing subtree crossover of individuals %s, %s', o1,
-                     o2)
+        GpReproductionStrategy.LOG.debug(
+            'Performing subtree crossover of individuals %s, %s', o1, o2)
         if o1.genes_num == 1:
             k1 = 0
         else:
@@ -579,8 +404,8 @@ class Gp(multiprocessing.context.Process):
         return [o1, o2]
 
     def cr_high_level_crossover(self, o1, o2, rate):
-        Gp.LOG.debug('Performing high-level crossover of individuals %s, %s',
-                     o1, o2)
+        GpReproductionStrategy.LOG.debug(
+            'Performing high-level crossover of individuals %s, %s', o1, o2)
         max_genes = self.limits['max-genes']
         if o1.genes_num == 1 and o2.genes_num == 1:
             return self.subtree_crossover(o1, o2)
@@ -646,8 +471,8 @@ class Gp(multiprocessing.context.Process):
         return [o1, o2]
 
     def probabilistic_crossover(self, o1, o2, probs_methods):
-        Gp.LOG.debug('Performing probabilistic crossover of individuals %s, %s',
-                     o1, o2)
+        GpReproductionStrategy.LOG.debug(
+            'Performing probabilistic crossover of individuals %s, %s', o1, o2)
         r = self.generator.random()
         method = None
         for p, m in probs_methods:
@@ -657,10 +482,13 @@ class Gp(multiprocessing.context.Process):
         return method[0](o1, o2, *method[1])
 
     def custom_crossover(self, o1, o2, external):
+        GpReproductionStrategy.LOG.debug(
+            'Performing custom crossover of individuals %s, %s', o1, o2)
         return external(self, o1, o2)
 
     def subtree_mutate(self, i, max_depth):
-        Gp.LOG.debug('Performing mutation of individual %s', i)
+        GpReproductionStrategy.LOG.debug(
+            'Performing subtree mutation of individual %s', i)
         if i.genes_num == 1:
             k = 0
         else:
@@ -680,7 +508,306 @@ class Gp(multiprocessing.context.Process):
         return i
 
     def custom_mutate(self, i, external):
+        GpReproductionStrategy.LOG.debug(
+            'Performing custom mutation of individual %s', i)
         return external(self, i)
+
+
+class IndependentReproductionStrategy(GpReproductionStrategy):
+    """This class represents a reproduction strategy where the crossover and
+    mutation are independent events.
+
+    That means that with a probability **px** an individual is subject to
+    crossover, then, regardless whether it was subject to crossover or not, it
+    is subject to mutation with probability **pm**. Summed up, these are the
+    possible "paths" an individual can take when reproducing by this strategy:
+
+        * individual is just copied - no crossover, no mutation
+        * individual is just mutated - no crossover
+        * individual is just crossed over - no mutation, the individual is one
+          of two offspring that are product of combining two parents
+        * individual is crossed over and then mutated - the individual is one of
+          two offspring that are product of combining two parents and and which
+          is then mutated
+    """
+
+    def reproduce(self, selection_strategy: evo.SelectionStrategy,
+                  population_strategy: evo.PopulationStrategy, parents,
+                  offspring):
+        a = selection_strategy.select_single(parents)[1]
+        if self.generator.random() < self.crossover_prob:
+            b = selection_strategy.select_single(parents)[1]
+            children = self.crossover(a.copy(), b.copy())
+        else:
+            children = [a]
+
+        while (children and len(offspring) <
+               population_strategy.get_offspring_number()):
+            o = children.pop()
+            if self.generator.random() < self.mutation_prob:
+                o = self.mutate(o.copy())
+            offspring.append(o)
+
+
+# noinspection PyAbstractClass
+class Gp(multiprocessing.context.Process):
+    """This class forms the whole GE algorithm.
+    """
+
+    LOG = logging.getLogger(__name__ + '.Gp')
+
+    class CallbackSituation(enum.Enum):
+        iteration_start = 1
+        iteration_end = 2
+        end = 3
+        start = 4
+
+    @staticmethod
+    def generations(g):
+        return lambda gp: gp.iterations >= g
+
+    @staticmethod
+    def time(seconds):
+        return lambda gp: time.time() - gp.start_time >= seconds
+
+    @staticmethod
+    def any(*args):
+        return lambda gp: any(arg(gp) for arg in args)
+
+    @staticmethod
+    def all(*args):
+        return lambda gp: all(arg(gp) for arg in args)
+
+    def __init__(self,
+                 fitness: evo.Fitness,
+                 pop_strategy: evo.PopulationStrategy,
+                 selection_strategy: evo.SelectionStrategy,
+                 reproduction_strategy: evo.ReproductionStrategy,
+                 population_initializer: evo.PopulationInitializer,
+                 functions, terminals, stop, name=None, **kwargs):
+        """The optional keyword argument ``generator`` can be used to pass a
+        random number generator. If it is ``None`` or not present a standard
+        generator is used which is the :mod:`random` module and its
+        functions. If a generator is passed it is expected to have the
+        methods corresponding to the :mod:`random` module (i.e. the class
+        :class:`random.Random`).
+
+        .. warning::
+
+            The generator (does not matter whether a custom or the default
+            one is used) is assumed that it is already seeded and no seed is
+            set inside this class.
+
+        :param evo.Fitness fitness: fitness used to evaluate individual
+            performance
+        :param pop_strategy: population handling strategy - determines the size
+            of the (parent) population, the number of offspring in each
+            iteration and how these should be combined with the parent
+            population
+        :type pop_strategy: :class:`evo.PopulationStrategy`
+        :param selection_strategy: selection strategy - the algorithm of
+            selection of "good" individuals from the population
+        :type selection_strategy: :class:`evo.SelectionStrategy`
+        :param population_initializer: initializer used to initialize the
+            initial population
+        :type population_initializer:
+            :class:`evo.PopulationInitializer`
+        :param functions: a list of functions available for the program
+            synthesis
+        :type functions: :class:`list` of :class:`evo.gp.support.GpNode`
+        :param terminals: a list of terminals (i.e. zero-arity functions)
+            available for the program synthesis
+        :type functions: :class:`list` of :class:`evo.gp.support.GpNode`
+        :param stop: Either a number or a callable. If it is number:
+
+                The number of generations the algorithm will run for. One
+                generation is when ``pop_size`` number of individuals were
+                created and put back to the population. In other words,
+                if the algorithm runs in generational mode then one
+                generation is one iteration of the algorithm; if the
+                algorithm runs in steady-state then one generation is half
+                the ``pop_size`` iterations (because each iteration two
+                individuals are selected, possibly crossed over and put back
+                into the population).
+
+            If it is a callable:
+
+                The callable will be called at the beginning of each
+                iteration of the algorithm with one argument which is the
+                algorithm instance (i.e. instance of this class). If the
+                return value is evaluated as ``True`` then the algorithm stops.
+        :param str name: name of the process (see
+            :class:`multiprocessing.Process`)
+        :keyword generator: (keyword argument) a random number generator; if
+            ``None`` or not present calls to the methods of standard python
+            module :mod:`random` will be performed instead
+        :type generator: :class:`random.Random` , or ``None``
+        :keyword limits: specifies the size limits for the individuals, for
+            details see :ref:`Limits <evo.gp.Gp.limits>`
+
+            The default is no limits.
+        :keyword evo.support.Stats stats: stats saving class
+        :keyword callback: a callable which will be called during the
+            evolution. It must take two arguments, first one is the algorithm
+            instance itself (i.e. instance of this class), and the second is a
+            :class:`.CallbackSituation` value specifying where is the
+            callback called.
+
+        .. _evo.gp.Gp.limits:
+
+        .. rubric:: Limits
+
+        The limits specify constraints on the size of the individuals. The
+        limits are specified via a dictionary where the keys are the names of
+        the limits (strings) and the values specify the particular limit.
+
+        *Maximum depth*
+
+        :Name: ``'max-depth'``
+
+        This limit specifies the maximum depth an individual can have. It is
+        a hard limit, i.e. **no** individual will ever be deeper than this
+        limit. For multi-gene individuals, the limit applies per-gene.
+
+        *Maximum number of nodes*
+
+        :Name: ``'max-nodes'``
+
+        This limit specifies the maximum number of nodes an individual can
+        have. It is a hard limit, i.e. **no** individual will ever be deeper
+        than this limit. For multi-gene individuals, the limit applies per-gene.
+
+        *Maximum number of genes*
+
+        :Name: ``'max-genes''``
+
+        This limit specifies the maximum number of genes an individual can
+        have. It is a hard limit, i.e. **no** individual will ever have more
+        genes than this limit specifies.
+
+        """
+        multiprocessing.context.Process.__init__(self, name=name)
+
+        # Positional args
+        self.fitness = fitness
+        self.pop_strategy = pop_strategy
+        self.selection_strategy = selection_strategy
+        self.reproduction_strategy = reproduction_strategy
+        self.functions = functions
+        self.terminals = terminals
+        self.population_initializer = population_initializer
+        if isinstance(stop, int):
+            # noinspection PyProtectedMember
+            self.stop = self.generations(stop)
+        elif callable(stop):
+            self.stop = stop
+        else:
+            raise TypeError('Argument stop is neither integer nor callable.')
+
+        # Keyword args
+        self.generator = random
+        if 'generator' in kwargs:
+            self.generator = kwargs['generator']
+
+        self.limits = {'max-genes': 1,
+                       'max-depth': float('inf'),
+                       'max-nodes': float('inf')}
+        if 'limits' in kwargs:
+            self.limits.update(kwargs['limits'])
+
+        self.stats = None
+        if 'stats' in kwargs:
+            self.stats = kwargs['stats']
+
+        self.callback = None
+        if 'callback' in kwargs:
+            self.callback = kwargs['callback']
+            if not callable(self.callback):
+                raise TypeError('Keyword argument callback is not a callable.')
+
+        self.population = []
+        self.population_sorted = False
+
+        self.start_time = None
+        """
+        The time of start of the algorithm, including the population
+        initialisation.
+        """
+        self.end_time = None
+        """
+        The time of end of the algorithm, excluding the final garbage
+        collection, cleanup, etc.
+        """
+        self.iterations = 0
+        """
+        The number of elapsed iterations of the algorithm (either generations
+        in the generational mode or just iterations in the steady-state mode).
+        """
+
+    def run(self):
+        """Runs the GE algorithm.
+        """
+        Gp.LOG.info('Starting algorithm.')
+        # noinspection PyBroadException
+        try:
+            self.start_time = time.time()
+            self.population = self.population_initializer.initialize(
+                self.pop_strategy.get_parents_number(), self.limits)
+
+            if self.callback is not None:
+                self.callback(self, Gp.CallbackSituation.start)
+            self._run()
+            if self.callback is not None:
+                self.callback(self, Gp.CallbackSituation.end)
+        except:
+            Gp.LOG.warning('Evolution terminated by exception.', exc_info=True)
+        finally:
+            self.end_time = time.time()
+            if self.fitness.get_bsf() is None:
+                Gp.LOG.info('Finished. No BSF acquired.')
+            else:
+                Gp.LOG.info('Finished.')
+                Gp.LOG.info('BSF: %s', str(self.fitness.get_bsf()))
+                Gp.LOG.info('BSF fitness: %s',
+                            self.fitness.get_bsf().get_fitness())
+                Gp.LOG.info('BSF data: %s',
+                            pprint.pformat(self.fitness.get_bsf().get_data()))
+            Gp.LOG.debug('Performing garbage collection.')
+            Gp.LOG.debug('Collected %d objects.', gc.collect())
+            try:
+                if self.stats is not None:
+                    self.stats.cleanup()
+            except AttributeError:
+                pass
+
+    def _run(self):
+        Gp.LOG.info('Starting evolution.')
+        while not self.stop(self):
+            Gp.LOG.debug('Starting iteration %d', self.iterations)
+            if self.callback is not None:
+                self.callback(self, Gp.CallbackSituation.iteration_start)
+
+            elites = self.top_individuals(self.pop_strategy.get_elites_number())
+
+            Gp.LOG.debug('Processing selection.')
+            offspring = []
+            while len(offspring) < self.pop_strategy.get_offspring_number():
+                self.reproduction_strategy.reproduce(self.selection_strategy,
+                                                     self.pop_strategy,
+                                                     self.population,
+                                                     offspring)
+            self.population = self.pop_strategy.combine_populations(
+                self.population, offspring, elites)
+            Gp.LOG.info('Iteration %d / %.1f s. BSF %s | '
+                        '%s | %s',
+                        self.iterations, self.get_runtime(),
+                        self.fitness.get_bsf().get_fitness(),
+                        str(self.fitness.get_bsf()),
+                        self.fitness.get_bsf().get_data())
+            if self.callback is not None:
+                self.callback(self, Gp.CallbackSituation.iteration_end)
+            self.iterations += 1
+        Gp.LOG.info('Finished evolution.')
 
     def top_individuals(self, k):
         Gp.LOG.debug('Obtaining top %d individuals...', k)

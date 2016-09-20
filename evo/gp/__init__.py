@@ -580,7 +580,8 @@ class ChoiceReproductionStrategy(GpReproductionStrategy):
 
     def __init__(self, functions, terminals, generator=None,
                  crossover_type='subtree', mutation_type=('subtree', 5),
-                 limits=None, crossover_prob=0.8, mutation_prob=0.1):
+                 limits=None, crossover_prob=0.8, mutation_prob=0.1,
+                 crossover_both: bool=True):
         """The probabilities of crossover and mutation must sum up to a number
         from the interval [0, 1] and none of the two can be a negative number
         (if it is it will be set to 0). The "rest" that is left (i.e. 1 -
@@ -598,6 +599,9 @@ class ChoiceReproductionStrategy(GpReproductionStrategy):
         :param mutation_prob: probability of performing a mutation; if it does
             not fit into interval [0, 1] it is clipped to fit; default value is
             0.1
+        :param crossover_both: indicates whether both children of a crossover
+            event are to be passed to the next generation (True) or just the one
+            corresponding to the first selected parent (False)
 
         .. seealso: :class:`GpReproductionStrategy`
         """
@@ -625,6 +629,8 @@ class ChoiceReproductionStrategy(GpReproductionStrategy):
                 ' 1. Scaled to %f and %f.',
                 self.crossover_prob, self.mutation_prob - self.crossover_prob)
 
+        self.crossover_both = crossover_both
+
     def reproduce(self, selection_strategy: evo.SelectionStrategy,
                   population_strategy: evo.PopulationStrategy, parents,
                   offspring):
@@ -633,6 +639,8 @@ class ChoiceReproductionStrategy(GpReproductionStrategy):
         if r < self.crossover_prob:
             b = selection_strategy.select_single(parents)[1]
             children = self.crossover(a.copy(), b.copy())
+            if not self.crossover_both:
+                children = [children[0]]
         elif r < self.mutation_prob:
             children = [self.mutate(a.copy())]
         else:

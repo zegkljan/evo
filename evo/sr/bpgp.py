@@ -97,6 +97,41 @@ class FittedForestIndividualInitializer(evo.PopulationInitializer):
                 for i in pop]
 
 
+class CoefficientsMutation(evo.gp.MutationOperator):
+    def __init__(self, sigma, per_node_prob, generator):
+        self.sigma = sigma
+        self.per_node_prob = per_node_prob
+        self.generator = generator
+
+    def mutate(self, i):
+        all_nodes = []
+
+        for g in i.genotype:
+            all_nodes.extend(g.get_nodes_dfs(
+                predicate=CoefficientsMutation.predicate))
+        mutated = False
+        for n in all_nodes:
+            if self.generator.random() < self.per_node_prob:
+                self.mutate_node(n, self.sigma)
+                mutated = True
+        if mutated:
+            i.set_fitness(None)
+        return i
+
+    @staticmethod
+    def predicate(n):
+        return isinstance(n, evo.sr.backpropagation.WeightedNode)
+
+    def mutate_node(self, node, sigma):
+        for i in range(node.bias.size):
+            node.bias[i] += self.generator.gauss(0, sigma)
+
+        for i in range(node.weights.size):
+            node.weights[i] += self.generator.gauss(0, sigma)
+
+        node.notify_change()
+
+
 class ErrorMeasure(enum.Enum):
     R2 = 0
     MSE = 1
@@ -211,24 +246,16 @@ class BackpropagationFitness(evo.Fitness):
         BackpropagationFitness.LOG.debug('Evaluating individual %s',
                                          individual.__str__())
 
-        otf = lambda _: None
-        otf_d = lambda _: None
         try:
-            yhats = self.get_eval(individual, self.get_args())
-            BackpropagationFitness.LOG.debug('Checking output...')
-            check = self._check_output(yhats, individual)
-            if check is not None:
-                return check
-            if self.fit:
-                BackpropagationFitness.LOG.debug('Performing output fitting...')
-                self.fit_outputs(individual, yhats)
-                otf, otf_d = self.get_output_transformation(individual, yhats)
-            fitness = prev_fitness = self.get_error(yhats, individual)
+            fitness, otf, otf_d = self.preeval(individual,
+                                               self.synchronize_lincomb_vars)
+            prev_fitness = fitness
             BackpropagationFitness.LOG.debug('Optimising inner parameters...')
             BackpropagationFitness.LOG.debug('Initial fitness: %f', fitness)
-            ms = max(self.get_max_steps(individual) + 1,
-                     self.min_steps + max(0, min(self.min_steps, 1)))
-            for i in range(ms):
+            steps = self.get_max_steps(individual)
+            if steps == 0:
+                steps = self.min_steps
+            for i in range(steps):
                 self.backpropagate_bases(individual, otf, otf_d)
                 updated = self.update_bases(fitness, individual, prev_fitness)
 
@@ -236,16 +263,9 @@ class BackpropagationFitness(evo.Fitness):
                     BackpropagationFitness.LOG.debug(
                         'No update occurred, stopping inner learning.')
                     break
-                yhats = self.get_eval(individual, self.get_args())
-                check = self._check_output(yhats, individual)
-                if check is not None:
-                    return check
-                if self.fit:
-                    self.fit_outputs(individual, yhats)
-                    otf, otf_d = self.get_output_transformation(individual,
-                                                                yhats)
+
                 prev_fitness = fitness
-                fitness = self.get_error(yhats, individual)
+                fitness, otf, otf_d = self.preeval(individual, False)
                 if not self.has_improved(prev_fitness, fitness):
                     BackpropagationFitness.LOG.debug('Improvement below '
                                                      'threshold, stopping '
@@ -254,13 +274,91 @@ class BackpropagationFitness(evo.Fitness):
                 BackpropagationFitness.LOG.debug(
                     'Step %d fitness: %f Full model: %s', i, fitness,
                     [g.infix() for g in individual.genotype])
+            individual.set_fitness(fitness)
         except self.errors as e:
             BackpropagationFitness.LOG.debug(
                 'Exception occurred during evaluation, assigning fitness %f',
                 self.error_fitness, exc_info=True)
             fitness = self.error_fitness
-        individual.set_fitness(fitness)
-        return fitness
+            individual.set_fitness(fitness)
+        except evo.UnevaluableError as e:
+            pass
+        return individual.get_fitness()
+
+    def preeval(self, individual, pick_lincombs: bool):
+        if pick_lincombs:
+            do = False
+            lcs = list(itertools.chain.from_iterable(
+                [root.get_nodes_dfs(predicate=lambda n: isinstance(
+                    n, evo.sr.backpropagation.LincombVariable))
+                 for root in individual.genotype]))
+            key = operator.attrgetter('index')
+            lcs.sort(key=key)
+            for i, g in itertools.groupby(lcs, key=key):
+                g = list(g)
+                if len(g) <= 1:
+                    continue
+                values = []
+                for v in g:
+                    values.append((numpy.copy(v.bias), numpy.copy(v.weights)))
+                b = []
+                w = []
+                subkey = lambda x: (list(x[0]), list(x[1]))
+                values.sort(key=subkey)
+                for j, g2 in itertools.groupby(values,
+                                               key=subkey):
+                    g2 = list(g2)
+                    b.append(g2[0][0])
+                    w.append(g2[0][1])
+                if len(b) > 1 or len(w) > 1:
+                    do = True
+                else:
+                    continue
+                for j, v in enumerate(g):
+                    v.data['b'] = b
+                    v.data['w'] = w
+            f_best = None
+            i_best = None
+            otf_best = None
+            otf_d_best = None
+            if do:
+                for i in range(2):
+                    for n in lcs:
+                        if 'b' in n.data:
+                            n.bias = n.data['b'][i]
+                            n.notify_change()
+                        if 'w' in n.data:
+                            n.weights = n.data['w'][i]
+                            n.notify_change()
+                    f, otf, otf_d = self.preeval(individual, False)
+                    if i_best is None or self.fitness_cmp(f, f_best) < 0:
+                        f_best = f
+                        i_best = i
+                        otf_best = otf
+                        otf_d_best = otf_d
+                for n in lcs:
+                    if 'b' in n.data:
+                        n.bias = n.data['b'][i_best]
+                        n.notify_change()
+                        del n.data['b']
+                    if 'w' in n.data:
+                        n.weights = n.data['w'][i_best]
+                        n.notify_change()
+                        del n.data['w']
+                return f_best, otf_best, otf_d_best
+
+        yhats = self.get_eval(individual, self.get_args())
+
+        BackpropagationFitness.LOG.debug('Checking output...')
+        self._check_output(yhats, individual)
+
+        otf = otf_d = lambda _: None
+        if self.fit:
+            BackpropagationFitness.LOG.debug('Performing output fitting...')
+            self.fit_outputs(individual, yhats)
+            otf, otf_d = self.get_output_transformation(individual, yhats)
+        fitness = self.get_error(yhats, individual)
+        return fitness, otf, otf_d
 
     def backpropagate_bases(self, individual, transform, tansform_derivative):
         for n in range(individual.genes_num):
@@ -322,8 +420,7 @@ class BackpropagationFitness(evo.Fitness):
             BackpropagationFitness.LOG.debug('NaN or inf in output, assigning '
                                              'fitness: %f', self.error_fitness)
             individual.set_fitness(self.error_fitness)
-            return self.error_fitness
-        return None
+            raise evo.UnevaluableError()
 
     def get_error(self, outputs, individual: FittedForestIndividual):
         """Computes the error of the individual.

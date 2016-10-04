@@ -17,19 +17,322 @@ import evo.utils
 import evo.utils.tree
 
 
+class CrossoverOperator(object):
+    """Base class for crossover operators."""
+
+    def get_parents_number(self) -> int:
+        """Returns the number of parents required for the crossover."""
+        raise NotImplementedError()
+
+    def get_children_number(self) -> int:
+        """Returns the number of children produced by the crossover."""
+        raise NotImplementedError()
+
+    def crossover(self, *parents):
+        """Performs the crossover."""
+        raise NotImplementedError()
+
+
+class MutationOperator(object):
+    """Base class for mutation operators."""
+
+    def mutate(self, individual):
+        """Performs the mutation."""
+        raise NotImplementedError()
+
+
+class SubtreeCrossover(CrossoverOperator):
+    """Koza-style subtree crossover.
+
+    A random node is chosen in each of the parents. The subtrees rooting in
+    these nodes are then swapped.
+    """
+
+    LOG = logging.getLogger(__name__ + '.SubtreeCrossover')
+
+    def __init__(self, generator, limits):
+        self.generator = generator
+        self.limits = limits
+
+    def get_parents_number(self) -> int:
+        return 2
+
+    def get_children_number(self) -> int:
+        return 2
+
+    def crossover(self, *parents):
+        if len(parents) != 2:
+            raise ValueError('Two parents required.')
+        o1, o2 = parents
+        SubtreeCrossover.LOG.debug(
+            'Performing subtree crossover of individuals %s, %s', o1, o2)
+        if o1.genes_num == 1:
+            k1 = 0
+        else:
+            k1 = self.generator.randrange(o1.genes_num)
+        if o2.genes_num == 1:
+            k2 = 0
+        else:
+            k2 = self.generator.randrange(o2.genes_num)
+
+        max_depth = self.limits['max-depth']
+        max_size = self.limits['max-nodes']
+
+        g1 = o1.genotype[k1]
+        size_1 = g1.get_subtree_size()
+        nodes_depth_1 = g1.get_nodes_bfs(compute_depths=True)
+        g2 = o2.genotype[k2]
+        size_2 = g2.get_subtree_size()
+        nodes_depth_2 = g2.get_nodes_bfs(compute_depths=True)
+
+        nodes_depth_f_2 = []
+        while not nodes_depth_f_2:
+            point_1, point_depth_1 = self.generator.choice(nodes_depth_1)
+            point_tree_depth_1 = point_1.get_subtree_depth()
+            point_tree_size_1 = point_1.get_subtree_size()
+
+            for point_2, point_depth_2 in nodes_depth_2:
+                if point_tree_depth_1 + point_depth_2 - 1 > max_depth:
+                    continue
+                if point_depth_1 + point_2.get_subtree_depth() - 1 > max_depth:
+                    continue
+                if size_1 - point_tree_size_1 + point_2.get_subtree_size() > \
+                        max_size:
+                    continue
+                if point_tree_size_1 + size_2 - point_2.get_subtree_size() > \
+                        max_size:
+                    continue
+                nodes_depth_f_2.append((point_2, point_depth_2))
+
+        point_2, _ = self.generator.choice(nodes_depth_f_2)
+
+        # noinspection PyUnboundLocalVariable
+        root_1, root_2 = evo.gp.support.swap_subtrees(point_1, point_2)
+        o1.genotype[k1] = root_1
+        o2.genotype[k2] = root_2
+
+        o1.set_fitness(None)
+        o2.set_fitness(None)
+        return [o1, o2]
+
+
+class CrHighlevelCrossover(CrossoverOperator):
+    """Rate-based high-level (multigene) crossover operator.
+
+    Each gene in the parents is chosen with a given probability (rate) to be
+    switched with the other parent. Excessive genes are thrown away.
+    """
+
+    LOG = logging.getLogger(__name__ + '.CrHighlevelCrossover')
+
+    def __init__(self, rate, generator, limits):
+        self.rate = rate
+        self.generator = generator
+        self.limits = limits
+
+    def get_parents_number(self) -> int:
+        return 2
+
+    def get_children_number(self) -> int:
+        return 2
+
+    def crossover(self, *parents):
+        if len(parents) != 2:
+            raise ValueError('Two parents required.')
+        o1, o2 = parents
+        CrHighlevelCrossover.LOG.debug(
+            'Performing high-level crossover of individuals %s, %s', o1, o2)
+        max_genes = self.limits['max-genes']
+        if o1.genes_num == 1 and o2.genes_num == 1:
+            return parents
+
+        from_g1 = []
+        g1 = []
+        c_from_g1 = []
+        c_g1 = []
+        if not hasattr(o1, 'coefficients'):
+            c_from_g1 = None
+            c_g1 = None
+        for i, g in enumerate(o1.genotype):
+            if self.generator.random() < self.rate:
+                from_g1.append(g)
+                if c_from_g1 is not None:
+                    c_from_g1.append(o1.coefficients[i])
+            else:
+                g1.append(g)
+                if c_g1 is not None:
+                    c_g1.append(o1.coefficients[i])
+        if len(g1) == 0:
+            n = self.generator.randrange(len(from_g1))
+            g1.append(from_g1.pop(n))
+            if c_from_g1 is not None and c_g1 is not None:
+                c_g1.append(c_from_g1.pop(n))
+
+        from_g2 = []
+        g2 = []
+        c_from_g2 = []
+        c_g2 = []
+        if not hasattr(o2, 'coefficients'):
+            c_from_g2 = None
+            c_g2 = None
+        for i, g in enumerate(o2.genotype):
+            if self.generator.random() < self.rate:
+                from_g2.append(g)
+                if c_from_g2 is not None:
+                    c_from_g2.append(o2.coefficients[i])
+            else:
+                g2.append(g)
+                if c_g2 is not None:
+                    c_g2.append(o2.coefficients[i])
+        if len(g2) == 0:
+            n = self.generator.randrange(len(from_g2))
+            g2.append(from_g2.pop(n))
+            if c_from_g2 is not None and c_g2 is not None:
+                c_g2.append(c_from_g2.pop(n))
+
+        g1.extend(from_g2[:min(len(from_g2), max_genes - len(g1))])
+        g2.extend(from_g1[:min(len(from_g1), max_genes - len(g2))])
+
+        o1.genotype = g1
+        o2.genotype = g2
+
+        if c_g1 is not None and c_g2 is not None:
+            c_g1.extend(c_from_g2[:min(len(c_from_g2), max_genes - len(c_g1))])
+            c_g2.extend(c_from_g1[:min(len(c_from_g1), max_genes - len(c_g2))])
+            o1.coefficients = c_g1
+            o2.coefficients = c_g2
+
+        o1.set_fitness(None)
+        o2.set_fitness(None)
+        return [o1, o2]
+
+
+class StochasticChoiceCrossover(CrossoverOperator):
+    """Compound crossover operator, chooses one of actual operators based on
+    probability.
+
+    This crossover is compound of multiple crossover operators, each associated
+    with a probability of it being chosen. When a crossover is to happen the
+    actual operator is chosen randomly w.r.t. the associated probabilities.
+    """
+
+    LOG = logging.getLogger(__name__ + '.StochasticChoiceCrossover')
+
+    def __init__(self, probs_crossovers, generator):
+        self.probs_crossovers = []
+        total = sum(map(lambda e: e[0], probs_crossovers))
+        for p, c in probs_crossovers:
+            if self.probs_crossovers:
+                last_c = self.probs_crossovers[-1][1]
+                if last_c.get_parents_number() != c.get_parents_number():
+                    raise ValueError('All crossovers must use the same number '
+                                     'of parents')
+                if last_c.get_children_number() != c.get_children_number():
+                    raise ValueError('All crossovers must produce the same '
+                                     'number of children')
+                last_p = self.probs_crossovers[-1][0]
+            else:
+                last_p = 0
+            self.probs_crossovers.append((last_p + p / total, c))
+        self.generator = generator
+
+    def get_parents_number(self) -> int:
+        self.probs_crossovers[0][1].get_parents_number()
+
+    def get_children_number(self) -> int:
+        self.probs_crossovers[0][1].get_children_number()
+
+    def crossover(self, *parents):
+        StochasticChoiceCrossover.LOG.debug(
+            'Performing probabilistic crossover of individuals %s', parents)
+        r = self.generator.random()
+        crossover = None
+        for p, m in self.probs_crossovers:
+            crossover = m
+            if p >= r:
+                break
+        return crossover.crossover(*parents)
+
+
+class SubtreeMutation(MutationOperator):
+    """Koza-style subtree mutation operator.
+
+    Randomly chooses a node in the individual, throws away it and the subtree
+    under it and generates a new subtree in place of it.
+    """
+
+    LOG = logging.getLogger(__name__ + '.SubtreeMutation')
+
+    def __init__(self, max_depth, generator, functions, terminals, limits):
+        self.max_depth = max_depth
+        self.generator = generator
+        self.functions = functions
+        self.terminals = terminals
+        self.limits = limits
+
+    def mutate(self, individual):
+        """Performs the mutation."""
+        SubtreeMutation.LOG.debug(
+            'Performing subtree mutation of individual %s', individual)
+        if individual.genes_num == 1:
+            k = 0
+        else:
+            k = self.generator.randrange(individual.genes_num)
+
+        g = individual.genotype[k]
+        s = g.get_subtree_size()
+        nodes_depths = g.get_nodes_bfs(compute_depths=True)
+        n, d = self.generator.choice(nodes_depths)
+        ns = n.get_subtree_size()
+        subtree = evo.gp.support.generate_tree_full_grow(
+            self.functions, self.terminals,
+            min(self.limits['max-depth'] - d + 1, self.max_depth),
+            self.limits['max-nodes'] - s + ns, self.generator, False)
+        individual.genotype[k] = evo.gp.support.replace_subtree(n, subtree)
+        individual.set_fitness(None)
+        return individual
+
+
+class StochasticChoiceMutation(MutationOperator):
+    LOG = logging.getLogger(__name__ + '.StochasticChoiceMutation')
+
+    def __init__(self, probs_mutations, generator):
+        self.probs_mutations = []
+        total = sum(map(lambda e: e[0], probs_mutations))
+        for p, m in probs_mutations:
+            if self.probs_mutations:
+                last_p = self.probs_mutations[-1][0]
+            else:
+                last_p = 0
+            self.probs_mutations.append((last_p + p / total, m))
+        self.generator = generator
+
+    def mutate(self, individual):
+        StochasticChoiceMutation.LOG.debug(
+            'Performing probabilistic crossover of individuals %s', individual)
+        r = self.generator.random()
+        mutation = None
+        for p, m in self.probs_mutations:
+            mutation = m
+            if p >= r:
+                break
+        return mutation.mutate(individual)
+
+
 # noinspection PyAbstractClass
 class GpReproductionStrategy(evo.ReproductionStrategy):
     """This class is a base class for reproduction strategies for use in Genetic
     Programming.
 
-    It bundles necessary crossover and mutation operators but it is not a full
-    implementation of :class:`evo.ReproductionStrategy` and does not contain
-    the actual reproduction rules (i.e. how are the operators used)."""
+    It is not a full implementation of :class:`evo.ReproductionStrategy` and
+    does not contain the actual reproduction rules (i.e. how are the operators
+    used)."""
 
     LOG = logging.getLogger(__name__ + '.GpReproductionStrategy')
 
     def __init__(self, functions, terminals, generator=None,
-                 crossover_type='subtree', mutation_type=('subtree', 5),
+                 crossover: CrossoverOperator=None,
+                 mutation: MutationOperator=None,
                  limits=None):
         """The optional keyword argument ``generator`` can be used to pass a
         random number generator. If it is ``None`` or not present a standard
@@ -54,11 +357,11 @@ class GpReproductionStrategy(evo.ReproductionStrategy):
             ``None`` or not present calls to the methods of standard python
             module :mod:`random` will be performed instead
         :type generator: :class:`random.Random` , or ``None``
-        :keyword crossover_type: (keyword argument) the type of crossover,
+        :keyword crossover: the crossover operator to use,
             for details see :ref:`Crossover types <evo.gp.Gp.xover-types>`
 
             The default value is ``'subtree'``.
-        :keyword mutation_type: (keyword argument) the type of mutation, for
+        :keyword mutation: (keyword argument) the mutation operator to use, for
             details see :ref:`Mutation types <evo.gp.Gp.mutation-types>`
 
             The default value is ``('subtree', 5)``.
@@ -229,268 +532,22 @@ class GpReproductionStrategy(evo.ReproductionStrategy):
         if generator is not None:
             self.generator = generator
 
-        self.crossover_method = self.subtree_crossover
-        self.crossover_method_args = ()
-        if crossover_type is not None:
-            self.crossover_method, self.crossover_method_args = \
-                self.setup_crossover(crossover_type)
-
-        self.mutate_method = self.subtree_mutate
-        self.mutate_method_args = (5,)
-        if mutation_type is not None:
-            self.mutate_method, self.mutate_method_args = \
-                self.setup_mutation(mutation_type)
-
         self.limits = {'max-genes': 1,
                        'max-depth': float('inf'),
                        'max-nodes': float('inf')}
         if limits is not None:
             self.limits.update(limits)
 
-    def setup_crossover(self, crossover_type):
-        """Helper method for the constructor which sets up the crossover method.
-        """
-        try:
-            valid = True
-            if crossover_type == 'subtree':
-                crossover_method = self.subtree_crossover
-                crossover_method_args = ()
-            elif crossover_type[0] == 'cr-high-level':
-                crossover_method = self.cr_high_level_crossover
-                crossover_method_args = (crossover_type[1],)
-            elif crossover_type[0] == 'probabilistic':
-                crossover_method = self.probabilistic_crossover
-                probs_methods = []
-                for prob, subcrossover in crossover_type[1:]:
-                    cm, cma = self.setup_crossover(subcrossover)
-                    if not probs_methods:
-                        probs_methods.append([prob, (cm, cma)])
-                    else:
-                        probs_methods.append([probs_methods[-1][0] + prob,
-                                              (cm, cma)])
-                for i in range(len(probs_methods)):
-                    probs_methods[i][0] = (probs_methods[i][0] /
-                                           probs_methods[-1][0])
-
-                crossover_method_args = (tuple(probs_methods),)
-                return crossover_method, crossover_method_args
-            elif crossover_type[0] == 'custom':
-                crossover_method = self.custom_crossover
-                crossover_method_args = crossover_type[1]
-            else:
-                valid = False
-        except Exception as e:
-            raise ValueError('Invalid crossover type.', e)
-
-        if not valid:
-            raise ValueError('Invalid crossover type.')
-
-        # noinspection PyUnboundLocalVariable
-        return crossover_method, crossover_method_args
-
-    def setup_mutation(self, mutation_type):
-        """Helper method for the constructor which sets up the mutation method.
-        """
-        try:
-            valid = True
-            if mutation_type[0] == 'subtree':
-                mutation_method = self.subtree_mutate
-                mutation_method_args = (mutation_type[1],)
-            elif mutation_type[0] == 'custom':
-                mutation_method = self.custom_mutate
-                mutation_method_args = (mutation_type[1],)
-            else:
-                valid = False
-        except Exception as e:
-            raise ValueError('Invalid crossover type.', e)
-
-        if not valid:
-            raise ValueError('Invalid crossover type.')
-
-        # noinspection PyUnboundLocalVariable
-        return mutation_method, mutation_method_args
-
-    def crossover(self, o1, o2):
-        """Performs a crossover of two individuals.
-
-        :param evo.gp.support.TreeIndividual o1: first parent
-        :param evo.gp.support.TreeIndividual o2: second parent
-        """
-        assert self.crossover_method is not None
-        # noinspection PyArgumentList
-        return self.crossover_method(o1, o2, *self.crossover_method_args)
-
-    def mutate(self, i):
-        """Performs a mutation of the individual.
-
-        The individual is mutated in place and also returned.
-
-        :param evo.gp.support.TreeIndividual i: the individual to be mutated
-        :return: the mutated individual
-        :rtype: :class:`evo.gp.support.TreeIndividual`
-        """
-        return self.mutate_method(i, *self.mutate_method_args)
-
-    def subtree_crossover(self, o1, o2):
-        GpReproductionStrategy.LOG.debug(
-            'Performing subtree crossover of individuals %s, %s', o1, o2)
-        if o1.genes_num == 1:
-            k1 = 0
+        if crossover is None:
+            self.crossover = SubtreeCrossover(self.generator, self.limits)
         else:
-            k1 = self.generator.randrange(o1.genes_num)
-        if o2.genes_num == 1:
-            k2 = 0
+            self.crossover = crossover
+
+        if mutation is None:
+            self.mutation = SubtreeMutation(5, self.generator, self.limits,
+                                            self.functions, self.terminals)
         else:
-            k2 = self.generator.randrange(o2.genes_num)
-
-        max_depth = self.limits['max-depth']
-        max_size = self.limits['max-nodes']
-
-        g1 = o1.genotype[k1]
-        size_1 = g1.get_subtree_size()
-        nodes_depth_1 = g1.get_nodes_bfs(compute_depths=True)
-        g2 = o2.genotype[k2]
-        size_2 = g2.get_subtree_size()
-        nodes_depth_2 = g2.get_nodes_bfs(compute_depths=True)
-
-        nodes_depth_f_2 = []
-        while not nodes_depth_f_2:
-            point_1, point_depth_1 = self.generator.choice(nodes_depth_1)
-            point_tree_depth_1 = point_1.get_subtree_depth()
-            point_tree_size_1 = point_1.get_subtree_size()
-
-            for point_2, point_depth_2 in nodes_depth_2:
-                if point_tree_depth_1 + point_depth_2 - 1 > max_depth:
-                    continue
-                if point_depth_1 + point_2.get_subtree_depth() - 1 > max_depth:
-                    continue
-                if size_1 - point_tree_size_1 + point_2.get_subtree_size() > \
-                        max_size:
-                    continue
-                if point_tree_size_1 + size_2 - point_2.get_subtree_size() > \
-                        max_size:
-                    continue
-                nodes_depth_f_2.append((point_2, point_depth_2))
-
-        point_2, _ = self.generator.choice(nodes_depth_f_2)
-
-        # noinspection PyUnboundLocalVariable
-        root_1, root_2 = evo.gp.support.swap_subtrees(point_1, point_2)
-        o1.genotype[k1] = root_1
-        o2.genotype[k2] = root_2
-
-        o1.set_fitness(None)
-        o2.set_fitness(None)
-        return [o1, o2]
-
-    def cr_high_level_crossover(self, o1, o2, rate):
-        GpReproductionStrategy.LOG.debug(
-            'Performing high-level crossover of individuals %s, %s', o1, o2)
-        max_genes = self.limits['max-genes']
-        if o1.genes_num == 1 and o2.genes_num == 1:
-            return self.subtree_crossover(o1, o2)
-
-        from_g1 = []
-        g1 = []
-        c_from_g1 = []
-        c_g1 = []
-        if not hasattr(o1, 'coefficients'):
-            c_from_g1 = None
-            c_g1 = None
-        for i, g in enumerate(o1.genotype):
-            if self.generator.random() < rate:
-                from_g1.append(g)
-                if c_from_g1 is not None:
-                    c_from_g1.append(o1.coefficients[i])
-            else:
-                g1.append(g)
-                if c_g1 is not None:
-                    c_g1.append(o1.coefficients[i])
-        if len(g1) == 0:
-            n = self.generator.randrange(len(from_g1))
-            g1.append(from_g1.pop(n))
-            if c_from_g1 is not None and c_g1 is not None:
-                c_g1.append(c_from_g1.pop(n))
-
-        from_g2 = []
-        g2 = []
-        c_from_g2 = []
-        c_g2 = []
-        if not hasattr(o2, 'coefficients'):
-            c_from_g2 = None
-            c_g2 = None
-        for i, g in enumerate(o2.genotype):
-            if self.generator.random() < rate:
-                from_g2.append(g)
-                if c_from_g2 is not None:
-                    c_from_g2.append(o2.coefficients[i])
-            else:
-                g2.append(g)
-                if c_g2 is not None:
-                    c_g2.append(o2.coefficients[i])
-        if len(g2) == 0:
-            n = self.generator.randrange(len(from_g2))
-            g2.append(from_g2.pop(n))
-            if c_from_g2 is not None and c_g2 is not None:
-                c_g2.append(c_from_g2.pop(n))
-
-        g1.extend(from_g2[:min(len(from_g2), max_genes - len(g1))])
-        g2.extend(from_g1[:min(len(from_g1), max_genes - len(g2))])
-
-        o1.genotype = g1
-        o2.genotype = g2
-
-        if c_g1 is not None and c_g2 is not None:
-            c_g1.extend(c_from_g2[:min(len(c_from_g2), max_genes - len(c_g1))])
-            c_g2.extend(c_from_g1[:min(len(c_from_g1), max_genes - len(c_g2))])
-            o1.coefficients = c_g1
-            o2.coefficients = c_g2
-
-        o1.set_fitness(None)
-        o2.set_fitness(None)
-        return [o1, o2]
-
-    def probabilistic_crossover(self, o1, o2, probs_methods):
-        GpReproductionStrategy.LOG.debug(
-            'Performing probabilistic crossover of individuals %s, %s', o1, o2)
-        r = self.generator.random()
-        method = None
-        for p, m in probs_methods:
-            method = m
-            if p >= r:
-                break
-        return method[0](o1, o2, *method[1])
-
-    def custom_crossover(self, o1, o2, external):
-        GpReproductionStrategy.LOG.debug(
-            'Performing custom crossover of individuals %s, %s', o1, o2)
-        return external(self, o1, o2)
-
-    def subtree_mutate(self, i, max_depth):
-        GpReproductionStrategy.LOG.debug(
-            'Performing subtree mutation of individual %s', i)
-        if i.genes_num == 1:
-            k = 0
-        else:
-            k = self.generator.randrange(i.genes_num)
-
-        g = i.genotype[k]
-        s = g.get_subtree_size()
-        nodes_depths = g.get_nodes_bfs(compute_depths=True)
-        n, d = self.generator.choice(nodes_depths)
-        ns = n.get_subtree_size()
-        subtree = evo.gp.support.generate_tree_full_grow(
-            self.functions, self.terminals,
-            min(self.limits['max-depth'] - d + 1, max_depth),
-            self.limits['max-nodes'] - s + ns, self.generator, False)
-        i.genotype[k] = evo.gp.support.replace_subtree(n, subtree)
-        i.set_fitness(None)
-        return i
-
-    def custom_mutate(self, i, external):
-        GpReproductionStrategy.LOG.debug(
-            'Performing custom mutation of individual %s', i)
-        return external(self, i)
+            self.mutation = mutation
 
 
 class IndependentReproductionStrategy(GpReproductionStrategy):
@@ -514,7 +571,8 @@ class IndependentReproductionStrategy(GpReproductionStrategy):
     LOG = logging.getLogger(__name__ + '.IndependentReproductionStrategy')
 
     def __init__(self, functions, terminals, generator=None,
-                 crossover_type='subtree', mutation_type=('subtree', 5),
+                 crossover: CrossoverOperator=None,
+                 mutation: MutationOperator=None,
                  limits=None, crossover_prob=0.8, mutation_prob=0.1):
         """
         :param crossover_prob: probability of performing a crossover; if it does
@@ -526,8 +584,8 @@ class IndependentReproductionStrategy(GpReproductionStrategy):
 
         .. seealso: :class:`GpReproductionStrategy`
         """
-        super().__init__(functions, terminals, generator, crossover_type,
-                         mutation_type, limits)
+        super().__init__(functions, terminals, generator, crossover,
+                         mutation, limits)
         self.crossover_prob = crossover_prob
         self.crossover_prob = max(0, self.crossover_prob)
         self.crossover_prob = min(1, self.crossover_prob)
@@ -548,7 +606,7 @@ class IndependentReproductionStrategy(GpReproductionStrategy):
         a = selection_strategy.select_single(parents)[1]
         if self.generator.random() < self.crossover_prob:
             b = selection_strategy.select_single(parents)[1]
-            children = self.crossover(a.copy(), b.copy())
+            children = self.crossover.crossover(a.copy(), b.copy())
         else:
             children = [a]
 
@@ -556,7 +614,7 @@ class IndependentReproductionStrategy(GpReproductionStrategy):
                population_strategy.get_offspring_number()):
             o = children.pop()
             if self.generator.random() < self.mutation_prob:
-                o = self.mutate(o.copy())
+                o = self.mutation.mutate(o.copy())
             offspring.append(o)
 
 
@@ -579,7 +637,8 @@ class ChoiceReproductionStrategy(GpReproductionStrategy):
     LOG = logging.getLogger(__name__ + '.ChoiceReproductionStrategy')
 
     def __init__(self, functions, terminals, generator=None,
-                 crossover_type='subtree', mutation_type=('subtree', 5),
+                 crossover: CrossoverOperator=None,
+                 mutation: MutationOperator=None,
                  limits=None, crossover_prob=0.8, mutation_prob=0.1,
                  crossover_both: bool=True):
         """The probabilities of crossover and mutation must sum up to a number
@@ -605,8 +664,8 @@ class ChoiceReproductionStrategy(GpReproductionStrategy):
 
         .. seealso: :class:`GpReproductionStrategy`
         """
-        super().__init__(functions, terminals, generator, crossover_type,
-                         mutation_type, limits)
+        super().__init__(functions, terminals, generator, crossover, mutation,
+                         limits)
         self.crossover_prob = crossover_prob
         if self.crossover_prob < 0:
             self.crossover_prob = 0
@@ -638,11 +697,11 @@ class ChoiceReproductionStrategy(GpReproductionStrategy):
         r = self.generator.random()
         if r < self.crossover_prob:
             b = selection_strategy.select_single(parents)[1]
-            children = self.crossover(a.copy(), b.copy())
+            children = self.crossover.crossover(a.copy(), b.copy())
             if not self.crossover_both:
                 children = [children[0]]
         elif r < self.mutation_prob:
-            children = [self.mutate(a.copy())]
+            children = [self.mutation.mutate(a.copy())]
         else:
             children = [a]
 
@@ -825,7 +884,7 @@ class Gp(multiprocessing.context.Process):
         self.callback = None
         if 'callback' in kwargs:
             self.callback = kwargs['callback']
-            if not callable(self.callback):
+            if self.callback is not None and not callable(self.callback):
                 raise TypeError('Keyword argument callback is not a callable.')
 
         self.population = []

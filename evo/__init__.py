@@ -201,6 +201,10 @@ class Fitness(object):
         raise NotImplementedError()
 
 
+class UnevaluableError(Exception):
+    pass
+
+
 class IndividualInitializer(object):
     """Base class for initializing individuals.
 

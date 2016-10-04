@@ -123,11 +123,21 @@ class CoefficientsMutation(evo.gp.MutationOperator):
         return isinstance(n, evo.sr.backpropagation.WeightedNode)
 
     def mutate_node(self, node, sigma):
-        for i in range(node.bias.size):
-            node.bias[i] += self.generator.gauss(0, sigma)
+        if node.tune_bias is True:
+            for i in range(node.bias.size):
+                node.bias[i] += self.generator.gauss(0, sigma)
+        elif node.tune_bias:
+            for i in range(node.bias.size):
+                if node.tune_bias[i]:
+                    node.bias[i] += self.generator.gauss(0, sigma)
 
-        for i in range(node.weights.size):
-            node.weights[i] += self.generator.gauss(0, sigma)
+        if node.tune_weights is True:
+            for i in range(node.weights.size):
+                node.weights[i] += self.generator.gauss(0, sigma)
+        elif node.tune_weights:
+            for i in range(node.weights.size):
+                if node.tune_weights[i]:
+                    node.weights[i] += self.generator.gauss(0, sigma)
 
         node.notify_change()
 

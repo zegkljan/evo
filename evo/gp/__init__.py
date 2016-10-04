@@ -309,7 +309,7 @@ class StochasticChoiceMutation(MutationOperator):
 
     def mutate(self, individual):
         StochasticChoiceMutation.LOG.debug(
-            'Performing probabilistic crossover of individuals %s', individual)
+            'Performing probabilistic mutation of individual %s', individual)
         r = self.generator.random()
         mutation = None
         for p, m in self.probs_mutations:
@@ -317,6 +317,20 @@ class StochasticChoiceMutation(MutationOperator):
             if p >= r:
                 break
         return mutation.mutate(individual)
+
+
+class PipelineMutation(MutationOperator):
+    LOG = logging.getLogger(__name__ + '.PipelineMutation')
+
+    def __init__(self, mutations):
+        self.mutations = mutations
+
+    def mutate(self, individual):
+        PipelineMutation.LOG.debug(
+            'Performing pipeline mutation of individual %s', individual)
+        for m in self.mutations:
+            individual = m.mutate(individual)
+        return individual
 
 
 # noinspection PyAbstractClass

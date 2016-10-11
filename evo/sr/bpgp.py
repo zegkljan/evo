@@ -98,9 +98,8 @@ class FittedForestIndividualInitializer(evo.PopulationInitializer):
 
 
 class CoefficientsMutation(evo.gp.MutationOperator):
-    def __init__(self, sigma, per_node_prob, generator):
+    def __init__(self, sigma, generator):
         self.sigma = sigma
-        self.per_node_prob = per_node_prob
         self.generator = generator
 
     def mutate(self, i):
@@ -109,12 +108,8 @@ class CoefficientsMutation(evo.gp.MutationOperator):
         for g in i.genotype:
             all_nodes.extend(g.get_nodes_dfs(
                 predicate=CoefficientsMutation.predicate))
-        mutated = False
-        for n in all_nodes:
-            if self.generator.random() < self.per_node_prob:
-                self.mutate_node(n, self.sigma)
-                mutated = True
-        if mutated:
+        if all_nodes:
+            self.mutate_node(self.generator.choice(all_nodes), self.sigma)
             i.set_fitness(None)
         return i
 

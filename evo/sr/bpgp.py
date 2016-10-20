@@ -111,6 +111,8 @@ class CoefficientsMutation(evo.gp.MutationOperator):
         if all_nodes:
             self.mutate_node(self.generator.choice(all_nodes), self.sigma)
             i.set_fitness(None)
+        else:
+            raise evo.gp.OperatorNotApplicableError('No weighted nodes found.')
         return i
 
     @staticmethod
@@ -133,6 +135,35 @@ class CoefficientsMutation(evo.gp.MutationOperator):
             for i in range(node.weights.size):
                 if node.tune_weights[i]:
                     node.weights[i] += self.generator.gauss(0, sigma)
+
+        node.notify_change()
+
+
+class ConstantsMutation(evo.gp.MutationOperator):
+    def __init__(self, sigma, generator):
+        self.sigma = sigma
+        self.generator = generator
+
+    def mutate(self, i):
+        all_nodes = []
+
+        for g in i.genotype:
+            all_nodes.extend(g.get_nodes_dfs(
+                predicate=ConstantsMutation.predicate))
+        if all_nodes:
+            self.mutate_node(self.generator.choice(all_nodes), self.sigma)
+            i.set_fitness(None)
+        else:
+            raise evo.gp.OperatorNotApplicableError('No constants found.')
+        return i
+
+    @staticmethod
+    def predicate(n):
+        return isinstance(n, evo.sr.Const)
+
+    def mutate_node(self, node, sigma):
+        node.value += self.generator.gauss(0, sigma)
+        node.data['name'] = str(node.value)
 
         node.notify_change()
 

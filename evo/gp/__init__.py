@@ -17,19 +17,43 @@ import evo.utils
 import evo.utils.tree
 
 
+class Error(Exception):
+    """Base class for exceptions in this module"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class OperatorNotApplicableError(Error):
+    """Risen when an operator that should be applied is not applicable in the
+    given context."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
 class CrossoverOperator(object):
     """Base class for crossover operators."""
 
     def get_parents_number(self) -> int:
-        """Returns the number of parents required for the crossover."""
+        """Returns the number of parents required for the crossover.
+
+        Returning ``None`` means that the operator does not require any
+        particular number (any number is valid).
+        """
         raise NotImplementedError()
 
     def get_children_number(self) -> int:
-        """Returns the number of children produced by the crossover."""
+        """Returns the number of children produced by the crossover.
+        """
         raise NotImplementedError()
 
     def crossover(self, *parents):
-        """Performs the crossover."""
+        """Performs the crossover.
+
+        :raises OperatorNotApplicableError: if the crossover cannot be applied
+            to the given parents
+        """
         raise NotImplementedError()
 
 
@@ -37,8 +61,30 @@ class MutationOperator(object):
     """Base class for mutation operators."""
 
     def mutate(self, individual):
-        """Performs the mutation."""
+        """Performs the mutation.
+
+        :raises OperatorNotApplicableError: if the mutation cannot be applied to
+            the given individual
+        """
         raise NotImplementedError()
+
+
+class InapplicableCrossover(CrossoverOperator):
+    """A crossover operator that is never applicable.
+
+    This operator always raises the :class:`OperatorNotApplicableError`\ ,
+    regardless of the parents.
+    """
+
+    def get_parents_number(self) -> int:
+        return None
+
+    def get_children_number(self) -> int:
+        return None
+
+    def crossover(self, *parents):
+        raise OperatorNotApplicableError('InapplicableCrossover.crossover() '
+                                         'called')
 
 
 class SubtreeCrossover(CrossoverOperator):
@@ -144,7 +190,7 @@ class CrHighlevelCrossover(CrossoverOperator):
             'Performing high-level crossover of individuals %s, %s', o1, o2)
         max_genes = self.limits['max-genes']
         if o1.genes_num == 1 and o2.genes_num == 1:
-            return parents
+            raise OperatorNotApplicableError('Both parents have only one gene.')
 
         from_g1 = []
         g1 = []
@@ -214,11 +260,31 @@ class StochasticChoiceCrossover(CrossoverOperator):
     This crossover is compound of multiple crossover operators, each associated
     with a probability of it being chosen. When a crossover is to happen the
     actual operator is chosen randomly w.r.t. the associated probabilities.
+
+    *Fallback method* is a crossover operator that will be used in case the
+    (stochastically) selected operator is not applicable in the given context
+    (it raises :class:`OperatorNotApplicableError`\ ). If that happens, the
+    fallback method is used. If the fallback method is not set, no crossover
+    happens, i.e. the parents are returned (but it is the responsibility of the
+    particular crossover methods to not change the parents before raising that
+    error). If the fallback method is also not applicable then the error is
+    raised up but this practice is strongly discouraged.
     """
 
     LOG = logging.getLogger(__name__ + '.StochasticChoiceCrossover')
 
-    def __init__(self, probs_crossovers, generator):
+    def __init__(self, probs_crossovers, generator, fallback_method=None):
+        """
+        :param probs_crossovers: a list of pairs (tuples) where the first
+            element of each pair is a probability and
+            the second element is a :class:`CrossoverOperator` instance
+        :param generator: random number generator compliant with the
+            :class:`random.Random` class.
+        :param fallback_method: a :class:`CrossoverOperator` instance that is to
+            be used in case the chosen operator is not applicable in the given
+            context (it raises :class:`OperatorNotApplicableError`\ ); if
+            ``None`` no operator will be applied (parents will be unchanged)
+        """
         self.probs_crossovers = []
         total = sum(map(lambda e: e[0], probs_crossovers))
         for p, c in probs_crossovers:
@@ -235,6 +301,18 @@ class StochasticChoiceCrossover(CrossoverOperator):
                 last_p = 0
             self.probs_crossovers.append((last_p + p / total, c))
         self.generator = generator
+        self.fallback_method = fallback_method
+        if self.fallback_method is not None:
+            pn = self.get_parents_number()
+            fpn = self.fallback_method.get_parents_number()
+            if pn != fpn:
+                raise ValueError('Fallback method must use the same number of '
+                                 'parents as the main methods.')
+            cn = self.get_children_number()
+            fcn = self.fallback_method.get_children_number()
+            if cn != fcn:
+                raise ValueError('Fallback method must produce the same number '
+                                 'of children as the main methods.')
 
     def get_parents_number(self) -> int:
         self.probs_crossovers[0][1].get_parents_number()
@@ -251,7 +329,25 @@ class StochasticChoiceCrossover(CrossoverOperator):
             crossover = m
             if p >= r:
                 break
-        return crossover.crossover(*parents)
+        try:
+            return crossover.crossover(*parents)
+        except OperatorNotApplicableError as e:
+            StochasticChoiceCrossover.LOG.debug(e)
+            if self.fallback_method is None:
+                return parents
+            return self.fallback_method.crossover(*parents)
+
+
+class InapplicableMutation(MutationOperator):
+    """A mutation operator that is never applicable.
+
+    This operator always raises the :class:`OperatorNotApplicableError`\ ,
+    regardless of the individual.
+    """
+
+    def mutate(self, individual):
+        raise OperatorNotApplicableError('InapplicableMutation.crossover() '
+                                         'called')
 
 
 class SubtreeMutation(MutationOperator):
@@ -294,9 +390,38 @@ class SubtreeMutation(MutationOperator):
 
 
 class StochasticChoiceMutation(MutationOperator):
+    """Compound mutation operator, chooses one of actual operators based on
+    probability.
+
+    This mutation is compound of multiple mutation operators, each associated
+    with a probability of it being chosen. When a mutation is to happen the
+    actual operator is chosen randomly w.r.t. the associated probabilities.
+
+    *Fallback method* is a mutation operator that will be used in case the
+    (stochastically) selected operator is not applicable in the given context
+    (it raises :class:`OperatorNotApplicableError`\ ). If that happens, the
+    fallback method is used. If the fallback method is not set, no mutation
+    happens, i.e. the original individual is returned (but it is the
+    responsibility of the particular mutation methods to not change the
+    individual before raising that error). If the fallback method is also not
+    applicable then the error is raised up but this practice is strongly
+    discouraged.
+    """
     LOG = logging.getLogger(__name__ + '.StochasticChoiceMutation')
 
-    def __init__(self, probs_mutations, generator):
+    def __init__(self, probs_mutations, generator, fallback_method=None):
+        """
+        :param probs_mutations: a list of pairs (tuples) where the first
+            element of each pair is a probability and the second element is a
+            :class:`MutationOperator` instance
+        :param generator: random number generator compliant with the
+            :class:`random.Random` class.
+        :param fallback_method: a :class:`MutationOperator` instance that is to
+            be used in case the chosen operator is not applicable in the given
+            context (it raises :class:`OperatorNotApplicableError`\ ); if
+            ``None`` no operator will be applied (parents will be unchanged)
+        """
+
         self.probs_mutations = []
         total = sum(map(lambda e: e[0], probs_mutations))
         for p, m in probs_mutations:
@@ -306,6 +431,7 @@ class StochasticChoiceMutation(MutationOperator):
                 last_p = 0
             self.probs_mutations.append((last_p + p / total, m))
         self.generator = generator
+        self.fallback_method = fallback_method
 
     def mutate(self, individual):
         StochasticChoiceMutation.LOG.debug(
@@ -316,20 +442,88 @@ class StochasticChoiceMutation(MutationOperator):
             mutation = m
             if p >= r:
                 break
-        return mutation.mutate(individual)
+        try:
+            return mutation.mutate(individual)
+        except OperatorNotApplicableError as e:
+            StochasticChoiceMutation.LOG.debug(e)
+            if self.fallback_method is None:
+                return individual
+            return self.fallback_method.mutate(individual)
 
 
 class PipelineMutation(MutationOperator):
+    """A compound mutation operator that applies multiple mutations sequentially
+    on the given individual.
+
+    *Fallback behaviour* specifies what to do when a mutation is not applicable
+    in the given context (it raises a :class:`OperatorNotApplicableError`\ ).
+    There are four possibilities:
+
+        * ``STOP_HARD`` - the result of the last applicable mutation is
+          returned; if it is the first mutation, the whole pipeline is
+          inapplicable
+        * ``STOP_SOFT`` - the result of the last applicable mutation is
+          returned; if it is the first mutation, the original individual is
+          returned, i.e. no mutation happens
+        * ``SKIP_HARD`` - the inapplicable mutation is skipped, following
+          mutations are still applied; if no mutation is applicable, the whole
+          pipeline is inapplicable
+        * ``SKIP_SOFT`` - the inapplicable mutation is skipped, following
+          mutations are still applied; if no mutation is applicable, the
+          original individual is returned, i.e. no mutation happens
+
+    ``SKIP_SOFT`` is the default.
+    """
+
+    class FallbackBehaviour(enum.Enum):
+        STOP_HARD = 0
+        STOP_SOFT = 1
+        SKIP_HARD = 2
+        SKIP_SOFT = 3
+
     LOG = logging.getLogger(__name__ + '.PipelineMutation')
 
-    def __init__(self, mutations):
+    def __init__(self, mutations,
+                 fallback_behaviour=FallbackBehaviour.SKIP_SOFT):
+        """
+        :param mutations: the list of mutations that form the pipeline
+        :param fallback_behaviour: specifies how to behave when a mutation is
+            not applicable
+        """
         self.mutations = mutations
+        self.fallback_behaviour = fallback_behaviour
 
     def mutate(self, individual):
         PipelineMutation.LOG.debug(
             'Performing pipeline mutation of individual %s', individual)
+        i = 0
         for m in self.mutations:
-            individual = m.mutate(individual)
+            try:
+                individual = m.mutate(individual)
+                i += 1
+            except OperatorNotApplicableError as e:
+                PipelineMutation.LOG.debug(e)
+                if (self.fallback_behaviour is
+                        PipelineMutation.FallbackBehaviour.STOP_HARD):
+                    if i == 0:
+                        raise OperatorNotApplicableError(
+                            'First mutation was not applicable in STOP_HARD '
+                            'behaviour.') from e
+                    else:
+                        break
+                elif (self.fallback_behaviour is
+                      PipelineMutation.FallbackBehaviour.STOP_SOFT):
+                    break
+                elif (self.fallback_behaviour is
+                      PipelineMutation.FallbackBehaviour.SKIP_HARD or
+                      self.fallback_behaviour is
+                      PipelineMutation.FallbackBehaviour.SKIP_SOFT):
+                    continue
+
+        if (self.fallback_behaviour is
+                PipelineMutation.FallbackBehaviour.SKIP_HARD) and i == 0:
+            raise OperatorNotApplicableError('No mutation was applicable in '
+                                             'SKIP_HARD behaviour.')
         return individual
 
 
@@ -620,7 +814,15 @@ class IndependentReproductionStrategy(GpReproductionStrategy):
         a = selection_strategy.select_single(parents)[1]
         if self.generator.random() < self.crossover_prob:
             b = selection_strategy.select_single(parents)[1]
-            children = self.crossover.crossover(a.copy(), b.copy())
+            a_copy = a.copy()
+            b_copy = b.copy()
+            try:
+                children = self.crossover.crossover(a_copy, b_copy)
+            except OperatorNotApplicableError as e:
+                IndependentReproductionStrategy.LOG.warn(
+                    'Crossover was not applicable - children unchanged.',
+                    exc_info=True)
+                children = [a, b]
         else:
             children = [a]
 
@@ -628,7 +830,13 @@ class IndependentReproductionStrategy(GpReproductionStrategy):
                population_strategy.get_offspring_number()):
             o = children.pop()
             if self.generator.random() < self.mutation_prob:
-                o = self.mutation.mutate(o.copy())
+                o_copy = o.copy()
+                try:
+                    o = self.mutation.mutate(o_copy)
+                except OperatorNotApplicableError as e:
+                    IndependentReproductionStrategy.LOG.warn(
+                        'Mutation was not applicable - individual unchanged.',
+                        exc_info=True)
             offspring.append(o)
 
 
@@ -711,11 +919,26 @@ class ChoiceReproductionStrategy(GpReproductionStrategy):
         r = self.generator.random()
         if r < self.crossover_prob:
             b = selection_strategy.select_single(parents)[1]
-            children = self.crossover.crossover(a.copy(), b.copy())
+            a_copy = a.copy()
+            b_copy = b.copy()
+            try:
+                children = self.crossover.crossover(a_copy, b_copy)
+            except OperatorNotApplicableError as e:
+                ChoiceReproductionStrategy.LOG.warn(
+                    'Crossover was not applicable - children unchanged.',
+                    exc_info=True)
+                children = [a, b]
             if not self.crossover_both:
                 children = [children[0]]
         elif r < self.mutation_prob:
-            children = [self.mutation.mutate(a.copy())]
+            a_copy = a.copy()
+            try:
+                children = [self.mutation.mutate(a_copy)]
+            except OperatorNotApplicableError as e:
+                ChoiceReproductionStrategy.LOG.warn(
+                    'Mutation was not applicable - individual unchanged.',
+                    exc_info=True)
+                children = [a]
         else:
             children = [a]
 

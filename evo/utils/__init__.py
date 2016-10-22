@@ -223,7 +223,9 @@ def select(vector, k, left=None, right=None, cmp=None):
         right = len(vector) - 1
     if k > right - left:
         raise ValueError("The rank is greater than the number of searched "
-                         "elements.")
+                         "elements (k={}, right={}, left={}).".format(k,
+                                                                      right,
+                                                                      left))
     if cmp is None:
         def cmp(a, b):
             return a < b

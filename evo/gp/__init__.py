@@ -4,6 +4,7 @@ Programming.
 """
 
 import enum
+import functools
 import gc
 import logging
 import multiprocessing
@@ -1212,16 +1213,10 @@ class Gp(multiprocessing.context.Process):
         Gp.LOG.debug('Obtaining top %d individuals...', k)
         if k <= 0:
             return []
-        kth = evo.utils.select(self.population, k - 1,
-                               cmp=lambda a, b: self.fitness.is_better(a, b))
-        tops = []
-        for i in self.population:
-            if self.fitness.is_better(i, kth) or self.fitness.is_better(kth, i):
-                tops.append(i)
-            if len(tops) == k:
-                break
-        Gp.LOG.debug('Obtained top individuals: %s', str(tops))
-        return tops
+        self.population.sort(
+            key=functools.cmp_to_key(self.fitness.compare))
+        self.population_sorted = True
+        return self.population[0:k]
 
     def get_runtime(self):
         return time.time() - self.start_time

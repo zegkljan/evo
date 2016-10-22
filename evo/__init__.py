@@ -547,6 +547,8 @@ class ReproductionStrategy(object):
         This method encapsulates a *single* reproduction event. That means that
         this method can be called repeatedly by the driver algorithm.
 
+        :param selection_strategy: a selection strategy
+        :param population_strategy: a population strategy
         :param parents: list of individuals that can be the parents
         :type parents: :class:`list` of :class:`evo.Individual`
         :param offspring: list of offspring individuals

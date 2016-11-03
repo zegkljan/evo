@@ -289,7 +289,7 @@ class BackpropagationFitness(evo.Fitness):
             BackpropagationFitness.LOG.debug('Optimising inner parameters...')
             BackpropagationFitness.LOG.debug('Initial fitness: %f', fitness)
             steps = self.get_max_steps(individual)
-            if steps == 0:
+            if steps < self.min_steps:
                 steps = self.min_steps
             for i in range(steps):
                 self.backpropagate_bases(individual, otf, otf_d)

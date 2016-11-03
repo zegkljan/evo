@@ -612,7 +612,7 @@ class LincombVariable(WeightedNode, evo.sr.Variable):
         super().__init__(**kwargs)
         self.num_vars = num_vars
         self.data['varname'] = self.data['name']
-        self.data['name'] = 'T({}, {})'.format(self.data['name'], self.index)
+        self.data['name'] = 'T{}'.format(self.data['name'], self.index)
         if names is None:
             self.data['names'] = ['x{0}'.format(i) for i in range(num_vars)]
         else:

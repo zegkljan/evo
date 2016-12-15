@@ -10,13 +10,15 @@ import logging
 import operator
 import textwrap
 
+import numpy
+
 import evo
 import evo.gp
 import evo.gp.support
 import evo.sr
 import evo.sr.backpropagation
 import evo.utils
-import numpy
+import evo.utils.stats
 
 
 class FittedForestIndividual(evo.gp.support.ForestIndividual):
@@ -192,7 +194,8 @@ class BackpropagationFitness(evo.Fitness):
     def __init__(self, error_fitness, handled_errors, cost_derivative,
                  updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
                  min_steps=0, fit: bool=False,
-                 synchronize_lincomb_vars: bool=False):
+                 synchronize_lincomb_vars: bool=False,
+                 stats: evo.utils.stats.Stats=None):
         """
         The ``var_mapping`` argument is responsible for mapping the input
         variables to variable names of a tree. It is supposed to be a dict with
@@ -250,6 +253,7 @@ class BackpropagationFitness(evo.Fitness):
         self.fit = fit
         self.synchronize_lincomb_vars = synchronize_lincomb_vars
 
+        self.stats = stats
         self.bsf = None
 
     def get_train_inputs(self):
@@ -283,8 +287,8 @@ class BackpropagationFitness(evo.Fitness):
                                          individual.__str__())
 
         try:
-            fitness, otf, otf_d = self.preeval(individual,
-                                               self.synchronize_lincomb_vars)
+            fitness, otf, otf_d = self._eval_individual(
+                individual, self.synchronize_lincomb_vars)
             prev_fitness = fitness
             BackpropagationFitness.LOG.debug('Optimising inner parameters...')
             BackpropagationFitness.LOG.debug('Initial fitness: %f', fitness)
@@ -301,7 +305,7 @@ class BackpropagationFitness(evo.Fitness):
                     break
 
                 prev_fitness = fitness
-                fitness, otf, otf_d = self.preeval(individual, False)
+                fitness, otf, otf_d = self._eval_individual(individual, False)
                 if not self.has_improved(prev_fitness, fitness):
                     BackpropagationFitness.LOG.debug('Improvement below '
                                                      'threshold, stopping '
@@ -321,7 +325,7 @@ class BackpropagationFitness(evo.Fitness):
             pass
         return individual.get_fitness()
 
-    def preeval(self, individual, pick_lincombs: bool):
+    def _eval_individual(self, individual, pick_lincombs: bool):
         if pick_lincombs:
             do = False
             lcs = list(itertools.chain.from_iterable(
@@ -366,7 +370,7 @@ class BackpropagationFitness(evo.Fitness):
                         if 'w' in n.data:
                             n.weights = n.data['w'][i]
                             n.notify_change()
-                    f, otf, otf_d = self.preeval(individual, False)
+                    f, otf, otf_d = self._eval_individual(individual, False)
                     if i_best is None or self.fitness_cmp(f, f_best) < 0:
                         f_best = f
                         i_best = i
@@ -384,6 +388,9 @@ class BackpropagationFitness(evo.Fitness):
                 return f_best, otf_best, otf_d_best
 
         yhats = self.get_eval(individual, self.get_args())
+        if self.stats is not None:
+            self.stats.report_data([[str(g) for g in individual.genotype],
+                                    full_model_str(individual)])
 
         BackpropagationFitness.LOG.debug('Checking output...')
         self._check_output(yhats, individual)
@@ -512,6 +519,7 @@ class RegressionFitness(BackpropagationFitness):
                  updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
                  min_steps=0, fit: bool=False,
                  synchronize_lincomb_vars: bool=False,
+                 stats: evo.utils.stats.Stats=None,
                  fitness_measure: ErrorMeasure=ErrorMeasure.R2):
         """
         :param train_inputs: feature variables' values: an N x M matrix where N
@@ -525,7 +533,7 @@ class RegressionFitness(BackpropagationFitness):
         """
         super().__init__(fitness_measure.worst, handled_errors,
                          lambda yhat, y: yhat - y, updater, steps, min_steps,
-                         fit, synchronize_lincomb_vars)
+                         fit, synchronize_lincomb_vars, stats)
         self.train_inputs = train_inputs
         self.train_output = numpy.array(train_output, copy=False)
         self.ssw = numpy.sum(

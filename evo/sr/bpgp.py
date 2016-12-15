@@ -282,13 +282,15 @@ class BackpropagationFitness(evo.Fitness):
                                in individual.genotype)
         return ret
 
-    def evaluate_individual(self, individual: FittedForestIndividual):
-        BackpropagationFitness.LOG.debug('Evaluating individual %s',
-                                         individual.__str__())
+    def evaluate_individual(self, individual: FittedForestIndividual,
+                            context=None):
+        BackpropagationFitness.LOG.debug(
+            'Evaluating individual %s in context %s', individual.__str__(),
+            str(context))
 
         try:
             fitness, otf, otf_d = self._eval_individual(
-                individual, self.synchronize_lincomb_vars)
+                individual, self.synchronize_lincomb_vars, context)
             prev_fitness = fitness
             BackpropagationFitness.LOG.debug('Optimising inner parameters...')
             BackpropagationFitness.LOG.debug('Initial fitness: %f', fitness)
@@ -325,7 +327,7 @@ class BackpropagationFitness(evo.Fitness):
             pass
         return individual.get_fitness()
 
-    def _eval_individual(self, individual, pick_lincombs: bool):
+    def _eval_individual(self, individual, pick_lincombs: bool, context=None):
         if pick_lincombs:
             do = False
             lcs = list(itertools.chain.from_iterable(
@@ -389,8 +391,18 @@ class BackpropagationFitness(evo.Fitness):
 
         yhats = self.get_eval(individual, self.get_args())
         if self.stats is not None:
-            self.stats.report_data([[str(g) for g in individual.genotype],
-                                    full_model_str(individual)])
+            iteration = -1
+            runtime = -1
+            # noinspection PyBroadException
+            try:
+                iteration = context.iterations
+                runtime = context.get_runtime()
+            except:
+                pass
+            report_data = [runtime, iteration,
+                           [str(g) for g in individual.genotype],
+                           full_model_str(individual)]
+            self.stats.report_data(report_data)
 
         BackpropagationFitness.LOG.debug('Checking output...')
         self._check_output(yhats, individual)
@@ -474,18 +486,20 @@ class BackpropagationFitness(evo.Fitness):
         """
         raise NotImplementedError()
 
-    def sort(self, population, reverse=False, *args):
-        population.sort(key=functools.cmp_to_key(self.compare), reverse=reverse)
+    def sort(self, population, reverse=False, context=None):
+        population.sort(
+            key=functools.cmp_to_key(lambda a, b: self.compare(a, b, context)),
+            reverse=reverse)
         return True
 
-    def compare(self, i1, i2, *args):
+    def compare(self, i1, i2, context=None):
         f1 = i1.get_fitness()
         f2 = i2.get_fitness()
         if f1 is None:
-            self.evaluate(i1)
+            self.evaluate(i1, context)
             f1 = i1.get_fitness()
         if f2 is None:
-            self.evaluate(i2)
+            self.evaluate(i2, context)
             f2 = i2.get_fitness()
         return self.fitness_cmp(f1, f2)
 

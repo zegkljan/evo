@@ -103,7 +103,7 @@ class Fitness(object):
     COMPARE_TOURNAMENT = 'tournament'
     COMPARE_BSF = 'bsf'
 
-    def evaluate(self, individual):
+    def evaluate(self, individual, context=None):
         """Evaluates the given individual, checkes whether it is a new bsf or
         not and if it is it stores it as one.
 
@@ -112,10 +112,10 @@ class Fitness(object):
 
         .. seealso:: :meth:`.evaluate_individual` and :meth:`handle_bsf`
         """
-        self.evaluate_individual(individual)
-        self.handle_bsf(individual)
+        self.evaluate_individual(individual, context)
+        self.handle_bsf(individual, context)
 
-    def evaluate_individual(self, individual: Individual):
+    def evaluate_individual(self, individual: Individual, context=None):
         """Evaluates the given individual and assigns the resulting fitness
         to the individual.
 
@@ -126,12 +126,15 @@ class Fitness(object):
         returns ``None``.
 
         :param individual: individual to be evaluated
+        :param context: arbitrary data an algorithm can provide to the fitness
+            (e.g. iteration number)
 
         .. seealso:: :class:`.Individual`
         """
         raise NotImplementedError()
 
-    def handle_bsf(self, individual: Individual, do_not_copy: bool=False):
+    def handle_bsf(self, individual: Individual, context=None,
+                   do_not_copy: bool=False):
         """Checks whether the given individual is best-so-far (bsf) and if it
         is it stores it.
 
@@ -142,6 +145,8 @@ class Fitness(object):
         ``True``\ .
 
         :param individual: individual to be checked for being bsf
+        :param context: arbitrary data an algorithm can provide to the fitness
+            (e.g. iteration number)
         :param do_not_copy: if ``True`` the bsf is stored as the individual
             itself and not its copy
 
@@ -153,7 +158,7 @@ class Fitness(object):
             else:
                 self.bsf = individual.copy()
 
-    def sort(self, population, reverse=False, *args):
+    def sort(self, population, reverse=False, context=None):
         """Sorts ``population`` (which is expected to be a list of individuals)
         in an order that the best individual is the first and the worst the
         last.
@@ -161,8 +166,10 @@ class Fitness(object):
         If ``reverse`` is ``True`` (default is ``False``) then the order is
         reversed (i.e. the worst is the first).
 
-        :param args: possible additional arguments for comparison inside
-            sorting. See :meth:`.compare`.
+        :param population: population to be sorted
+        :param reverse: indicates whether the final order should be reversed
+        :param context: arbitrary data an algorithm can provide to the fitness
+            (e.g. iteration number)
 
         :return: ``True`` if the population was successfully sorted,
             ``False`` if the population could not be sorted (e.g. for the
@@ -171,17 +178,17 @@ class Fitness(object):
         """
         raise NotImplementedError()
 
-    def compare(self, i1, i2, *args):
+    def compare(self, i1, i2, context=None):
         """Returns ``-1`` if individual ``i1`` is strictly better than
         individual ``i2``, ``0`` if they are of equal quality and ``1`` if
         ``i1`` is strictly worse than ``i2``.
 
-        :param args: possible additional arguments for comparison. Can be
-          used to distinguish multiple comparison types.
+        :param context: arbitrary data an algorithm can provide to the fitness
+            (e.g. iteration number)
         """
         raise NotImplementedError()
 
-    def is_better(self, i1, i2, *args):
+    def is_better(self, i1, i2, context=None):
         """A wrapper for :meth:`evo.Fitness.compare` simplifying the output to
         a boolean value which is ``True`` only if ``i1`` is strictly better than
         ``i2``.
@@ -189,7 +196,7 @@ class Fitness(object):
         All arguments have exactly the same meaning as in
         :meth:`evo.Fitness.compare`.
         """
-        return self.compare(i1, i2, *args) < 0
+        return self.compare(i1, i2, context) < 0
 
     def get_bsf(self) -> Individual:
         """Returns the best solution encountered so far.

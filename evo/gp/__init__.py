@@ -4,7 +4,6 @@ Programming.
 """
 
 import enum
-import functools
 import gc
 import logging
 import multiprocessing
@@ -1213,8 +1212,7 @@ class Gp(multiprocessing.context.Process):
         Gp.LOG.debug('Obtaining top %d individuals...', k)
         if k <= 0:
             return []
-        self.population.sort(
-            key=functools.cmp_to_key(self.fitness.compare))
+        self.fitness.sort(self.population, context=self)
         self.population_sorted = True
         return self.population[0:k]
 

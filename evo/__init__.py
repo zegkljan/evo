@@ -103,6 +103,12 @@ class Fitness(object):
     COMPARE_TOURNAMENT = 'tournament'
     COMPARE_BSF = 'bsf'
 
+    def __init__(self, store_bsfs: bool=True):
+        self.store_bsfs = store_bsfs
+
+        self.bsf = None
+        self.bsfs = []
+
     def evaluate(self, individual, context=None):
         """Evaluates the given individual, checkes whether it is a new bsf or
         not and if it is it stores it as one.
@@ -158,6 +164,9 @@ class Fitness(object):
             else:
                 self.bsf = individual.copy()
 
+            if self.store_bsfs:
+                self.bsfs.append(self.bsf)
+
     def sort(self, population, reverse=False, context=None):
         """Sorts ``population`` (which is expected to be a list of individuals)
         in an order that the best individual is the first and the worst the
@@ -205,7 +214,13 @@ class Fitness(object):
             solution (yet)
         :rtype: :class:`evo.Individual`
         """
-        raise NotImplementedError()
+        return self.bsf
+
+    def get_bsfs(self):
+        """Returns a list of the best-so-far solutions in order as they were
+        found during the optimisation run.
+        """
+        return self.bsfs
 
 
 class UnevaluableError(Exception):

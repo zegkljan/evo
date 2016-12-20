@@ -195,7 +195,7 @@ class BackpropagationFitness(evo.Fitness):
                  updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
                  min_steps=0, fit: bool=False,
                  synchronize_lincomb_vars: bool=False,
-                 stats: evo.utils.stats.Stats=None):
+                 stats: evo.utils.stats.Stats=None, store_bsfs: bool=True):
         """
         The ``var_mapping`` argument is responsible for mapping the input
         variables to variable names of a tree. It is supposed to be a dict with
@@ -234,7 +234,7 @@ class BackpropagationFitness(evo.Fitness):
             index, effectively making a single affine transformation from all
             these leaf nodes
         """
-        super().__init__()
+        super().__init__(store_bsfs)
         self.error_fitness = error_fitness
         self.errors = tuple([ZeroDivisionError, FloatingPointError] +
                             handled_errors)
@@ -254,7 +254,6 @@ class BackpropagationFitness(evo.Fitness):
         self.synchronize_lincomb_vars = synchronize_lincomb_vars
 
         self.stats = stats
-        self.bsf = None
 
     def get_train_inputs(self):
         raise NotImplementedError()
@@ -505,9 +504,6 @@ class BackpropagationFitness(evo.Fitness):
 
     def fitness_cmp(self, f1, f2):
         raise NotImplementedError()
-
-    def get_bsf(self) -> evo.Individual:
-        return self.bsf
 
     def fit_outputs(self, individual: FittedForestIndividual, outputs):
         raise NotImplementedError()

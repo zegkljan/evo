@@ -621,7 +621,7 @@ class GeFitness(evo.Fitness):
         pass
 
     def __init__(self, grammar, unfinished_fitness, wraps=0,
-                 skip_if_evaluated=True):
+                 skip_if_evaluated=True, store_bsfs: bool=True):
         """
         :param grammar: a grammar to use for decoding
         :type grammar: either :class:`evo.utils.grammar.Grammar` or an argument
@@ -636,6 +636,7 @@ class GeFitness(evo.Fitness):
             individual's ``get_fitness`` method returns a non-\ ``None`` value.
             If ``False`` then the evaluation will always be carried out.
         """
+        super().__init__(store_bsfs)
         self.grammar = None
         if isinstance(grammar, evo.utils.grammar.Grammar):
             self.grammar = grammar
@@ -645,7 +646,6 @@ class GeFitness(evo.Fitness):
         self.unfinished_fitness = unfinished_fitness
         self.wraps = wraps
         self.skip_if_evaluated = skip_if_evaluated
-        self.bsf = None
 
     def evaluate_individual(self, individual: evo.Individual):
         """
@@ -696,9 +696,6 @@ class GeFitness(evo.Fitness):
         """Evaluates the phenotype.
         """
         raise NotImplementedError()
-
-    def get_bsf(self):
-        return self.bsf
 
 
 # noinspection PyAbstractClass

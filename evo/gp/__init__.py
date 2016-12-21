@@ -4,9 +4,9 @@ Programming.
 """
 
 import enum
+import functools
 import gc
 import logging
-import multiprocessing
 import pprint
 import random
 import time
@@ -77,10 +77,10 @@ class InapplicableCrossover(CrossoverOperator):
     """
 
     def get_parents_number(self) -> int:
-        return None
+        return 0
 
     def get_children_number(self) -> int:
-        return None
+        return 0
 
     def crossover(self, *parents):
         raise OperatorNotApplicableError('InapplicableCrossover.crossover() '
@@ -315,10 +315,10 @@ class StochasticChoiceCrossover(CrossoverOperator):
                                  'of children as the main methods.')
 
     def get_parents_number(self) -> int:
-        self.probs_crossovers[0][1].get_parents_number()
+        return self.probs_crossovers[0][1].get_parents_number()
 
     def get_children_number(self) -> int:
-        self.probs_crossovers[0][1].get_children_number()
+        return self.probs_crossovers[0][1].get_children_number()
 
     def crossover(self, *parents):
         StochasticChoiceCrossover.LOG.debug(
@@ -809,17 +809,17 @@ class IndependentReproductionStrategy(GpReproductionStrategy):
                 'Mutation probability out of range. Clipped to [0, 1].')
 
     def reproduce(self, selection_strategy: evo.SelectionStrategy,
-                  population_strategy: evo.PopulationStrategy, parents,
-                  offspring):
-        a = selection_strategy.select_single(parents)[1]
+                  population_strategy: evo.PopulationStrategy,
+                  algorithm: evo.Evolution, parents, offspring):
+        a = selection_strategy.select_single(parents, algorithm)[1]
         if self.generator.random() < self.crossover_prob:
-            b = selection_strategy.select_single(parents)[1]
+            b = selection_strategy.select_single(parents, algorithm)[1]
             a_copy = a.copy()
             b_copy = b.copy()
             try:
                 children = self.crossover.crossover(a_copy, b_copy)
-            except OperatorNotApplicableError as e:
-                IndependentReproductionStrategy.LOG.warn(
+            except OperatorNotApplicableError:
+                IndependentReproductionStrategy.LOG.warning(
                     'Crossover was not applicable - children unchanged.',
                     exc_info=True)
                 children = [a, b]
@@ -833,8 +833,8 @@ class IndependentReproductionStrategy(GpReproductionStrategy):
                 o_copy = o.copy()
                 try:
                     o = self.mutation.mutate(o_copy)
-                except OperatorNotApplicableError as e:
-                    IndependentReproductionStrategy.LOG.warn(
+                except OperatorNotApplicableError:
+                    IndependentReproductionStrategy.LOG.warning(
                         'Mutation was not applicable - individual unchanged.',
                         exc_info=True)
             offspring.append(o)
@@ -913,18 +913,18 @@ class ChoiceReproductionStrategy(GpReproductionStrategy):
         self.crossover_both = crossover_both
 
     def reproduce(self, selection_strategy: evo.SelectionStrategy,
-                  population_strategy: evo.PopulationStrategy, parents,
-                  offspring):
-        a = selection_strategy.select_single(parents)[1]
+                  population_strategy: evo.PopulationStrategy,
+                  algorithm: evo.Evolution, parents, offspring):
+        a = selection_strategy.select_single(parents, algorithm)[1]
         r = self.generator.random()
         if r < self.crossover_prob:
-            b = selection_strategy.select_single(parents)[1]
+            b = selection_strategy.select_single(parents, algorithm)[1]
             a_copy = a.copy()
             b_copy = b.copy()
             try:
                 children = self.crossover.crossover(a_copy, b_copy)
-            except OperatorNotApplicableError as e:
-                ChoiceReproductionStrategy.LOG.warn(
+            except OperatorNotApplicableError:
+                ChoiceReproductionStrategy.LOG.warning(
                     'Crossover was not applicable - children unchanged.',
                     exc_info=True)
                 children = [a, b]
@@ -934,8 +934,8 @@ class ChoiceReproductionStrategy(GpReproductionStrategy):
             a_copy = a.copy()
             try:
                 children = [self.mutation.mutate(a_copy)]
-            except OperatorNotApplicableError as e:
-                ChoiceReproductionStrategy.LOG.warn(
+            except OperatorNotApplicableError:
+                ChoiceReproductionStrategy.LOG.warning(
                     'Mutation was not applicable - individual unchanged.',
                     exc_info=True)
                 children = [a]
@@ -948,8 +948,7 @@ class ChoiceReproductionStrategy(GpReproductionStrategy):
             offspring.append(o)
 
 
-# noinspection PyAbstractClass
-class Gp(multiprocessing.context.Process):
+class Gp(evo.Evolution):
     """This class forms the whole GE algorithm.
     """
 
@@ -983,7 +982,7 @@ class Gp(multiprocessing.context.Process):
                  selection_strategy: evo.SelectionStrategy,
                  reproduction_strategy: evo.ReproductionStrategy,
                  population_initializer: evo.PopulationInitializer,
-                 functions, terminals, stop, name=None, **kwargs):
+                 functions, terminals, stop, **kwargs):
         """The optional keyword argument ``generator`` can be used to pass a
         random number generator. If it is ``None`` or not present a standard
         generator is used which is the :mod:`random` module and its
@@ -1085,8 +1084,6 @@ class Gp(multiprocessing.context.Process):
         genes than this limit specifies.
 
         """
-        multiprocessing.context.Process.__init__(self, name=name)
-
         # Positional args
         self.fitness = fitness
         self.pop_strategy = pop_strategy
@@ -1155,7 +1152,12 @@ class Gp(multiprocessing.context.Process):
 
             if self.callback is not None:
                 self.callback(self, Gp.CallbackSituation.start)
-            self._run()
+            Gp.LOG.info('Starting evolution.')
+            try:
+                self._run()
+            except evo.StopEvolution:
+                Gp.LOG.debug('Evolution terminated.', exc_info=True)
+            Gp.LOG.info('Finished evolution.')
             if self.callback is not None:
                 self.callback(self, Gp.CallbackSituation.end)
         except:
@@ -1180,41 +1182,57 @@ class Gp(multiprocessing.context.Process):
                 pass
 
     def _run(self):
-        Gp.LOG.info('Starting evolution.')
-        while not self.stop(self):
-            Gp.LOG.debug('Starting iteration %d', self.iterations)
-            if self.callback is not None:
-                self.callback(self, Gp.CallbackSituation.iteration_start)
+        while True:
+            self._iteration()
 
-            elites = self.top_individuals(self.pop_strategy.get_elites_number())
+    def _iteration(self):
+        Gp.LOG.debug('Starting iteration %d', self.iterations)
+        self.try_stop()
+        if self.callback is not None:
+            self.callback(self, Gp.CallbackSituation.iteration_start)
 
-            Gp.LOG.debug('Processing selection.')
-            offspring = []
-            while len(offspring) < self.pop_strategy.get_offspring_number():
-                self.reproduction_strategy.reproduce(self.selection_strategy,
-                                                     self.pop_strategy,
-                                                     self.population,
-                                                     offspring)
-            self.population = self.pop_strategy.combine_populations(
-                self.population, offspring, elites)
-            Gp.LOG.info('Iteration %d / %.1f s. BSF %s | '
-                        '%s | %s',
-                        self.iterations, self.get_runtime(),
-                        self.fitness.get_bsf().get_fitness(),
-                        str(self.fitness.get_bsf()),
-                        self.fitness.get_bsf().get_data())
-            if self.callback is not None:
-                self.callback(self, Gp.CallbackSituation.iteration_end)
-            self.iterations += 1
-        Gp.LOG.info('Finished evolution.')
+        elites = self.top_individuals(self.pop_strategy.get_elites_number())
+
+        Gp.LOG.debug('Processing selection.')
+        offspring = []
+        while len(offspring) < self.pop_strategy.get_offspring_number():
+            self.try_stop()
+            self.reproduction_strategy.reproduce(self.selection_strategy,
+                                                 self.pop_strategy,
+                                                 self,
+                                                 self.population,
+                                                 offspring)
+        self.population = self.pop_strategy.combine_populations(
+            self.population, offspring, elites)
+        Gp.LOG.info('Iteration %d / %.1f s. BSF %s | '
+                    '%s | %s',
+                    self.iterations, self.get_runtime(),
+                    self.fitness.get_bsf().get_fitness(),
+                    str(self.fitness.get_bsf()),
+                    self.fitness.get_bsf().get_data())
+        if self.callback is not None:
+            self.callback(self, Gp.CallbackSituation.iteration_end)
+        self.iterations += 1
+
+    def try_stop(self):
+        """Uses the stopping condition to raise an exception in case the
+        condition is satisfied (and does nothing if it is not).
+        """
+        if self.stop(self):
+            raise evo.StopEvolution('Terminal stopping condition satisfied.')
 
     def top_individuals(self, k):
         Gp.LOG.debug('Obtaining top %d individuals...', k)
         if k <= 0:
             return []
-        self.fitness.sort(self.population, context=self)
+
+        self.population.sort(key=functools.cmp_to_key(self.compare_individuals))
         self.population_sorted = True
         return self.population[0:k]
 
     def get_runtime(self):
         return time.time() - self.start_time
+
+    def compare_individuals(self, a, b):
+        self.try_stop()
+        return self.fitness.compare(a, b, context=self)

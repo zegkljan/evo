@@ -4,7 +4,6 @@
 
 import copy
 import enum
-import functools
 import itertools
 import logging
 import operator
@@ -485,12 +484,6 @@ class BackpropagationFitness(evo.Fitness):
         """
         raise NotImplementedError()
 
-    def sort(self, population, reverse=False, context=None):
-        population.sort(
-            key=functools.cmp_to_key(lambda a, b: self.compare(a, b, context)),
-            reverse=reverse)
-        return True
-
     def compare(self, i1, i2, context=None):
         f1 = i1.get_fitness()
         f2 = i2.get_fitness()
@@ -587,6 +580,7 @@ class RegressionFitness(BackpropagationFitness):
     def get_output(self, outputs, individual: FittedForestIndividual):
         intercept = individual.intercept
         coefficients = individual.coefficients
+        output = None
         if coefficients is not None:
             if not isinstance(outputs, numpy.ndarray) or outputs.ndim == 1:
                 output = outputs * coefficients
@@ -672,7 +666,8 @@ class RegressionFitnessRst(RegressionFitness):
         self.ssw = numpy.sum(
             (self.train_output - self.train_output.mean()) ** 2)
 
-    def evaluate_individual(self, individual: evo.gp.support.ForestIndividual):
+    def evaluate_individual(self, individual: evo.gp.support.ForestIndividual,
+                            context=None):
         for g in individual.genotype:
             g.clear_cache()
         super().evaluate(individual)
@@ -693,7 +688,7 @@ class RegressionFitnessRst(RegressionFitness):
             if self.fit:
                 self.fit_outputs(individual, yhats)
             fitness = self.get_error(yhats, individual)
-        except self.errors as e:
+        except self.errors:
             BackpropagationFitness.LOG.debug(
                 'Exception occurred during evaluation, assigning fitness %f',
                 self.error_fitness, exc_info=True)

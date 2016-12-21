@@ -3,15 +3,15 @@
 """
 
 import copy
-import functools
 import logging
+
+import numpy
+import numpy.linalg
 
 import evo
 import evo.ge
 import evo.utils.grammar
 import evo.utils.tree
-import numpy
-import numpy.linalg
 
 __author__ = 'Jan Žegklitz'
 
@@ -186,10 +186,6 @@ class MultiGeneGeSrFitness(evo.ge.GeTreeFitness):
         :param bias: the additive component of the compound model
         """
         raise NotImplementedError()
-
-    def sort(self, population, reverse=False, *args):
-        population.sort(key=functools.cmp_to_key(self.compare))
-        return True
 
     def compare(self, i1, i2, *args):
         f1 = i1.get_fitness()

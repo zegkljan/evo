@@ -1142,6 +1142,9 @@ class Gp(evo.Evolution):
 
     def run(self):
         """Runs the GE algorithm.
+
+        :return: ``True`` if the algorithm successfully finished, ``False`` if
+            it was terminated by an exception
         """
         Gp.LOG.info('Starting algorithm.')
         # noinspection PyBroadException
@@ -1160,8 +1163,10 @@ class Gp(evo.Evolution):
             Gp.LOG.info('Finished evolution.')
             if self.callback is not None:
                 self.callback(self, Gp.CallbackSituation.end)
+            return True
         except:
             Gp.LOG.warning('Evolution terminated by exception.', exc_info=True)
+            return False
         finally:
             self.end_time = time.time()
             if self.fitness.get_bsf() is None:

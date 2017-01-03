@@ -4,9 +4,10 @@ learning of tree expressions.
 
 import textwrap
 
+import numpy
+
 import evo.sr
 import evo.utils
-import numpy
 
 
 # Helper functions for the case of no output transformation
@@ -76,6 +77,11 @@ class WeightedNode(evo.sr.MathNode):
             self.argument[:, i] = args[i]
         return super().operation(*args)
 
+    def self_changed(self, data=None):
+        del self.argument
+        self.argument = None
+        super().self_changed(data)
+
     def derivative(self, arg_no: int, x):
         """Returns the value of the derivative of the node's function, related
         to the given argument, at ``x``.
@@ -124,8 +130,6 @@ class WeightedNode(evo.sr.MathNode):
                 pw = self.parent.weights[self.parent_index]
                 sd = self.derivative(i, self.argument)
                 self.data['d_bias'][:, i] = pd * pw * sd
-        del self.argument
-        self.argument = None
 
         # weights derivative
         inputs = None
@@ -699,8 +703,6 @@ class LincombVariable(WeightedNode, evo.sr.Variable):
         elif self.tune_weights:
             inputs = self.argument.copy()
             inputs[:, numpy.logical_not(self.tune_weights)] = 0
-        del self.argument
-        self.argument = None
         if inputs is not None and len(inputs) > 0:
             self.data['d_weights'] = (numpy.squeeze(self.data['d_bias']) *
                                       inputs.T).T

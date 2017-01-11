@@ -311,7 +311,8 @@ def generate_tree_full_grow(inners, leaves, depth, nodes, generator, full):
             else:
                 pool = selected_functions + leaves
 
-        node = generator.choice(pool)()
+        node_creator = generator.choice(pool)
+        node = node_creator()
         arity = node.get_arity()
         must_create = must_create - 1 + arity
 

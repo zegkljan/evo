@@ -118,7 +118,8 @@ class CoefficientsMutation(evo.gp.MutationOperator):
 
     @staticmethod
     def predicate(n):
-        return isinstance(n, evo.sr.backpropagation.WeightedNode)
+        return (isinstance(n, evo.sr.backpropagation.WeightedNode) and
+                (n.tune_bias is not False or n.tune_weights is not False))
 
     def mutate_node(self, node, sigma):
         if node.tune_bias is True:

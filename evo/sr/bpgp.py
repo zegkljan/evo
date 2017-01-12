@@ -355,6 +355,9 @@ class BackpropagationFitness(evo.Fitness):
                     do = True
                 else:
                     continue
+
+                b.append((b[0] + b[1]) / 2)
+                w.append((w[0] + w[1]) / 2)
                 for j, v in enumerate(g):
                     v.data['b'] = b
                     v.data['w'] = w
@@ -363,7 +366,7 @@ class BackpropagationFitness(evo.Fitness):
             otf_best = None
             otf_d_best = None
             if do:
-                for i in range(2):
+                for i in range(3):
                     for n in lcs:
                         if 'b' in n.data:
                             n.bias = n.data['b'][i]

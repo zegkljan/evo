@@ -48,12 +48,28 @@ class WeightedNode(evo.sr.MathNode):
             be tuned
         """
         super().__init__(**kwargs)
-        self.bias = numpy.zeros(self.get_arity())
-        self.weights = numpy.ones(self.get_arity())
+        self._bias = numpy.zeros(self.get_arity())
+        self._weights = numpy.ones(self.get_arity())
         self.argument = None
 
         self.tune_bias = tune_bias
         self.tune_weights = tune_weights
+
+    @property
+    def bias(self):
+        return self._bias
+
+    @bias.setter
+    def bias(self, value):
+        self._bias = value
+
+    @property
+    def weights(self):
+        return self._weights
+
+    @weights.setter
+    def weights(self, value):
+        self._weights = value
 
     def copy_contents(self, dest):
         super().copy_contents(dest)
@@ -734,9 +750,10 @@ class LincombVariable(WeightedNode, evo.sr.Variable):
 class WeightsUpdater(object):
     """This is a base class for algorithms for updating weights on trees.
     """
-    def __init__(self, delete_derivatives: bool=True):
+    def __init__(self, delete_derivatives: bool=True, maximize: bool=False):
         self.updated = False
         self.delete_derivatives = delete_derivatives
+        self.maximize = maximize
 
     def update(self, root: WeightedNode, error, prev_error) -> bool:
         self.updated = False
@@ -758,9 +775,11 @@ class WeightsUpdater(object):
 class RpropBase(WeightsUpdater):
     """This is a base class for Rprop algorithm variants.
     """
-    def __init__(self, delta_init=0.1, delta_min=1e-6, delta_max=50,
+    def __init__(self, delete_derivatives: bool=True, maximize: bool=False,
+                 delta_init=0.1, delta_min=1e-6, delta_max=50,
                  eta_minus=0.5, eta_plus=1.2, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(delete_derivatives=delete_derivatives,
+                         maximize=maximize)
         self.delta_init = delta_init
         self.eta_plus = eta_plus
         self.delta_max = delta_max
@@ -986,7 +1005,10 @@ class IRpropPlus(RpropBase):
             node.notify_change()
 
     def update(self, root: WeightedNode, error, prev_error):
-        self.error_worsened = error > prev_error
+        if self.maximize:
+            self.error_worsened = error < prev_error
+        else:
+            self.error_worsened = error > prev_error
         super().update(root, error, prev_error)
 
 

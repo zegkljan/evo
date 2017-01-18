@@ -195,7 +195,8 @@ class BackpropagationFitness(evo.Fitness):
                  updater: evo.sr.backpropagation.WeightsUpdater, steps=10,
                  min_steps=0, fit: bool=False,
                  synchronize_lincomb_vars: bool=False,
-                 stats: evo.utils.stats.Stats=None, store_bsfs: bool=True):
+                 stats: evo.utils.stats.Stats=None, store_bsfs: bool=True,
+                 backpropagate_only: bool=False):
         """
         The ``var_mapping`` argument is responsible for mapping the input
         variables to variable names of a tree. It is supposed to be a dict with
@@ -252,6 +253,7 @@ class BackpropagationFitness(evo.Fitness):
         self.min_steps = min_steps
         self.fit = fit
         self.synchronize_lincomb_vars = synchronize_lincomb_vars
+        self.backpropagate_only = backpropagate_only
 
         self.stats = stats
 
@@ -293,9 +295,13 @@ class BackpropagationFitness(evo.Fitness):
             prev_fitness = fitness
             BackpropagationFitness.LOG.debug('Optimising inner parameters...')
             BackpropagationFitness.LOG.debug('Initial fitness: %f', fitness)
-            steps = self.get_max_steps(individual)
-            if steps < self.min_steps:
-                steps = self.min_steps
+            if self.backpropagate_only:
+                self.backpropagate_bases(individual, otf, otf_d)
+                steps = 0
+            else:
+                steps = self.get_max_steps(individual)
+                if steps < self.min_steps:
+                    steps = self.min_steps
             for i in range(steps):
                 self.backpropagate_bases(individual, otf, otf_d)
                 updated = self.update_bases(fitness, individual, prev_fitness)
@@ -457,7 +463,8 @@ class BackpropagationFitness(evo.Fitness):
     def update_bases(self, fitness, individual, prev_fitness):
         updated = False
         for n in range(individual.genes_num):
-            gene_updated = self.update_base(fitness, individual.genotype[n], prev_fitness)
+            gene_updated = self.update_base(fitness, individual.genotype[n],
+                                            prev_fitness)
             updated = updated or gene_updated
         return updated
 
@@ -509,7 +516,8 @@ class BackpropagationFitness(evo.Fitness):
                                   yhats):
         raise NotImplementedError()
 
-    def has_improved(self, prev_fitness, fitness):
+    @staticmethod
+    def has_improved(prev_fitness, fitness):
         """Returns ``true`` if the fitness is considered to be improved
         compared to the previous fitness.
         """
@@ -527,7 +535,8 @@ class RegressionFitness(BackpropagationFitness):
                  min_steps=0, fit: bool=False,
                  synchronize_lincomb_vars: bool=False,
                  stats: evo.utils.stats.Stats=None,
-                 fitness_measure: ErrorMeasure=ErrorMeasure.R2):
+                 fitness_measure: ErrorMeasure=ErrorMeasure.R2,
+                 backpropagate_only: bool=False):
         """
         :param train_inputs: feature variables' values: an N x M matrix where N
             is the number of datapoints (the same N as in ``target`` argument)
@@ -540,7 +549,8 @@ class RegressionFitness(BackpropagationFitness):
         """
         super().__init__(fitness_measure.worst, handled_errors,
                          lambda yhat, y: yhat - y, updater, steps, min_steps,
-                         fit, synchronize_lincomb_vars, stats)
+                         fit, synchronize_lincomb_vars, stats,
+                         backpropagate_only=backpropagate_only)
         self.train_inputs = train_inputs
         self.train_output = numpy.array(train_output, copy=False)
         self.ssw = numpy.sum(
@@ -720,3 +730,158 @@ def full_model_str(individual: FittedForestIndividual,
         for c, g in zip(co, individual.genotype):
             strs.append(('{:' + nf + '} * {}').format(c, g.infix(**kwargs)))
     return ' + '.join(strs)
+
+
+class GlobalLincombsGp(evo.gp.Gp):
+
+    LOG = logging.getLogger(__name__ + '.GlobalLincombsGp')
+
+    def __init__(self, fitness: evo.Fitness,
+                 pop_strategy: evo.PopulationStrategy,
+                 selection_strategy: evo.SelectionStrategy,
+                 reproduction_strategy: evo.ReproductionStrategy,
+                 population_initializer: evo.PopulationInitializer, functions,
+                 terminals, stop, coeff_mut_prob, coeff_mut_sigma, global_lcs,
+                 **kwargs):
+        super().__init__(fitness, pop_strategy, selection_strategy,
+                         reproduction_strategy, population_initializer,
+                         functions, terminals, stop, **kwargs)
+        self.coeff_mut_prob = coeff_mut_prob
+        self.cm = CoefficientsMutation(coeff_mut_sigma, self.generator)
+        self.global_lcs = global_lcs
+
+    def _iteration(self):
+        GlobalLincombsGp.LOG.debug('Starting iteration %d', self.iterations)
+        self.try_stop()
+        if self.callback is not None:
+            self.callback(self, evo.gp.Gp.CallbackSituation.iteration_start)
+
+        all_nodes = lambda p: list(evo.utils.flatten(map(lambda x: map(lambda y: y.get_nodes_dfs(predicate=lambda z: isinstance(z, evo.sr.backpropagation.LincombVariable)), x.genotype), p)))
+        self._eval_all()
+        self._synchronize()
+        self._update(0, 0)
+
+        elites = self.top_individuals(self.pop_strategy.get_elites_number())
+
+        GlobalLincombsGp.LOG.debug('Processing selection.')
+        offspring = []
+        while len(offspring) < self.pop_strategy.get_offspring_number():
+            self.try_stop()
+            self.reproduction_strategy.reproduce(self.selection_strategy,
+                                                 self.pop_strategy,
+                                                 self,
+                                                 self.population,
+                                                 offspring)
+        self._post_synchronize(offspring)
+        self.population = self.pop_strategy.combine_populations(
+            self.population, offspring, elites)
+        self._mutate()
+        GlobalLincombsGp.LOG.info('Iteration %d / %.1f s. BSF %s | '
+                                  '%s | %s',
+                                  self.iterations, self.get_runtime(),
+                                  self.fitness.get_bsf().get_fitness(),
+                                  str(self.fitness.get_bsf()),
+                                  self.fitness.get_bsf().get_data())
+        if self.callback is not None:
+            self.callback(self, evo.gp.Gp.CallbackSituation.iteration_end)
+        self.iterations += 1
+
+    def eval_individual(self, i):
+        self.try_stop()
+        return self.fitness.evaluate(i, context=self)
+
+    def _eval_all(self):
+        for i in self.population:
+            self.eval_individual(i)
+
+    def _synchronize(self):
+        all_nodes = []
+        for i in self.population:
+            for g in i.genotype:
+                all_nodes.extend(g.get_nodes_dfs(
+                    predicate=self._node_filter))
+        d_bias = {}
+        d_weights = {}
+        prev_d_bias = {}
+        prev_d_weights = {}
+        for n in all_nodes:
+            i = n.index
+            if 'd_bias' in n.data:
+                if i not in d_bias:
+                    d_bias[i] = n.data['d_bias']
+                else:
+                    d_bias[i] = d_bias[i] + n.data['d_bias']
+            if 'd_weights' in n.data:
+                if i not in d_weights:
+                    d_weights[i] = n.data['d_weights']
+                else:
+                    d_weights[i] = d_weights[i] + n.data['d_weights']
+            if 'prev_d_bias' in n.data:
+                prev_d_bias[i] = n.data['prev_d_bias']
+            if 'prev_d_weights' in n.data:
+                prev_d_weights[i] = n.data['prev_d_weights']
+
+        for n in all_nodes:
+            i = n.index
+            if i in d_bias:
+                n.data['d_bias'] = numpy.copy(d_bias[i])
+            if i in d_weights:
+                n.data['d_weights'] = numpy.copy(d_weights[i])
+            if i in prev_d_bias:
+                n.data['prev_d_bias'] = numpy.copy(prev_d_bias[i])
+            if i in prev_d_weights:
+                n.data['prev_d_weights'] = numpy.copy(prev_d_weights[i])
+
+        for n in self.global_lcs:
+            i = n.index
+            if i in d_bias:
+                n.data['d_bias'] = d_bias[i]
+            if i in d_weights:
+                n.data['d_weights'] = d_weights[i]
+            if i in prev_d_bias:
+                n.data['prev_d_bias'] = prev_d_bias[i]
+            if i in prev_d_weights:
+                n.data['prev_d_weights'] = prev_d_weights[i]
+
+        for n in all_nodes:
+            i = n.index
+            global_n = self.global_lcs[i]
+            if 'delta_bias' in global_n.data:
+                n.data['delta_bias'] = numpy.copy(global_n.data['delta_bias'])
+            if 'delta_weights' in global_n.data:
+                n.data['delta_weights'] = numpy.copy(
+                    global_n.data['delta_weights'])
+
+    def _post_synchronize(self, offspring):
+        all_nodes = []
+        for i in offspring:
+            for g in i.genotype:
+                all_nodes.extend(g.get_nodes_dfs(
+                    predicate=self._node_filter))
+        for n in all_nodes:
+            i = n.index
+            global_n = self.global_lcs[i]
+            n.bias = numpy.copy(global_n.bias)
+            n.weights = numpy.copy(global_n.weights)
+
+    @staticmethod
+    def _node_filter(n):
+        return isinstance(n, evo.sr.backpropagation.LincombVariable)
+
+    def _update(self, prev_bsf_fitness, cur_bsf_fitness):
+        for n in self.global_lcs:
+            self.fitness.update_base(cur_bsf_fitness, n, prev_bsf_fitness)
+        for i in self.population:
+            self.fitness.update_bases(cur_bsf_fitness, i, prev_bsf_fitness)
+
+    def _mutate(self):
+        if self.generator.random() >= self.coeff_mut_prob:
+            return
+        for lc in self.global_lcs:
+            self.cm.mutate_node(lc, self.cm.sigma)
+        for i in self.population:
+            for g in i.genotype:
+                for n in g.get_nodes_dfs(predicate=self._node_filter):
+                    n.bias[:] = self.global_lcs[n.index].bias[:]
+                    n.weights[:] = self.global_lcs[n.index].weights[:]
+                    n.notify_change()

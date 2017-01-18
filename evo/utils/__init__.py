@@ -2,6 +2,7 @@
 """This package contains support modules for evolutionary algorithms.
 """
 
+import collections
 import logging
 
 import numpy
@@ -103,3 +104,12 @@ def broadcast_column_stack(*args, min_rows: int=1):
     return numpy.column_stack(numpy.broadcast(*args)).T
 
 column_stack = efficient_column_stack
+
+
+def flatten(l):
+    for e in l:
+        if (isinstance(e, collections.Iterable) and
+                not isinstance(e, (str, bytes, numpy.ndarray))):
+            yield from flatten(e)
+        else:
+            yield e

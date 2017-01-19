@@ -742,13 +742,14 @@ class GlobalLincombsGp(evo.gp.Gp):
                  reproduction_strategy: evo.ReproductionStrategy,
                  population_initializer: evo.PopulationInitializer, functions,
                  terminals, stop, coeff_mut_prob, coeff_mut_sigma, global_lcs,
-                 **kwargs):
+                 update_steps, **kwargs):
         super().__init__(fitness, pop_strategy, selection_strategy,
                          reproduction_strategy, population_initializer,
                          functions, terminals, stop, **kwargs)
         self.coeff_mut_prob = coeff_mut_prob
         self.cm = CoefficientsMutation(coeff_mut_sigma, self.generator)
         self.global_lcs = global_lcs
+        self.update_steps = update_steps
 
     def _iteration(self):
         GlobalLincombsGp.LOG.debug('Starting iteration %d', self.iterations)
@@ -756,10 +757,20 @@ class GlobalLincombsGp(evo.gp.Gp):
         if self.callback is not None:
             self.callback(self, evo.gp.Gp.CallbackSituation.iteration_start)
 
-        all_nodes = lambda p: list(evo.utils.flatten(map(lambda x: map(lambda y: y.get_nodes_dfs(predicate=lambda z: isinstance(z, evo.sr.backpropagation.LincombVariable)), x.genotype), p)))
         self._eval_all()
-        self._synchronize()
-        self._update(0, 0)
+        GlobalLincombsGp.LOG.debug('Before global update: BSF %s | %s | %s',
+                                   self.fitness.get_bsf().get_fitness(),
+                                   str(self.fitness.get_bsf()),
+                                   self.fitness.get_bsf().get_data())
+        for i in range(self.update_steps):
+            self._synchronize()
+            self._update(0, 0)
+            self._eval_all()
+            GlobalLincombsGp.LOG.debug('After global update step %d / %d: BSF '
+                                       '%s | %s | %s', i + 1, self.update_steps,
+                                       self.fitness.get_bsf().get_fitness(),
+                                       str(self.fitness.get_bsf()),
+                                       self.fitness.get_bsf().get_data())
 
         elites = self.top_individuals(self.pop_strategy.get_elites_number())
 

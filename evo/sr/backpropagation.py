@@ -1009,7 +1009,7 @@ class IRpropPlus(RpropBase):
             self.error_worsened = error < prev_error
         else:
             self.error_worsened = error > prev_error
-        super().update(root, error, prev_error)
+        return super().update(root, error, prev_error)
 
 
 class IRpropMinus(RpropBase):

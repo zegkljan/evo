@@ -2,8 +2,9 @@
 """ TODO docstring
 """
 
-import logging
 import copy
+import logging
+from builtins import round
 
 __version__ = '0.0.1.dev1'
 
@@ -61,6 +62,14 @@ class Individual(object):
             return self._data
         return self._data.get(key)
 
+    def delete_data(self, key):
+        """Deletes the data under the given key.
+
+        If there is no such key, nothing happens.
+        """
+        if key in self._data:
+            del self._data[key]
+
     @staticmethod
     def copy_evaluation(from_individual, to_individual, do_copy):
         """Copies the fitness value from `from_individual` to `to_individual` if
@@ -94,7 +103,25 @@ class Fitness(object):
     COMPARE_TOURNAMENT = 'tournament'
     COMPARE_BSF = 'bsf'
 
-    def evaluate(self, individual):
+    def __init__(self, store_bsfs: bool=True):
+        self.store_bsfs = store_bsfs
+
+        self.bsf = None
+        self.bsfs = []
+
+    def evaluate(self, individual, context=None):
+        """Evaluates the given individual, checkes whether it is a new bsf or
+        not and if it is it stores it as one.
+
+        The method effectively calls methods :meth:`.evaluate_individual` and
+        :meth:`handle_bsf` in sequence.
+
+        .. seealso:: :meth:`.evaluate_individual` and :meth:`handle_bsf`
+        """
+        self.evaluate_individual(individual, context)
+        self.handle_bsf(individual, context)
+
+    def evaluate_individual(self, individual: Individual, context=None):
         """Evaluates the given individual and assigns the resulting fitness
         to the individual.
 
@@ -105,40 +132,52 @@ class Fitness(object):
         returns ``None``.
 
         :param individual: individual to be evaluated
+        :param context: arbitrary data an algorithm can provide to the fitness
+            (e.g. iteration number)
 
         .. seealso:: :class:`.Individual`
         """
         raise NotImplementedError()
 
-    def sort(self, population, reverse=False, *args):
-        """Sorts ``population`` (which is expected to be a list of individuals)
-        in an order that the best individual is the first and the worst the
-        last.
+    def handle_bsf(self, individual: Individual, context=None,
+                   do_not_copy: bool=False):
+        """Checks whether the given individual is best-so-far (bsf) and if it
+        is it stores it.
 
-        If ``reverse`` is ``True`` (default is ``False``) then the order is
-        reversed (i.e. the worst is the first).
+        The bsf can be retrieved via the :meth:`.get_bsf` method.
 
-        :param args: possible additional arguments for comparison inside
-            sorting. See :meth:`.compare`.
+        The individual is always copied via its :meth:`evo.Individual.copy`
+        method unles turned off by setting the argument *do_not_copy* to
+        ``True``\ .
 
-        :return: ``True`` if the population was successfully sorted,
-            ``False`` if the population could not be sorted (e.g. for the
-            nature of the fitness function).
-        :rtype: bool
+        :param individual: individual to be checked for being bsf
+        :param context: arbitrary data an algorithm can provide to the fitness
+            (e.g. iteration number)
+        :param do_not_copy: if ``True`` the bsf is stored as the individual
+            itself and not its copy
+
+        .. seealso:: :meth:`.get_bsf`
         """
-        raise NotImplementedError()
+        if self.bsf is None or self.compare(individual, self.bsf) < 0:
+            if do_not_copy:
+                self.bsf = individual
+            else:
+                self.bsf = individual.copy()
 
-    def compare(self, i1, i2, *args):
+            if self.store_bsfs:
+                self.bsfs.append(self.bsf)
+
+    def compare(self, i1, i2, context=None):
         """Returns ``-1`` if individual ``i1`` is strictly better than
         individual ``i2``, ``0`` if they are of equal quality and ``1`` if
         ``i1`` is strictly worse than ``i2``.
 
-        :param args: possible additional arguments for comparison. Can be
-          used to distinguish multiple comparison types.
+        :param context: arbitrary data an algorithm can provide to the fitness
+            (e.g. iteration number)
         """
         raise NotImplementedError()
 
-    def is_better(self, i1, i2, *args):
+    def is_better(self, i1, i2, context=None):
         """A wrapper for :meth:`evo.Fitness.compare` simplifying the output to
         a boolean value which is ``True`` only if ``i1`` is strictly better than
         ``i2``.
@@ -146,7 +185,7 @@ class Fitness(object):
         All arguments have exactly the same meaning as in
         :meth:`evo.Fitness.compare`.
         """
-        return self.compare(i1, i2, *args) <= 0
+        return self.compare(i1, i2, context) < 0
 
     def get_bsf(self) -> Individual:
         """Returns the best solution encountered so far.
@@ -155,7 +194,28 @@ class Fitness(object):
             solution (yet)
         :rtype: :class:`evo.Individual`
         """
-        raise NotImplementedError()
+        return self.bsf
+
+    def get_bsfs(self):
+        """Returns a list of the best-so-far solutions in order as they were
+        found during the optimisation run.
+        """
+        return self.bsfs
+
+
+class UnevaluableError(Exception):
+    pass
+
+
+class StopEvolution(Exception):
+    def __init__(self, reason):
+        self.reason = reason
+
+    def __str__(self):
+        return 'Evolution stopped. Reason: {}'.format(self.reason)
+
+    def __repr__(self):
+        return 'StopEvolution({})'.format(repr(self.reason))
 
 
 class IndividualInitializer(object):
@@ -210,78 +270,18 @@ class SimplePopulationInitializer(PopulationInitializer):
         return population
 
 
-class GeneticBase(object):
+class Evolution(object):
     """A base class for genetic-like algorithm.
 
     This class contains the common utility methods only, not the algorithm
     itself.
     """
 
-    def _pop_insert(self, indiv):
-        """Inserts an individual into the sorted population.
-        """
-        if not self.population_sorted:
-            raise ValueError('Population must be sorted.')
-
-        # is it worse than the worst?
-        if self.fitness.is_better(self.population[-1], indiv,
-                                  Fitness.COMPARE_TOURNAMENT):
-            self.population.append(indiv)
-            return
-
-        # is it better than the best?
-        if self.fitness.is_better(indiv, self.population[0],
-                                  Fitness.COMPARE_TOURNAMENT):
-            self.population.insert(0, indiv)
-            return
-
-        # find the appropriate place by bisection
-        l = 0
-        u = len(self.population)
-        c = (l + u) // 2
-        while l < u and l != c != u:
-            ci = self.population[c]
-            if self.fitness.is_better(ci, indiv, Fitness.COMPARE_TOURNAMENT):
-                l = c
-            elif self.fitness.is_better(indiv, ci, Fitness.COMPARE_TOURNAMENT):
-                u = c
-            else:
-                break
-            c = (l + u) // 2
-        self.population.insert(c + 1, indiv)
-
-    def _pop_replace(self, replace_idx, indiv):
-        """Removes the individual at ``replace_idx`` and inserts ``indiv``
-        into the population.
-
-        If the population is sorted the individual is inserted to the proper
-        place. Otherwise the individual is placed at ``replace_idx``.
-        """
-        if not self.population_sorted:
-            self.population[replace_idx] = indiv
-            return
-
-        # if the indiv fits to the place of replace_idx then put it there
-        ln = None  # left neighbor
-        rn = None  # right neighbor
-        if replace_idx > 0:
-            ln = self.population[replace_idx - 1]
-        if replace_idx < len(self.population) - 1:
-            rn = self.population[replace_idx + 1]
-
-        left_fit = ln is not None and self.fitness.is_better(ln, indiv,
-                                                             Fitness.
-                                                             COMPARE_TOURNAMENT)
-        right_fit = rn is not None and self.fitness.is_better(
-            indiv, rn, Fitness.COMPARE_TOURNAMENT)
-        if left_fit and right_fit:
-            self.population[replace_idx] = indiv
-            return
-
-        # else just remove the individual at replace_idx and do a regular
-        # insert to the population
-        del self.population[replace_idx]
-        self._pop_insert(indiv)
+    def compare_individuals(self, a, b) -> int:
+        """Compares two individuals and returns ``-1`` if the first one is
+        better than the second one, ``0`` if they are equally good and ``1`` if
+        the first one is worse than the second one."""
+        raise NotImplementedError()
 
 
 class PopulationStrategy(object):
@@ -292,7 +292,7 @@ class PopulationStrategy(object):
     these offspring are combined with the (parent) population.
     """
 
-    def get_parents_number(self):
+    def get_parents_number(self) -> int:
         """Returns the number of individuals in the parent population.
 
         In classical GA this is equivalent to the population size.
@@ -301,14 +301,14 @@ class PopulationStrategy(object):
         """
         raise NotImplementedError()
 
-    def get_offspring_number(self):
+    def get_offspring_number(self) -> int:
         """Returns the number of individuals created in each iteration.
 
         :rtype: :class:`int`
         """
         raise NotImplementedError()
 
-    def get_elites_number(self):
+    def get_elites_number(self) -> int:
         """Returns the number of elite individuals that are to be directly
         copied to the next iteration.
 
@@ -347,10 +347,15 @@ class GenerationalPopulationStrategy(PopulationStrategy):
     def __init__(self, pop_size, elites_num):
         """
         :param pop_size: (parent) population size
-        :param elites_num: number of elites
+        :param elites_num: number of elites; if it is a float form range
+            [0, 1) then it is considered as a fraction of the ``pop_size``
+            and that fraction is going to be used as the number of elites
+            (after rounding)
         """
         self.pop_size = pop_size
         self.elites_num = elites_num
+        if 0 <= elites_num < 1:
+            self.elites_num = int(round(pop_size * elites_num))
 
     def get_elites_number(self):
         return self.elites_num
@@ -362,7 +367,7 @@ class GenerationalPopulationStrategy(PopulationStrategy):
         return self.pop_size - self.elites_num
 
     def combine_populations(self, parents, offspring, elites):
-        return offspring + elites
+        return elites + offspring
 
 
 class SteadyStatePopulationStrategy(PopulationStrategy):
@@ -416,18 +421,21 @@ class SelectionStrategy(object):
     """Defines the selection algorithm (strategy).
     """
 
-    def select_single(self, population):
+    def select_single(self, population, algorithm):
         """Selects a single individual from the given population.
 
         :param population: population
         :type population: :class:`list` of :class:`evo.Individual`
+        :param algorithm: the object corresponding to the algorithm that runs
+            this selection
+        :type algorithm: :class:`evo.Evolution`
         :return: a tuple containing the selected individual as the first element
             and its index in the population as the second element
         :rtype: :class:`tuple` of :class:`evo.Individual` and :class:`int`
         """
         raise NotImplementedError()
 
-    def select_all(self, population, all_num):
+    def select_all(self, population, all_num, algorithm):
         """Selects all individuals (up to the given number) from the given
         population.
 
@@ -444,6 +452,9 @@ class SelectionStrategy(object):
         :param population: population
         :type population: :class:`list` of :class:`evo.Individual`
         :param int all_num: number of individuals to be selected
+        :param algorithm: the object corresponding to the algorithm that runs
+            this selection
+        :type algorithm: :class:`evo.Evolution`
         :return: a list of tuples, each containing a selected individual as the
             first element and its index in the population as the second element
         :rtype: :class:`list` of :class:`tuple` of :class:`evo.Individual` and
@@ -451,7 +462,7 @@ class SelectionStrategy(object):
         """
         out = []
         for i in range(all_num):
-            out.append(self.select_single(population))
+            out.append(self.select_single(population, algorithm))
         return out
 
 
@@ -459,24 +470,48 @@ class TournamentSelectionStrategy(SelectionStrategy):
     """Handles the tournament selection of individuals.
     """
 
-    def __init__(self, tournament_size, generator, fitness):
+    def __init__(self, tournament_size, generator):
         """
         :param int tournament_size: size of the tournament
         :param random.Random generator: random number generator
-        :param evo.Fitness fitness: the fitness object for comparison of
-            individuals
         """
         if tournament_size < 2:
             raise ValueError("Tournament size must be at least 2.")
         self.tournament_size = tournament_size
         self.generator = generator
-        self.fitness = fitness
 
-    def select_single(self, population):
+    def select_single(self, population, algorithm: Evolution):
         best_idx = self.generator.randrange(len(population))
         for _ in range(self.tournament_size - 1):
             idx = self.generator.randrange(len(population))
-            if self.fitness.is_better(population[idx], population[best_idx]):
+            if algorithm.compare_individuals(population[idx],
+                                             population[best_idx]) < 0:
                 best_idx = idx
         return best_idx, population[best_idx]
 
+
+class ReproductionStrategy(object):
+    """Defines how are the offspring created from the parents.
+    """
+
+    def reproduce(self,
+                  selection_strategy: SelectionStrategy,
+                  population_strategy: PopulationStrategy,
+                  algorithm: Evolution,
+                  parents, offspring):
+        """Produces one or more offspring based on the list of potential parents
+        and inserts them to the ``offspring`` list.
+
+        This method encapsulates a *single* reproduction event. That means that
+        this method can be called repeatedly by the driver algorithm.
+
+        :param selection_strategy: a selection strategy
+        :param population_strategy: a population strategy
+        :param algorithm: the object corresponding to the algorithm that runs
+            this reproduction
+        :param parents: list of individuals that can be the parents
+        :type parents: :class:`list` of :class:`evo.Individual`
+        :param offspring: list of offspring individuals
+        :type offspring: :class:`list` of :class:`evo.Individual`
+        """
+        raise NotImplementedError()

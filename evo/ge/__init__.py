@@ -6,19 +6,18 @@
     Grammatical Evolution. Springer US, 2003. 33-47.
 """
 
-import multiprocessing.context
 import gc
-import math
 import logging
+import math
+import multiprocessing.context
 import pprint
-
 import random
 
 import evo
+import evo.ge.support
 import evo.utils
 import evo.utils.grammar
 import evo.utils.random
-import evo.ge.support
 
 __author__ = 'Jan Žegklitz'
 
@@ -622,7 +621,7 @@ class GeFitness(evo.Fitness):
         pass
 
     def __init__(self, grammar, unfinished_fitness, wraps=0,
-                 skip_if_evaluated=True):
+                 skip_if_evaluated=True, store_bsfs: bool=True):
         """
         :param grammar: a grammar to use for decoding
         :type grammar: either :class:`evo.utils.grammar.Grammar` or an argument
@@ -637,6 +636,7 @@ class GeFitness(evo.Fitness):
             individual's ``get_fitness`` method returns a non-\ ``None`` value.
             If ``False`` then the evaluation will always be carried out.
         """
+        super().__init__(store_bsfs)
         self.grammar = None
         if isinstance(grammar, evo.utils.grammar.Grammar):
             self.grammar = grammar
@@ -646,9 +646,8 @@ class GeFitness(evo.Fitness):
         self.unfinished_fitness = unfinished_fitness
         self.wraps = wraps
         self.skip_if_evaluated = skip_if_evaluated
-        self.bsf = None
 
-    def evaluate(self, individual):
+    def evaluate_individual(self, individual: evo.Individual):
         """
         :param evo.ge.support.CodonGenotypeIndividual individual: individual to
             decode
@@ -666,8 +665,6 @@ class GeFitness(evo.Fitness):
         fitness = self.evaluate_phenotype(phenotype, individual)
 
         individual.set_fitness(fitness)
-        if self.bsf is None or self.is_better(individual, self.bsf):
-            self.bsf = individual.copy()
         return fitness
 
     def decode(self, individual):
@@ -699,9 +696,6 @@ class GeFitness(evo.Fitness):
         """Evaluates the phenotype.
         """
         raise NotImplementedError()
-
-    def get_bsf(self):
-        return self.bsf
 
 
 # noinspection PyAbstractClass

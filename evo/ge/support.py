@@ -3,11 +3,10 @@
 """
 
 import fractions
-import numbers
-import math
-import logging
-
 import functools
+import logging
+import math
+import numbers
 import random
 
 import evo

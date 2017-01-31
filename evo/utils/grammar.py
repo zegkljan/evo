@@ -3,7 +3,6 @@
 """
 
 import fractions
-
 import functools
 
 import evo.utils.tree

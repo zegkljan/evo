@@ -3,7 +3,6 @@
 """
 
 import logging
-
 import random
 
 import evo
@@ -12,8 +11,7 @@ import evo.utils.tree
 
 class GpNode(evo.utils.tree.TreeNode):
 
-    @staticmethod
-    def get_arity():
+    def get_arity(self=None):
         raise NotImplementedError()
 
     # noinspection PyMethodMayBeStatic
@@ -94,88 +92,6 @@ class ForestIndividual(evo.Individual):
         return clone
 
 
-def generate_tree(inners, leaves, depth, nodes, generator, full):
-    """Generates a tree from the given list of inner and leaf nodes.
-
-    This function provides both the grow method and the full method of
-    generating trees. It is controlled by the argument ``full``\ . The two
-    lists  must be disjunctive, i.e. one must contain only inners, other must
-    contain only leaves otherwise the algorithm will not work properly.
-
-    The ``inners`` and ``leaves`` lists must contain callables that,
-    when called without arguments, create an instance of a :class:`.GpNode`\ .
-
-    :param inners: list of node producers that can be anywhere in the tree
-    :param leaves: list of node producers that will be used only when a limit
-        is reached
-    :param depth: maximum depth the generated tree will have; 1 is a single node
-    :param nodes: maximum number of nodes the generated tree will have
-    :param generator: random number generator used for choosing the nodes
-    :param full: if set to ``True`` the full method will be used, otherwise
-        grow will be used
-    """
-    level = []
-    current_parent = None
-    child_index = 0
-    root = None
-    must_create = 1
-    this_level = 0
-    next_level = 0
-    while nodes > 0 and must_create > 0:
-        if nodes == 1 or depth == 1:
-            pool = leaves
-        else:
-            selected_functions = [f for f in inners
-                                  if f().get_arity() < nodes - must_create + 1]
-            if full:
-                pool = selected_functions
-                if not pool:
-                    pool = leaves
-            else:
-                pool = selected_functions + leaves
-
-        node = generator.choice(pool)()
-        arity = node.get_arity()
-        must_create = must_create - 1 + arity
-
-        if arity == 0:
-            node.children = None
-        else:
-            node.children = [None] * arity
-
-        if current_parent is None:
-            current_parent = node
-            root = node
-            this_level = arity
-            next_level = 0
-            depth -= 1
-            if arity == 0:
-                break
-        else:
-            this_level -= 1
-            next_level += arity
-            if this_level == 0:
-                this_level = next_level
-                next_level = 0
-                depth -= 1
-            current_parent.children[child_index] = node
-            node.parent = current_parent
-            node.parent_index = child_index
-            child_index += 1
-            if arity > 0:
-                level.append(node)
-
-            if child_index == current_parent.get_arity():
-                child_index = 0
-                if level:
-                    current_parent = level.pop(0)
-                while level and current_parent.get_arity() == 0:
-                    current_parent = level.pop(0)
-        nodes -= 1
-
-    return root
-
-
 class RampedHalfHalfInitializer(evo.PopulationInitializer):
     """This population initializer initializes the population using the ramped
     half-and-half method: for each depth from 0 up to maximum depth, half of
@@ -190,7 +106,7 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
 
     .. seealso::
 
-        Function :func:`evo.gp.support.generate_tree`
+        Function :func:`evo.gp.support.generate_tree_full_grow`
             Performs the initialisation of the trees by the grow and full
             methods.
     """
@@ -343,16 +259,99 @@ class RampedHalfHalfInitializer(evo.PopulationInitializer):
         return genes
 
     def _generate_gene(self, genes_strs, max_depth, max_nodes, full):
-        tree = generate_tree(self.functions, self.terminals, max_depth,
-                             max_nodes, self.generator, full)
+        tree = generate_tree_full_grow(self.functions, self.terminals, max_depth,
+                                       max_nodes, self.generator, full)
         tree_str = str(tree)
         tries = self.max_tries
         while tree_str in genes_strs and tries > 0:
-            tree = generate_tree(self.functions, self.terminals,
-                                 max_depth, max_nodes, self.generator, full)
+            tree = generate_tree_full_grow(self.functions, self.terminals,
+                                           max_depth, max_nodes, self.generator, full)
             tree_str = str(tree)
             tries -= 1
         return tree, tree_str
+
+
+def generate_tree_full_grow(inners, leaves, depth, nodes, generator, full):
+    """Generates a tree from the given list of inner and leaf nodes.
+
+    This function provides both the grow method and the full method of
+    generating trees. It is controlled by the argument ``full``\ . The two
+    lists  must be disjunctive, i.e. one must contain only inners, other must
+    contain only leaves otherwise the algorithm will not work properly.
+
+    The ``inners`` and ``leaves`` lists must contain callables that,
+    when called without arguments, create an instance of a :class:`.GpNode`\ .
+
+    :param inners: list of node producers that can be anywhere in the tree
+    :param leaves: list of node producers that will be used only when a limit
+        is reached
+    :param depth: maximum depth the generated tree will have; 1 is a single node
+    :param nodes: maximum number of nodes the generated tree will have
+    :param generator: random number generator used for choosing the nodes
+    :param full: if set to ``True`` the full method will be used, otherwise
+        grow will be used
+    """
+    level = []
+    current_parent = None
+    child_index = 0
+    root = None
+    must_create = 1
+    this_level = 0
+    next_level = 0
+    while nodes > 0 and must_create > 0:
+        if nodes == 1 or depth == 1:
+            pool = leaves
+        else:
+            selected_functions = [f for f in inners
+                                  if f().get_arity() < nodes - must_create + 1]
+            if full:
+                pool = selected_functions
+                if not pool:
+                    pool = leaves
+            else:
+                pool = selected_functions + leaves
+
+        node_creator = generator.choice(pool)
+        node = node_creator()
+        arity = node.get_arity()
+        must_create = must_create - 1 + arity
+
+        if arity == 0:
+            node.children = None
+        else:
+            node.children = [None] * arity
+
+        if current_parent is None:
+            current_parent = node
+            root = node
+            this_level = arity
+            next_level = 0
+            depth -= 1
+            if arity == 0:
+                break
+        else:
+            this_level -= 1
+            next_level += arity
+            if this_level == 0:
+                this_level = next_level
+                next_level = 0
+                depth -= 1
+            current_parent.children[child_index] = node
+            node.parent = current_parent
+            node.parent_index = child_index
+            child_index += 1
+            if arity > 0:
+                level.append(node)
+
+            if child_index == current_parent.get_arity():
+                child_index = 0
+                if level:
+                    current_parent = level.pop(0)
+                while level and current_parent.get_arity() == 0:
+                    current_parent = level.pop(0)
+        nodes -= 1
+
+    return root
 
 
 def swap_subtrees(s1: GpNode, s2: GpNode):

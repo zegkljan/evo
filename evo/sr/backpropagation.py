@@ -2,11 +2,27 @@
 learning of tree expressions.
 """
 
+import textwrap
+
 import numpy
-import random
 
 import evo.sr
+import evo.utils
 
+
+# Helper functions for the case of no output transformation
+
+def identity(x):
+    """Just returns the argument."""
+    return x
+
+
+def identity_d(_):
+    """Returns 1 (derivative of :func:`identity`\ )."""
+    return 1
+
+
+# backpropagation supporting nodes
 
 class WeightedNode(evo.sr.MathNode):
     """An abstract class for nodes that have a weight and/or bias assigned for
@@ -32,12 +48,28 @@ class WeightedNode(evo.sr.MathNode):
             be tuned
         """
         super().__init__(**kwargs)
-        self.bias = numpy.zeros(self.get_arity())
-        self.weights = numpy.ones(self.get_arity())
+        self._bias = numpy.zeros(self.get_arity())
+        self._weights = numpy.ones(self.get_arity())
         self.argument = None
 
         self.tune_bias = tune_bias
         self.tune_weights = tune_weights
+
+    @property
+    def bias(self):
+        return self._bias
+
+    @bias.setter
+    def bias(self, value):
+        self._bias = value
+
+    @property
+    def weights(self):
+        return self._weights
+
+    @weights.setter
+    def weights(self, value):
+        self._weights = value
 
     def copy_contents(self, dest):
         super().copy_contents(dest)
@@ -61,6 +93,11 @@ class WeightedNode(evo.sr.MathNode):
             self.argument[:, i] = args[i]
         return super().operation(*args)
 
+    def self_changed(self, data=None):
+        del self.argument
+        self.argument = None
+        super().self_changed(data)
+
     def derivative(self, arg_no: int, x):
         """Returns the value of the derivative of the node's function, related
         to the given argument, at ``x``.
@@ -81,7 +118,53 @@ class WeightedNode(evo.sr.MathNode):
         :keyword num_format: format for weights and biases
         :return: the string representation of the tree
         """
-        raise NotImplementedError()
+        return '[{}]'.format(
+            ', '.join([c.infix(**kwargs) for c in self.children]))
+
+    def backpropagate(self, args, datapts_no: int,
+                      cost_derivative: callable=None, true_output=None,
+                      output_transform: callable=None,
+                      output_transform_derivative: callable=None):
+        if output_transform is None:
+            output_transform = identity
+        if output_transform_derivative is None:
+            output_transform_derivative = identity_d
+
+        # bias derivative
+        self.data['d_bias'] = numpy.empty((datapts_no, self.bias.size))
+        # if this is the root call, do it differently
+        if cost_derivative is not None and true_output is not None:
+            for i in range(self.bias.size):
+                cd = cost_derivative(output_transform(self.eval(args)),
+                                     true_output)
+                otfd = output_transform_derivative(self.eval(args))
+                nd = self.derivative(i, self.argument)
+                self.data['d_bias'][:, i] = cd * otfd * nd
+        else:
+            for i in range(self.bias.size):
+                pd = self.parent.data['d_bias'][:, self.parent_index]
+                pw = self.parent.weights[self.parent_index]
+                sd = self.derivative(i, self.argument)
+                self.data['d_bias'][:, i] = pd * pw * sd
+
+        # weights derivative
+        inputs = None
+        if self.tune_weights is True:
+            raw = [c.eval(args) for c in self.children]
+            if len(raw) == 1:
+                inputs = numpy.array(raw)
+            else:
+                inputs = evo.utils.column_stack(*raw)
+        elif self.tune_weights:
+            raw = [self.children[i].eval(args) if self.tune_weights[i] else 0
+                   for i in range(len(self.children))]
+            inputs = evo.utils.column_stack(*raw)
+        if inputs is not None and len(inputs) > 0:
+            self.data['d_weights'] = self.data['d_bias'] * inputs
+
+        for c in self.children:
+            if isinstance(c, WeightedNode):
+                c.backpropagate(args, datapts_no)
 
 
 class Add2(WeightedNode, evo.sr.Add2):
@@ -115,6 +198,13 @@ class Add2(WeightedNode, evo.sr.Add2):
             self.weights[0], self.weights[1],
             self.children[0].infix(**kwargs),
             self.children[1].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c1 = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        c2 = self.children[1].to_matlab_expr(data_name, function_name_prefix)
+        return '({w1} .* {arg1} + {w2} .* {arg2})'.format(
+            arg1=c1, arg2=c2, w1=repr(self.weights[0]),
+            w2=repr(self.weights[1]))
 
 
 class Sub2(WeightedNode, evo.sr.Sub2):
@@ -153,6 +243,13 @@ class Sub2(WeightedNode, evo.sr.Sub2):
             self.children[0].infix(**kwargs),
             self.children[1].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c1 = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        c2 = self.children[1].to_matlab_expr(data_name, function_name_prefix)
+        return '({w1} .* {arg1} - {w2} .* {arg2})'.format(
+            arg1=c1, arg2=c2, w1=repr(self.weights[0]),
+            w2=repr(self.weights[1]))
+
 
 class Mul2(WeightedNode, evo.sr.Mul2):
     """Weighted version of :class:`evo.sr.Mul2`\ .
@@ -189,6 +286,12 @@ class Mul2(WeightedNode, evo.sr.Mul2):
             self.bias[0], self.bias[1],
             self.children[0].infix(**kwargs),
             self.children[1].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c1 = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        c2 = self.children[1].to_matlab_expr(data_name, function_name_prefix)
+        return '(({b1} + {arg1}) .* ({b2} + {arg2}))'.format(
+            arg1=c1, arg2=c2, b1=repr(self.bias[0]), b2=repr(self.bias[1]))
 
 
 class Div2(WeightedNode, evo.sr.Div2):
@@ -227,6 +330,12 @@ class Div2(WeightedNode, evo.sr.Div2):
             self.children[0].infix(**kwargs),
             self.children[1].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c1 = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        c2 = self.children[1].to_matlab_expr(data_name, function_name_prefix)
+        return '(({b1} + {arg1}) ./ ({b2} + {arg2}))'.format(
+            arg1=c1, arg2=c2, b1=repr(self.bias[0]), b2=repr(self.bias[1]))
+
 
 class Sin(WeightedNode, evo.sr.Sin):
     """Weighted version of :class:`evo.sr.Sin`\ .
@@ -249,6 +358,11 @@ class Sin(WeightedNode, evo.sr.Sin):
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'sin({w} .* {arg} + {b})'.format(arg=c, w=repr(self.weights[0]),
+                                                b=repr(self.bias[0]))
 
 
 class Cos(WeightedNode, evo.sr.Cos):
@@ -273,6 +387,11 @@ class Cos(WeightedNode, evo.sr.Cos):
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'cos({w} .* {arg} + {b})'.format(arg=c, w=repr(self.weights[0]),
+                                                b=repr(self.bias[0]))
+
 
 class Exp(WeightedNode, evo.sr.Exp):
     """Weighted version of :class:`evo.sr.Exp`\ .
@@ -295,6 +414,11 @@ class Exp(WeightedNode, evo.sr.Exp):
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'exp({w} .* {arg} + {b})'.format(arg=c, w=repr(self.weights[0]),
+                                                b=repr(self.bias[0]))
 
 
 class Abs(WeightedNode, evo.sr.Abs):
@@ -319,6 +443,11 @@ class Abs(WeightedNode, evo.sr.Abs):
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'abs({w} .* {arg} + {b})'.format(arg=c, w=repr(self.weights[0]),
+                                                b=repr(self.bias[0]))
+
 
 class Power(WeightedNode, evo.sr.Power):
     """Weighted version of :class:`evo.sr.Power`\ .
@@ -329,7 +458,7 @@ class Power(WeightedNode, evo.sr.Power):
         super().__init__(**kwargs)
 
     def derivative(self, arg_no: int, x):
-        return self.power * numpy.power(x[:, 0], self.power - 1)
+        return self.power * (x[:, 0] ** (self.power - 1))
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
@@ -341,6 +470,12 @@ class Power(WeightedNode, evo.sr.Power):
         return base.format(
             self.bias[0], self.weights[0], self.power,
             self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return '(({w} .* {arg} + {b}) .^ {exp})'.format(
+            arg=c, exp=repr(self.power), w=repr(self.weights[0]),
+            b=repr(self.bias[0]))
 
 
 class Sigmoid(WeightedNode, evo.sr.Sigmoid):
@@ -365,6 +500,41 @@ class Sigmoid(WeightedNode, evo.sr.Sigmoid):
                 '{1:' + num_format + '} * {2})').format(
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return '{pfx}{fn}({w} .* {arg} + {b})'.format(
+            arg=c, pfx=function_name_prefix, fn=self.__class__.__name__,
+            w=repr(self.weights[0]), b=repr(self.bias[0]))
+
+
+class Tanh(WeightedNode, evo.sr.Tanh):
+    """Weighted version of :class:`evo.sr.Tanh`\ .
+
+    .. seealso:: :class:`evo.sr.Tanh`
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def derivative(self, arg_no: int, x):
+        a = numpy.tanh(x[:, 0])
+        return 1 - a ** 2
+
+    def full_infix(self, **kwargs):
+        num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return 'tanh({0} + {1} * {2})'.format(
+                repr(self.bias[0]), repr(self.weights[0]),
+                self.children[0].infix(**kwargs))
+        return ('tanh({0:' + num_format + '} + '
+                '{1:' + num_format + '} * {2})').format(
+            self.bias[0], self.weights[0],
+            self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'tanh({w} .* {arg} + {b})'.format(arg=c, w=repr(self.weights[0]),
+                                                 b=repr(self.bias[0]))
 
 
 class Sinc(WeightedNode, evo.sr.Sinc):
@@ -391,6 +561,11 @@ class Sinc(WeightedNode, evo.sr.Sinc):
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'sinc({w} .* {arg} + {b})'.format(arg=c, w=repr(self.weights[0]),
+                                                 b=repr(self.bias[0]))
+
 
 class Softplus(WeightedNode, evo.sr.Softplus):
     """Weighted version of :class:`evo.sr.Softplus`\ .
@@ -415,175 +590,183 @@ class Softplus(WeightedNode, evo.sr.Softplus):
             self.bias[0], self.weights[0],
             self.children[0].infix(**kwargs))
 
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return '{pfx}{fn}({w} .* {arg} + {b})'.format(
+            arg=c, pfx=function_name_prefix, fn=self.__class__.__name__,
+            w=repr(self.weights[0]), b=repr(self.bias[0]))
 
-def backpropagate(root: WeightedNode, cost_derivative: callable, true_output,
-                  args, datapts_no=1, output_transform: callable=None,
-                  output_transform_derivative: callable=None):
-    """Computes the gradient of the cost function in weights and biases using
-    the back-propagation algorithm.
 
-    Computes the partial derivatives of the error (cost) function with respect
-    to the weights and biases of the given tree.
+class Gauss(WeightedNode, evo.sr.Gauss):
+    """Weighted version of :class:`evo.sr.Gauss`\ .
 
-    The partial derivatives are stored in the nodes in the ``d_bias`` and
-    ``d_weights`` attributes. If node's
-    :attr:`BackpropagatableNode.tune_weights` is set to ``False`` then the
-    weight partial derivatives are not computed at all. On the other hand,
-    bias partial derivative is always computed because it is needed for the
-    computation of the children's values.
-
-    The back-propagation runs from the root to the leaves. However, if a node
-    that is not an instance of :class:`BackpropagatableNode` is encountered the
-    propagation through this node is not performed, hence cutting its subtree
-    off the algorithm.
-
-    The ``cost_function`` represents the derivative of the error function with
-    respect to the tree's output. It is supposed to be a callable of two
-    arguments, the first argument being the tree's output, the second argument
-    being the true output.
-
-    The ``datapts_no`` argument is used to tell the backprop. algorithm how many
-    datapoints the propagation is computed for. Defaults to 1. This number must
-    match with the actual number of datapoints otherwise there will be errors.
-
-    .. note::
-
-        This function does not perform any learning. It merely computes the
-        gradient.
-
-    :param root: root of the tree that is subject to optimisation
-    :param cost_derivative: derivative of the error function
-    :param true_output: the desired output
-    :param args: arguments for evaluation
-    :param datapts_no: number of datapoints present in evaluation
-    :param output_transform: transformation of the output value(s)
-    :param output_transform_derivative: derivative of the output transform
+    .. seealso:: :class:`evo.sr.Gauss`
     """
-    if output_transform is None:
-        def output_transform(y):
-            return y
-    if output_transform_derivative is None:
-        def output_transform_derivative(y):
-            if y.ndim == 1:
-                return 1
-            return numpy.ones((1, y.shape[1]))
-    o = [root]
-    while o:
-        node = o.pop(0)
-        if not isinstance(node, WeightedNode):
-            continue
-        # bias derivative
-        # if root, do it different
-        if node is root:
-            node.data['d_bias'] = numpy.empty((datapts_no, node.bias.size))
-            for i in range(node.bias.size):
-                cd = cost_derivative(output_transform(node.eval(args)),
-                                     true_output)
-                otfd = output_transform_derivative(node.eval(args))
-                nd = node.derivative(i, node.argument)
-                node.data['d_bias'][:, i] = cd * otfd * nd
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def derivative(self, arg_no: int, x):
+        a = self.operation(x[:, 0])
+        return -2 * a * x[:, 0]
+
+    def full_infix(self, **kwargs):
+        num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return 'gauss({0} + {1} * {2})'.format(
+                repr(self.bias[0]), repr(self.weights[0]),
+                self.children[0].infix(**kwargs))
+        return ('gauss({0:' + num_format + '} + '
+                '{1:' + num_format + '} * {2})').format(
+            self.bias[0], self.weights[0],
+            self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return '{pfx}{fn}({w} .* {arg} + {b})'.format(
+            arg=c, pfx=function_name_prefix, fn=self.__class__.__name__,
+            w=repr(self.weights[0]), b=repr(self.bias[0]))
+
+
+class LincombVariable(WeightedNode, evo.sr.Variable):
+    def __init__(self, num_vars=1, names=None, **kwargs):
+        super().__init__(**kwargs)
+        self.num_vars = num_vars
+        self.data['varname'] = self.data['name']
+        self.data['name'] = 'T{}'.format(self.index)
+        if names is None:
+            self.data['names'] = ['x{0}'.format(i) for i in range(num_vars)]
         else:
-            node.data['d_bias'] = numpy.empty((datapts_no, len(node.bias)))
-            for i in range(len(node.bias)):
-                pd = node.parent.data['d_bias'][:, node.parent_index]
-                pw = node.parent.weights[node.parent_index]
-                nd = node.derivative(i, node.argument)
-                node.data['d_bias'][:, i] = pd * pw * nd
+            self.data['names'] = names
+
+        self.bias = numpy.zeros(1)
+        self.weights = numpy.zeros(num_vars)
+        self.weights[self.index] = 1
+
+    def eval(self, args):
+        if self.cache and self._cache is not None:
+            return self._cache
+
+        if args.shape[1] != self.num_vars:
+            raise ValueError('Inconsistent number of variables and shape of '
+                             'arguments.')
+        self.argument = args
+
+        result = self.argument.dot(self.weights) + self.bias
+
+        if self.cache:
+            self._cache = result
+
+        return result
+
+    def full_infix(self, **kwargs) -> str:
+        num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            ws = [repr(self.weights[i]) for i in range(self.weights.size)]
+            b = repr(self.bias[0])
+        else:
+            ws = [('{0:' + num_format + '}').format(self.weights[i])
+                  for i in range(self.weights.size)]
+            b = ('{0:' + num_format + '}').format(self.bias[0])
+        v = ['{0} * {1}'.format(ws[i], self.data['names'][i])
+             for i in range(self.weights.size)]
+        v2 = []
+        for e in v:
+            if not v2:
+                v2.append(e)
+                continue
+            if e.startswith('-'):
+                v2.append(' - ')
+                v2.append(e[1:])
+            else:
+                v2.append(' + ')
+                v2.append(e)
+        if b.startswith('-'):
+            v2.append(' - ')
+            v2.append(b[1:])
+        else:
+            v2.append(' + ')
+            v2.append(b)
+        r = '(' + ''.join(v2) + ')'
+        return r
+
+    def backpropagate(self, args, datapts_no: int,
+                      cost_derivative: callable = None, true_output=None,
+                      output_transform: callable = None,
+                      output_transform_derivative: callable = None):
+        if output_transform is None:
+            output_transform = identity
+        if output_transform_derivative is None:
+            output_transform_derivative = identity_d
+
+        # bias derivative
+        self.data['d_bias'] = numpy.empty((datapts_no, 1))
+        # if this is the root call, do it differently
+        if cost_derivative is not None and true_output is not None:
+            cd = cost_derivative(output_transform(self.eval(args)),
+                                 true_output)
+            otfd = output_transform_derivative(self.eval(args))
+            db = cd * otfd
+        else:
+            pd = self.parent.data['d_bias'][:, self.parent_index]
+            pw = self.parent.weights[self.parent_index]
+            db = pd * pw
+        self.data['d_bias'][:, 0] = db
 
         # weights derivative
         inputs = None
-        if node.tune_weights is True:
-            raw = [x.eval(args) for x in node.children]
-            if len(raw) == 1:
-                inputs = numpy.array(raw)
-            else:
-                inputs = numpy.column_stack(numpy.broadcast(*raw))
-        elif node.tune_weights:
-            # noinspection PyUnresolvedReferences
-            raw = [node.children[i].eval(args) if node.tune_weights[i] else 0
-                   for i
-                   in range(len(node.children))]
-            inputs = numpy.column_stack(numpy.broadcast(*raw))
+        if self.tune_weights is True:
+            inputs = self.argument
+        elif self.tune_weights:
+            inputs = self.argument.copy()
+            inputs[:, numpy.logical_not(self.tune_weights)] = 0
         if inputs is not None and len(inputs) > 0:
-            node.data['d_weights'] = node.data['d_bias'] * inputs.T
+            self.data['d_weights'] = (numpy.squeeze(self.data['d_bias']) *
+                                      inputs.T).T
 
-        if not node.is_leaf():
-            o.extend(node.children)
+    def copy_contents(self, dest):
+        super().copy_contents(dest)
+        dest.num_vars = self.num_vars
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        w_str = ', '.join([repr(w) for w in self.weights])
+        w_str = '[' + w_str + ']'
+        return '{pfx}{fn}({arg}, {w}, {i}, {idx})'.format(
+            arg=data_name, idx=self.index + 1, w=w_str, i=repr(self.bias[0]),
+            pfx=function_name_prefix, fn=self.__class__.__name__)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return textwrap.dedent('''
+        function {out} = {prefix}{name}({arg}, coeffs, intercept, index)
+        {out} = {arg} * coeffs' + intercept;
+        {out} = {out}(:, index);
+        end
+        '''.format(arg=argname, out=outname, prefix=function_name_prefix,
+                   name=self.__class__.__name__)).strip()
 
 
-def sgd_step(root: WeightedNode, train_inputs, train_output,
-             cost_derivative: callable, var_mapping: dict, minibatch_size=None,
-             eta=0.01, generator: random.Random=None):
-    """Performs one step (epoch) of a Stochastic Gradient Descent algorithm.
-
-    Performs one step of the SGD algorithm by creating a "minibatch" (of size
-    ``minibatch_size``) from the supplied training data (``train_inputs`` and
-    ``train_output``), evaluating it by the tree, computing the gradient using
-    :func:`backpropagate` and updating the weights and biases based on the
-    gradient and the learning rate ``eta``.
-
-    The ``var_mapping`` argument is responsible for mapping the input variables
-    to variable names of the tree. It is supposed to be a dict with keys being
-    integers counting from 0 and values being variable names in the tree. The
-    keys are supposed to correspond to the column indices to ``train_inputs``.
-
-    .. note::
-
-        The training data arrays will be shuffled in order to randomly assemble
-        the minibatch. If the arrays need to be unchanged, copy them beforehand.
-
-    :param root: root of the tree to be updated
-    :param train_inputs: training inputs; one row is expected to be one
-        datapoint
-    :param train_output: training outputs; one row is expected to be one
-        datapoint
-    :param cost_derivative: derivative of the error function, see
-        :func:`backpropagate`
-    :param minibatch_size: number of datapoints in the minibatch
-    :param eta: learning rate, default is 0.01
-    """
-    if generator is None:
-        generator = random
-
-    if minibatch_size == train_inputs.shape[0]:
-        mb_input = train_inputs
-        mb_output = train_output
-    else:
-        mb_indices = generator.sample(range(train_inputs.shape[0]), minibatch_size)
-        mb_input = train_inputs[mb_indices, :]
-        mb_output = train_output[mb_indices]
-
-    args = {var_mapping[num]: mb_input[:, num] for num in var_mapping}
-
-    root.clear_cache()
-    backpropagate(root, cost_derivative, mb_output, args, minibatch_size)
-
-    factor = eta / minibatch_size
-
-    def update(node: WeightedNode):
-        if not isinstance(node, WeightedNode):
-            return
-        if node.tune_bias:
-            d_bias = numpy.sum(node.d_bias, axis=0)
-            node.bias = node.bias - factor * d_bias
-
-        if node.tune_weights:
-            d_weights = numpy.sum(node.d_weights, axis=0)
-            node.weights = node.weights - factor * d_weights
-
-    root.preorder(update)
-
+# Weight updaters
 
 class WeightsUpdater(object):
     """This is a base class for algorithms for updating weights on trees.
     """
-    def __init__(self):
+    def __init__(self, delete_derivatives: bool=True, maximize: bool=False):
         self.updated = False
+        self.delete_derivatives = delete_derivatives
+        self.maximize = maximize
 
     def update(self, root: WeightedNode, error, prev_error) -> bool:
         self.updated = False
-        root.preorder(self.update_node)
+        root.preorder(self.do_update)
         return self.updated
+
+    def do_update(self, node):
+        self.update_node(node)
+        if self.delete_derivatives:
+            if 'd_bias' in node.data:
+                del node.data['d_bias']
+            if 'd_weights' in node.data:
+                del node.data['d_weights']
 
     def update_node(self, node):
         raise NotImplementedError()
@@ -592,9 +775,11 @@ class WeightsUpdater(object):
 class RpropBase(WeightsUpdater):
     """This is a base class for Rprop algorithm variants.
     """
-    def __init__(self, delta_init=0.1, delta_min=1e-6, delta_max=50,
-                 eta_minus=0.5, eta_plus=1.2):
-        super().__init__()
+    def __init__(self, delete_derivatives: bool=True, maximize: bool=False,
+                 delta_init=0.1, delta_min=1e-6, delta_max=50,
+                 eta_minus=0.5, eta_plus=1.2, **kwargs):
+        super().__init__(delete_derivatives=delete_derivatives,
+                         maximize=maximize)
         self.delta_init = delta_init
         self.eta_plus = eta_plus
         self.delta_max = delta_max
@@ -648,7 +833,7 @@ class RpropPlus(RpropBase):
             upd = True
             d_bias = numpy.sum(node.data['d_bias'], axis=0)
             if 'prev_d_bias' not in node.data:
-                node.data['prev_d_bias'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_bias'] = numpy.zeros(d_bias.size)
 
             if 'delta_bias' not in node.data:
                 node.data['delta_bias'] = (numpy.ones(node.bias.shape) *
@@ -659,13 +844,13 @@ class RpropPlus(RpropBase):
 
             self.upd(node.bias, d_bias, node.data['prev_d_bias'],
                      node.data['delta_bias'], node.data['prev_bias_update'],
-                     node.get_arity())
+                     node.bias.size)
 
         if node.tune_weights and 'd_weights' in node.data:
             upd = True
             d_weights = numpy.sum(node.data['d_weights'], axis=0)
             if 'prev_d_weights' not in node.data:
-                node.data['prev_d_weights'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_weights'] = numpy.zeros(d_weights.size)
 
             if 'delta_weights' not in node.data:
                 node.data['delta_weights'] = (numpy.ones(node.weights.shape) *
@@ -676,7 +861,7 @@ class RpropPlus(RpropBase):
 
             self.upd(node.weights, d_weights, node.data['prev_d_weights'],
                      node.data['delta_weights'],
-                     node.data['prev_weight_update'], node.get_arity())
+                     node.data['prev_weight_update'], node.weights.size)
 
         if upd:
             self.updated = True
@@ -715,27 +900,27 @@ class RpropMinus(RpropBase):
             upd = True
             d_bias = numpy.sum(node.d_bias, axis=0)
             if 'prev_d_bias' not in node.data:
-                node.data['prev_d_bias'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_bias'] = numpy.zeros(d_bias.size)
 
             if 'delta_bias' not in node.data:
                 node.data['delta_bias'] = (numpy.ones(node.bias.shape) *
                                            self.delta_init)
 
             self.upd(node.bias, d_bias, node.data['prev_d_bias'],
-                     node.data['delta_bias'], node.get_arity())
+                     node.data['delta_bias'], node.bias.size)
 
         if node.tune_weights and 'd_weights' in node.data:
             upd = True
             d_weights = numpy.sum(node.data['d_weights'], axis=0)
             if 'prev_d_weights' not in node.data:
-                node.data['prev_d_weights'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_weights'] = numpy.zeros(d_weights.size)
 
             if 'delta_weights' not in node.data:
                 node.data['delta_weights'] = (numpy.ones(node.weights.shape) *
                                               self.delta_init)
 
             self.upd(node.weights, d_weights, node.data['prev_d_weights'],
-                     node.data['delta_weights'], node.get_arity())
+                     node.data['delta_weights'], node.weights.size)
 
         if upd:
             self.updated = True
@@ -785,7 +970,7 @@ class IRpropPlus(RpropBase):
             upd = True
             d_bias = numpy.sum(node.data['d_bias'], axis=0)
             if 'prev_d_bias' not in node.data:
-                node.data['prev_d_bias'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_bias'] = numpy.zeros(d_bias.size)
 
             if 'delta_bias' not in node.data:
                 node.data['delta_bias'] = (numpy.ones(node.bias.shape) *
@@ -796,13 +981,13 @@ class IRpropPlus(RpropBase):
 
             self.upd(node.bias, d_bias, node.data['prev_d_bias'],
                      node.data['delta_bias'], node.data['prev_bias_update'],
-                     node.get_arity())
+                     node.bias.size)
 
         if node.tune_weights and 'd_weights' in node.data:
             upd = True
             d_weights = numpy.sum(node.data['d_weights'], axis=0)
             if 'prev_d_weights' not in node.data:
-                node.data['prev_d_weights'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_weights'] = numpy.zeros(d_weights.size)
 
             if 'delta_weights' not in node.data:
                 node.data['delta_weights'] = numpy.ones(node.weights.shape) *\
@@ -813,15 +998,18 @@ class IRpropPlus(RpropBase):
 
             self.upd(node.weights, d_weights, node.data['prev_d_weights'],
                      node.data['delta_weights'],
-                     node.data['prev_weight_update'], node.get_arity())
+                     node.data['prev_weight_update'], node.weights.size)
 
         if upd:
             self.updated = True
             node.notify_change()
 
     def update(self, root: WeightedNode, error, prev_error):
-        self.error_worsened = error > prev_error
-        super().update(root, error, prev_error)
+        if self.maximize:
+            self.error_worsened = error < prev_error
+        else:
+            self.error_worsened = error > prev_error
+        return super().update(root, error, prev_error)
 
 
 class IRpropMinus(RpropBase):
@@ -857,27 +1045,27 @@ class IRpropMinus(RpropBase):
             upd = True
             d_bias = numpy.sum(node.data['d_bias'], axis=0)
             if 'prev_d_bias' not in node.data:
-                node.data['prev_d_bias'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_bias'] = numpy.zeros(d_bias.size)
 
             if 'delta_bias' not in node.data:
                 node.data['delta_bias'] = (numpy.ones(node.bias.shape) *
                                            self.delta_init)
 
             self.upd(node.bias, d_bias, node.data['prev_d_bias'],
-                     node.data['delta_bias'], node.get_arity())
+                     node.data['delta_bias'], node.bias.size)
 
         if node.tune_weights and 'd_weights' in node.data:
             upd = True
             d_weights = numpy.sum(node.data['d_weights'], axis=0)
             if 'prev_d_weights' not in node.data:
-                node.data['prev_d_weights'] = numpy.zeros(node.get_arity())
+                node.data['prev_d_weights'] = numpy.zeros(d_weights.size)
 
             if 'delta_weights' not in node.data:
                 node.data['delta_weights'] = numpy.ones(node.weights.shape) *\
                                      self.delta_init
 
             self.upd(node.weights, d_weights, node.data['prev_d_weights'],
-                     node.data['delta_weights'], node.get_arity())
+                     node.data['delta_weights'], node.weights.size)
 
         if upd:
             self.updated = True

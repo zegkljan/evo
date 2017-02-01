@@ -1,7 +1,8 @@
 # -*- coding: utf8 -*-
-from setuptools import setup, find_packages
 from codecs import open
 from os import path
+
+from setuptools import setup, find_packages
 
 here = path.abspath(path.dirname(__file__))
 
@@ -16,7 +17,8 @@ setup(
     packages=find_packages(where=here, exclude=('tests', 'tests.*')),
     install_requires=[
         'setuptools',
-        'numpy'
+        'numpy',
+        'PyYAML'
     ],
     package_data={
     },

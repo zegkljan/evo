@@ -7,8 +7,9 @@ tasks.
 
 import textwrap
 
-import evo.gp.support
 import numpy
+
+import evo.gp.support
 
 
 # noinspection PyAbstractClass
@@ -804,10 +805,13 @@ class Variable(MathNode):
     """A variable.
     """
 
-    def __init__(self, name=None, index=None, **kwargs):
+    def __init__(self, index=None, name=None, **kwargs):
         super().__init__(**kwargs)
-        self.data['name'] = name
         self.index = index
+        if name is None:
+            self.data['name'] = 'x{}'.format(index)
+        else:
+            self.data['name'] = name
 
     def get_arity(self=None):
         return 0

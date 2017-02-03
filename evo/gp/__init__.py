@@ -1,4 +1,4 @@
-# -*- coding: utf8 -*-
+# -*- coding: utf-8 -*-
 """ This package contains an implementation of classical Koza-style Genetic
 Programming.
 """

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """This module contains algorithms and data structures for backpropagation-based
 learning of tree expressions.
 """

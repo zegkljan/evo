@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import argparse
 import collections
 import gc
@@ -129,7 +130,7 @@ def setup_general_settings_arguments(parser):
 
 def setup_parameters_arguments(parser):
     parser.add_argument('--pop-size',
-                        help=text('population size'),
+                        help=text('Population size. Default is 100.'),
                         type=bounded_integer(1),
                         default=100)
     parser.add_argument('--elitism',
@@ -214,8 +215,8 @@ def setup_parameters_arguments(parser):
                         type=bounded_float(0),
                         default=3)
     parser.add_argument('--backpropagation-mode',
-                        help=text('How is backpropagation used. '
-                                  'Mode "none" turns off the backpropagation '
+                        help=text('How backpropagation is used. '
+                                  'Mode "none" turns the backpropagation off '
                                   'completely. Mode "raw" means that the '
                                   'number of steps is always the number '
                                   'specified in --backpropagation-steps (and '
@@ -224,7 +225,7 @@ def setup_parameters_arguments(parser):
                                   'that the number of steps is the number '
                                   'specified in --backpropagation-steps minus '
                                   'the total number of nodes of the individual '
-                                  '(for "nodes") of the maximum depth of the '
+                                  '(for "nodes") or the maximum depth of the '
                                   'genes (for "depth"). Default is "none", '
                                   'i.e. no backpropagation.'),
                         choices=['none', 'raw', 'nodes', 'depth'],
@@ -237,11 +238,11 @@ def setup_parameters_arguments(parser):
                         type=bounded_integer(0),
                         default=25)
     parser.add_argument('--min-backpropagation-steps',
-                        help=text('At least this number of backpropagation is'
-                                  'always performed, no matter what '
+                        help=text('At least this number of backpropagation '
+                                  'steps is always performed, no matter what '
                                   '--backpropagation-steps and '
                                   '--backpropagation-mode are set to (except '
-                                  'for "none" mode). Default is 2'),
+                                  'for "none" mode). Default is 2.'),
                         type=bounded_integer(0),
                         default=2)
     parser.add_argument('--weighted',
@@ -251,8 +252,8 @@ def setup_parameters_arguments(parser):
                                   'backpropagation and weights mutation.'),
                         action='store_true')
     parser.add_argument('--lcf-mode',
-                        help=text('How are the LCFs used. '
-                                  'Mode "none" turns off the LCFs completely. '
+                        help=text('How the LCFs are used. '
+                                  'Mode "none" turns the LCFs off completely. '
                                   'Mode "unsynced" means that each LCF is free '
                                   'to change on its own (by backpropagation '
                                   'and/or mutation). Mode "synced" means that '

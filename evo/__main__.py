@@ -1,4 +1,4 @@
-# -*- coding: utf8 -*-
+# -*- coding: utf-8 -*-
 """This module is responsible for running complete algorithms as tools, i.e. not
 as a library in another program.
 """

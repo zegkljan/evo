@@ -1,4 +1,4 @@
-# -*- coding: utf8 -*-
+# -*- coding: utf-8 -*-
 """This package contains miscellaneous utility functions and classes for working
 with trees (data structure).
 """

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """This package contains tools and algorithms for symbolic regression.
 
 The package itself contains common mathematical functions and operators as

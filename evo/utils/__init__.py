@@ -1,4 +1,4 @@
-# -*- coding: utf8 -*-
+# -*- coding: utf-8 -*-
 """This package contains support modules for evolutionary algorithms.
 """
 

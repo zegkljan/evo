@@ -1,4 +1,4 @@
-# -*- coding: utf8 -*-
+# -*- coding: utf-8 -*-
 """This module provides means to report data from the EA runs other than
 provided by standard logging.
 """

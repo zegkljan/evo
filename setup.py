@@ -4,6 +4,8 @@ from os import path
 
 from setuptools import setup, find_packages
 
+from evo import __version__ as evo_version
+
 here = path.abspath(path.dirname(__file__))
 
 # Get the long description from the relevant file
@@ -13,7 +15,7 @@ with open(path.join(here, 'DESCRIPTION.rst'), encoding='utf-8') as f:
 setup(
     # core descriptors
     name='evo',
-    version='0.0.1.dev1',
+    version=evo_version,
     packages=find_packages(where=here, exclude=('tests', 'tests.*')),
     install_requires=[
         'setuptools',

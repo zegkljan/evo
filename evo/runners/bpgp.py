@@ -17,7 +17,7 @@ import evo.gp
 import evo.sr.backpropagation
 import evo.sr.bpgp
 import evo.utils
-from evo.runners import text, bounded_integer, bounded_float, float01
+from evo.runners import text, bounded_integer, bounded_float, float01, DataSpec
 
 
 def create_bpgp_parser(subparsers):
@@ -38,59 +38,51 @@ def create_bpgp_parser(subparsers):
 
 
 def setup_input_data_arguments(parser):
-    parser.add_argument('-d', '--training-data',
-                        help=text('Path to a CSV file containing the training '
-                                  'data, i.e. the input features and output '
-                                  'values. By default, all columns except the '
-                                  'last one are considered to be the features '
-                                  'and the last column is considered to be the '
-                                  'target value. Can be overriden by options '
-                                  '--x-columns, --y-data and --y-column.'),
-                        type=str,
+    parser.add_argument('--training-data',
+                        help=text('Specification of the training data in the '
+                                  'format file[:x-columns:y-column].\n\n'
+                                  '"file" is a path to a CSV file to be '
+                                  'loaded.\n\n'
+                                  '"x-columns" is a comma-separated '
+                                  '(only comma, without whitespaces) list of '
+                                  'numbers of columns (zero-based) to be used '
+                                  'as the features.\n\n'
+                                  '"y-column" is a number of column that '
+                                  'will be used as the target. You can use '
+                                  'negative numbers to count from back, i.e. '
+                                  '-1 is the last column, -2 is the second to '
+                                  'the last column, etc.\n\n'
+                                  'The bracketed part is optional and can be '
+                                  'left out. If it is left out, all columns '
+                                  'except the last one are used as features '
+                                  'and the last one is used as target.'),
+                        type=DataSpec,
                         required=True,
-                        metavar='filename')
-    parser.add_argument('--x-columns',
-                        help=text('Specifies which columns in the training '
-                                  'data file are to be used as features. It '
-                                  'is a space separated list of numbers. Each '
-                                  'number can be prefixed with the character '
-                                  '"^" to denote that this column is NOT a '
-                                  'feature column. If there are only regular '
-                                  'numbers (i.e. without ^), then these are '
-                                  'the numbers used as the features. If there '
-                                  'are only exclusion numbers (i.e. with ^) '
-                                  'then all the columns except those specified '
-                                  'are used as the features. If there are both '
-                                  'regular and exclusion numbers then the '
-                                  'features are all the columns specified by '
-                                  'the regular numbers except those specified '
-                                  'by the exclusion numbers (i.e. exclusion '
-                                  'numbers that are not among regular numbers '
-                                  'have no effect).'),
-                        type=str,
-                        nargs='*')
-    parser.add_argument('-y', '--y-data',
-                        help=text(
-                            'Path to a CSV file containing the training '
-                            'outputs, i.e. the target values to fit. If the '
-                            'file contains multiple columns then the last one'
-                            'is assumed to be the one to use. This can be '
-                            'overridden by the argument --y-column.'),
-                        type=str,
-                        metavar='filename')
-    parser.add_argument('--y-column',
-                        help=text('Determines which column from a data file is '
-                                  'to be used as the target values. If '
-                                  '--y-data is specified then it is from that '
-                                  'file, otherwise it is from the file '
-                                  'specified by --training-data.'),
-                        type=int,
-                        default=None,
-                        metavar='n')
+                        metavar='file[:x-columns:y-column]')
+    parser.add_argument('--testing-data',
+                        help=text('Specification of the testing data. The '
+                                  'format is identical to the one of '
+                                  '--training-data. The testing data must have '
+                                  'the same number of columns as'
+                                  '--training-data.\n\n'
+                                  'The testing data are evaluated with the '
+                                  'best individual after the evolution '
+                                  'finishes. If, for some reason, the '
+                                  'individual fails to evaluate (e.g. due to '
+                                  'numerical errors like division by zero), '
+                                  'the second best individual is tried and so '
+                                  'forth until the individual evaluates or '
+                                  'there is no individual left.\n\n'
+                                  'If the testing data is not specified, no '
+                                  'testing is done (only training measures are '
+                                  'reported).'),
+                        type=DataSpec,
+                        required=False,
+                        metavar='file[:x-columns:y-column]')
     parser.add_argument('--delimiter',
                         help=text('Field delimiter of the CSV files specified '
-                                  'in --training-data and --y-data. Default '
-                                  'is ",".'),
+                                  'in --training-data and --testing-data. '
+                                  'Default is ",".'),
                         type=str,
                         default=',')
 
@@ -308,59 +300,57 @@ def handle(ns: argparse.Namespace):
         logging_conf = yaml.load(f)
     if ns.logconf is not None:
         if not os.path.isfile(ns.logconf):
-            print('Supplied logging configuration file does not exist or is '
-                  'not a file. Exitting.', file=sys.stderr)
+            logging.config.dictConfig(logging_conf)
+            logging.error('Supplied logging configuration file does not exist '
+                          'or is not a file. Exitting.')
             sys.exit(1)
         with open(ns.logconf) as f:
             local = yaml.load(f)
         evo.utils.nested_update(logging_conf, local)
     logging.config.dictConfig(logging_conf)
     logging.info('Starting evo.')
-    logging.info('Loading training data...')
-    x_data, y_data = load_data(ns.training_data, ns.y_data, ns.x_columns,
-                               ns.y_column, ns.delimiter)
-    logging.info('Training data loaded.')
-    output = prepare_output(ns)
-    algorithm = create(x=x_data, y=y_data, ns=ns)
-    result = algorithm.run()
-    postprocess(algorithm, x_data, y_data, output)
 
-
-# noinspection PyUnresolvedReferences
-def load_data(x_fn, y_fn, x_columns, y_column, delimiter):
-    if not os.path.isfile(x_fn):
-        print('File {} does not exist or is not a file. Exitting.'.format(x_fn),
-              file=sys.stderr)
+    x_data_trn, y_data_trn = load_data(ns.training_data, ns.delimiter)
+    x_data_tst, y_data_tst = load_data(ns.testing_data, ns.delimiter, True)
+    if x_data_tst is not None and x_data_trn.shape[1] != x_data_tst.shape[1]:
+        logging.error('Training and testing data have different number of '
+                      'columns. Exitting.')
         sys.exit(1)
-    logging.info('Data file: %s', x_fn)
-    data = np.loadtxt(x_fn, delimiter=delimiter)
-    if x_columns:
-        included = [int(x) for x in x_columns if not x.startswith('^')]
-        excluded = set(int(x[1:]) for x in x_columns if x.startswith('^'))
-        included.sort()
-        if not included:
-            included = list(range(data.shape[1]))
-        included = list(filter(lambda x: x not in excluded, included))
-        logging.info('Data x columns: %s', included)
-        x_data = data[:, included]
+
+    output = prepare_output(ns)
+    algorithm = create(x=x_data_trn, y=y_data_trn, ns=ns)
+    result = algorithm.run()
+    postprocess(algorithm, x_data_trn, y_data_trn, x_data_tst, y_data_tst,
+                output)
+
+
+def load_data(ds: DataSpec, delimiter: str, testing: bool=False):
+    if ds is None:
+        return None, None
+    prefix = 'Training'
+    if testing:
+        prefix = 'Testing'
+
+    if not os.path.isfile(ds.file):
+        print('File {} does not exist or is not a file. '
+              'Exitting.'.format(ds.file), file=sys.stderr)
+        sys.exit(1)
+    logging.info('%s data file: %s', prefix, ds.file)
+    data = np.loadtxt(ds.file, delimiter=delimiter)
+    if ds.x_cols is not None:
+        logging.info('%s data x columns: %s', prefix, ds.x_cols)
+        x_data = data[:, ds.x_cols]
     else:
         x_data = data[:, :-1]
 
-    if y_fn is not None:
-        if not os.path.isfile(y_fn):
-            print('File {} does not exist or is not a file. Exitting.'
-                  .format(y_fn), file=sys.stderr)
-            sys.exit(1)
-        logging.info('Y-data file: %s', y_fn)
-        data = np.loadtxt(y_fn, delimiter=delimiter)
-    if y_column is not None:
-        logging.info('Data y column: %i', y_column)
-        y_data = data[:, y_column]
+    if ds.y_col is not None:
+        logging.info('%s data y column: %i', prefix, ds.y_col)
+        y_data = data[:, ds.y_col]
     else:
         y_data = data[:, -1]
 
-    logging.info('X data shape: %s', x_data.shape)
-    logging.info('Y data shape: %s', y_data.shape)
+    logging.info('%s X data shape (rows, cols): %s', prefix, x_data.shape)
+    logging.info('%s Y data shape (elements,): %s', prefix, y_data.shape)
 
     return x_data, y_data
 
@@ -381,6 +371,7 @@ def prepare_output(ns: argparse.Namespace):
                  os.path.abspath(ns.output_directory))
 
     output_data['y_trn'] = os.path.join(ns.output_directory, 'y_trn.txt')
+    output_data['y_tst'] = os.path.join(ns.output_directory, 'y_tst.txt')
     output_data['summary'] = os.path.join(ns.output_directory, 'summary.txt')
     output_data['m_func_templ'] = os.path.join(ns.output_directory, '{}.m')
     output_data['stats'] = os.path.join(ns.output_directory, 'stats.csv')
@@ -632,17 +623,21 @@ def create(x, y, ns: argparse.Namespace):
     return alg
 
 
-def postprocess(algorithm, x_data, y_data, output):
+def postprocess(algorithm, x_data_trn, y_data_trn, x_data_tst, y_data_tst,
+                output):
     runtime = algorithm.end_time - algorithm.start_time
     bsfs = algorithm.fitness.bsfs
     del algorithm
 
+    y_trn = None
+    y_tst = None
     cycle = True
     while cycle:
         bsf = bsfs.pop()
         try:
-            y_trn = eval_individual(x_data, bsf)
-            ## y_tst = eval_individual(test_X, bsf)
+            y_trn = eval_individual(x_data_trn, bsf)
+            if x_data_tst is not None:
+                y_tst = eval_individual(x_data_tst, bsf)
             cycle = False
         except:
             logging.exception('Exception during final evaluation.')
@@ -654,53 +649,48 @@ def postprocess(algorithm, x_data, y_data, output):
                     'None of the %f BSFs evaluated without exception.')
                 logging.info('Runtime: {:.3f}'.format(runtime))
                 return 1
-    r2_trn = r2(y_data, y_trn)
-    ## r2_tst = r2(test_y, y_tst)
-    mse_trn = mse(y_data, y_trn)
-    ## mse_tst = mse(test_y, y_tst)
-    mae_trn = mae(y_data, y_trn)
-    ## mae_tst = mae(test_y, y_tst)
+    r2_trn = r2(y_data_trn, y_trn)
+    mse_trn = mse(y_data_trn, y_trn)
+    mae_trn = mae(y_data_trn, y_trn)
+    r2_tst = None
+    mse_tst = None
+    mae_tst = None
+    if y_data_tst is not None and y_tst is not None:
+        r2_tst = r2(y_data_tst, y_tst)
+        mse_tst = mse(y_data_tst, y_tst)
+        mae_tst = mae(y_data_tst, y_tst)
     nodes = sum(g.get_subtree_size() for g in bsf.genotype)
     depth = max(g.get_subtree_depth() for g in bsf.genotype)
 
     if output['y_trn'] is not None:
         np.savetxt(output['y_trn'], y_trn, delimiter=',')
-    ## if preds_tst_fn is not None:
-    ##     np.savetxt(preds_tst_fn, y_tst, delimiter=',')
+    if output['y_tst'] is not None and y_tst is not None:
+        np.savetxt(output['y_tst'], y_tst, delimiter=',')
     if output['summary'] is not None:
         with open(output['summary'], 'w') as out:
-            print('model: {model}\n'
-                  'simplified model: {simple_model}\n'
-                  'time: {runtime}\n'
-                  'R2 train: {r2_trn}\n'
-                  ## 'R2 test: {r2_tst}\n'
-                  'MSE train: {mse_trn}\n'
-                  ## 'MSE test:  {mse_tst}\n'
-                  'RMSE train: {rmse_trn}\n'
-                  ## 'RMSE test:  {rmse_tst}\n'
-                  'MAE train: {mae_trn}\n'
-                  ## 'MAE test:  {mae_tst}\n'
-                  'nodes: {nodes}\n'
-                  'depth: {depth}\n'.format(
-                    model=evo.sr.bpgp.full_model_str(bsf, num_format='repr'),
-                    simple_model=str(bsf),
-                    runtime=runtime,
-                    r2_trn=r2_trn,
-                    ## r2_tstr2_tst,
-                    mse_trn=mse_trn,
-                    ## mse_tst=mse_tst,
-                    rmse_trn=math.sqrt(mse_trn),
-                    ## rmse_tst=math.sqrt(mse_tst),
-                    mae_trn=mae_trn,
-                    ## mae_tst=mae_tst,
-                    nodes=nodes,
-                    depth=depth),
-                  file=out)
+            print('model: {}'.format(
+                evo.sr.bpgp.full_model_str(bsf, num_format='repr')), file=out)
+            print('simplified model: {}'.format(str(bsf)), file=out)
+            print('time: {}'.format(runtime), file=out)
+            print('R2 train: {}'.format(r2_trn), file=out)
+            if r2_tst is not None:
+                print('R2 test: {}'.format(r2_tst), file=out)
+            print('MSE train: {}'.format(mse_trn), file=out)
+            if mse_tst is not None:
+                print('MSE test:  {}'.format(mse_tst), file=out)
+            print('RMSE train: {}'.format(math.sqrt(mse_trn)), file=out)
+            if mse_tst is not None:
+                print('RMSE test:  {}'.format(math.sqrt(mse_tst)), file=out)
+            print('MAE train: {}'.format(mae_trn), file=out)
+            print('MAE test:  {}'.format(mae_tst), file=out)
+            print('nodes: {}'.format(nodes), file=out)
+            print('depth: {}'.format(depth), file=out)
     if output['m_func_templ'] is not None:
         with open(output['m_func_templ'].format('_func'), 'w') as out:
             print(bsf.to_matlab('_func'), file=out)
     logging.info('Training R2: {}'.format(r2_trn))
-    ## logging.info('Testing R2: {}'.format(r2_tst))
+    if r2_tst is not None:
+        logging.info('Testing R2: {}'.format(r2_tst))
     logging.info('Runtime: {:.3f}'.format(runtime))
 
 

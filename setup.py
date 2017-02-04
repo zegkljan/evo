@@ -23,6 +23,7 @@ setup(
         'PyYAML'
     ],
     package_data={
+        '': ['*']
     },
     # metadata
     url='https://gitlab.fel.cvut.cz/zegkljan/evo',

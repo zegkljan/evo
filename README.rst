@@ -15,16 +15,15 @@ Installation
 ============
 
 1. Download the whole package (its root directory).
-2. Copy its contents (should contain directory ``evo``, files
-   ``README.rst``, ``DESCRIPTION.rst`` and others) to arbitrary location
-   (here called ``DIR``).
-3. ``cd`` to the directory ``DIR``.
-4. Run ``python setup.py install``.
+2. Extract it to arbitrary directory.
+3. In the extracted package, find the file ``setup.py`` and note in which
+   directory is it located. Let's call this directory ``DIR``.
+3. Run ``pip install DIR``.
 
   * **NOTE**: the prerequisites (see above) should be installed before running
     this command.
 
-5. Done, you can even delete the downloaded package (it is now
+4. Done, you can even delete the downloaded package (it is now
    installed in the conda environment).
    Run with ``python -m evo [arguments]`` from anywhere.
 
@@ -39,6 +38,14 @@ You can use the package "as is" without any installation:
    ``DIR``).
 #. Done. To run, ``cd`` to ``DIR`` and from there run
    ``python -m evo [arguments]``.
+
+How to uninstall
+----------------
+
+To uninstall the package, run ``pip uninstall evo``.
+This works for both installation methods.
+However, for the no install method this may give some errors but it seems they
+are safe to ignore.
 
 Usage
 =====

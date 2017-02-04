@@ -20,8 +20,8 @@ Installation
    directory is it located. Let's call this directory ``DIR``.
 4. Run ``pip install DIR``.
 
-  * **NOTE**: the prerequisites (see above) should be installed before running
-    this command.
+   * **NOTE**: the prerequisites (see above) should be installed before running
+     this command.
 
 5. Done, you can even delete the downloaded package (it is now
    installed in the conda environment).
@@ -33,7 +33,7 @@ Alternative approach (no install)
 You can use the package "as is" without any installation:
 
 #. Download the whole package (its root directory).
-#. Copy its contents (should contain directory evo, README.rst,
+#. Copy its contents (should contain directory evo, files setup.py, README.rst,
    DESCRIPTION.rst and other files) to arbitrary location (here called
    ``DIR``).
 #. Done. To run, ``cd`` to ``DIR`` and from there run
@@ -127,6 +127,12 @@ All options are optional unless stated by **REQUIRED**.
     Directory to which the output files will be written.
 
     Default is current directory.
+
+``--m-fun M_FUN``
+    Name of the matlab function the model will be written to (without
+    extension).
+
+    Default is ``func``.
 
 ``--seed n``
     Seed for random number generator.

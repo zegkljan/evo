@@ -43,7 +43,7 @@ class FittedForestIndividual(evo.gp.support.ForestIndividual):
         evo.Individual.copy_data(self, clone, carry_data)
         return clone
 
-    def to_matlab(self, function_name='_bp_mggp_fn'):
+    def to_matlab(self, function_name='bp_mggp_fn'):
         coeff_mat_str = '; '.join([repr(c) for c in self.coefficients])
         coeff_mat_str = '[' + coeff_mat_str + ']'
         intercept_str = repr(self.intercept)

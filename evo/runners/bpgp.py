@@ -93,6 +93,12 @@ def setup_output_data_arguments(parser):
                         help=text('Directory to which the output files will be '
                                   'written. Default is current directory.'),
                         default='.')
+    parser.add_argument('--m-fun',
+                        help=text('Name of the matlab function the model will '
+                                  'be written to (without extension). Default '
+                                  'is "func".'),
+                        type=str,
+                        default='func')
 
 
 def setup_general_settings_arguments(parser):
@@ -358,7 +364,7 @@ def load_data(ds: DataSpec, delimiter: str, testing: bool=False):
 
 # noinspection PyUnresolvedReferences
 def prepare_output(ns: argparse.Namespace):
-    output_data = collections.defaultdict()
+    output_data = collections.defaultdict(lambda: None)
     if ns.output_directory is None:
         return output_data
 
@@ -375,6 +381,7 @@ def prepare_output(ns: argparse.Namespace):
     output_data['y_tst'] = os.path.join(ns.output_directory, 'y_tst.txt')
     output_data['summary'] = os.path.join(ns.output_directory, 'summary.txt')
     output_data['m_func_templ'] = os.path.join(ns.output_directory, '{}.m')
+    output_data['m_fun'] = ns.m_fun
     output_data['stats'] = os.path.join(ns.output_directory, 'stats.csv')
     return output_data
 
@@ -687,8 +694,10 @@ def postprocess(algorithm, x_data_trn, y_data_trn, x_data_tst, y_data_tst,
             print('nodes: {}'.format(nodes), file=out)
             print('depth: {}'.format(depth), file=out)
     if output['m_func_templ'] is not None:
-        with open(output['m_func_templ'].format('_func'), 'w') as out:
-            print(bsf.to_matlab('_func'), file=out)
+        m_fun_fn = output['m_func_templ'].format(output['m_fun'])
+        logging.info('Writing matlab function to %s', m_fun_fn)
+        with open(m_fun_fn, 'w') as out:
+            print(bsf.to_matlab(output['m_fun']), file=out)
     logging.info('Training R2: {}'.format(r2_trn))
     if r2_tst is not None:
         logging.info('Testing R2: {}'.format(r2_tst))

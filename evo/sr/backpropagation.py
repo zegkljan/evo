@@ -740,7 +740,6 @@ class LincombVariable(WeightedNode, evo.sr.Variable):
         return textwrap.dedent('''
         function {out} = {prefix}{name}({arg}, coeffs, intercept, index)
         {out} = {arg} * coeffs' + intercept;
-        {out} = {out}(:, index);
         end
         '''.format(arg=argname, out=outname, prefix=function_name_prefix,
                    name=self.__class__.__name__)).strip()

@@ -18,12 +18,12 @@ Installation
 2. Extract it to arbitrary directory.
 3. In the extracted package, find the file ``setup.py`` and note in which
    directory is it located. Let's call this directory ``DIR``.
-3. Run ``pip install DIR``.
+4. Run ``pip install DIR``.
 
   * **NOTE**: the prerequisites (see above) should be installed before running
     this command.
 
-4. Done, you can even delete the downloaded package (it is now
+5. Done, you can even delete the downloaded package (it is now
    installed in the conda environment).
    Run with ``python -m evo [arguments]`` from anywhere.
 

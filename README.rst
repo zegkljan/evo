@@ -27,6 +27,11 @@ Installation
    installed in the conda environment).
    Run with ``python -m evo [arguments]`` from anywhere.
 
+If you have git access to the repository, you can replace the steps 1 to 4
+with::
+
+    pip install -e git+git@<repository-address>/evo.git#egg=evo
+
 Alternative approach (no install)
 ---------------------------------
 
@@ -38,6 +43,19 @@ You can use the package "as is" without any installation:
    ``DIR``).
 #. Done. To run, ``cd`` to ``DIR`` and from there run
    ``python -m evo [arguments]``.
+
+How to upgrade
+--------------
+
+If you used the no-install approach, you can simply replace the old version with
+a new one.
+
+If you installed properly, you can use one of the two ways:
+
+1. Uninstall (see below) and install again.
+2. Upgrade directly - follow the same steps as for installation but insert these
+   arguments right after the ``install`` command:
+   ``--upgrade --upgrade-strategy only-if-needed``.
 
 How to uninstall
 ----------------

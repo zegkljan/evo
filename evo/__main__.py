@@ -5,6 +5,7 @@ as a library in another program.
 
 import argparse
 import re
+import sys
 import textwrap
 
 import evo
@@ -97,6 +98,7 @@ class RootParser(object):
 
 
 def main():
+    print('Arguments: {}'.format(sys.argv[1:]), file=sys.stderr)
     parser = RootParser()
     ns = parser.parse()
     if ns.algorithm == 'bpgp':

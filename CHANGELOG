@@ -4,6 +4,10 @@ v0.1.2
 
         * All NumPy errors except underflow are properly raised in bpgp.
 
+    * New features
+
+        * Command line arguments are printed to stderr as the first thing.
+
     * Added info about installation directly from git to README.rst.
     * Added upgrade instructions to README.rst.
     * Added CHANGELOG.

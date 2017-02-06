@@ -326,6 +326,8 @@ def handle(ns: argparse.Namespace):
 
     output = prepare_output(ns)
     algorithm = create(x=x_data_trn, y=y_data_trn, ns=ns)
+    # set numpy to raise an error for everything except underflow
+    np.seterr(all='raise', under='warn')
     result = algorithm.run()
     postprocess(algorithm, x_data_trn, y_data_trn, x_data_tst, y_data_tst,
                 output)

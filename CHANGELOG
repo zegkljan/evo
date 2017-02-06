@@ -1,0 +1,26 @@
+v0.1.2
+
+    * Bugfixes
+
+        * All NumPy errors except underflow are properly raised in bpgp.
+
+    * Added CHANGELOG.
+
+v0.1.1
+
+    * Bugfixes
+
+        * Coding clauses changed from utf8 to utf-8 and added where missing.
+        * Matlab function definition of LincombVariable does not use index.
+
+    * New features
+
+        * New bpgp option --m-fun enables to specify name of the matlab
+          m-function.
+
+    * Options reference added to README.rst.
+    * Added uninstallation instructions to README.rst.
+
+v0.1
+
+    * First standalone version.

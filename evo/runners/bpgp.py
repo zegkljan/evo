@@ -7,6 +7,7 @@ import logging.config
 import math
 import os
 import random
+import re
 import sys
 import time
 
@@ -165,6 +166,22 @@ def setup_parameters_arguments(parser):
                                   'is infinity (i.e. unbounded).'),
                         type=bounded_integer(1),
                         default=float('inf'))
+    parser.add_argument('--functions',
+                        help=text('A comma-separated (without whitespaces) '
+                                  'list of functions available to the '
+                                  'algorithm. Available functions are: Add2, '
+                                  'Sub2, Mul2, Div2, Sin, Cos, Exp, Abs, Sqrt, '
+                                  'Sigmoid, Tanh, Sinc, Softplus, Gauss, '
+                                  'Pow(n) where n is the positive integer '
+                                  'power. Default is '
+                                  'Add2,Sub2,Mul2,Sin,Cos,Exp,Sigmoid,Tanh,'
+                                  'Sinc,Softplus,Gauss,Pow(2),Pow(3),Pow(4),'
+                                  'Pow(5),Pow(6)'),
+                        type=str,
+                        metavar='Function[,Function ...]',
+                        default='Add2,Sub2,Mul2,Sin,Cos,Exp,Sigmoid,Tanh,'
+                                'Sinc,Softplus,Gauss,Pow(2),Pow(3),Pow(4),'
+                                'Pow(5),Pow(6)')
     parser.add_argument('--crossover-prob',
                         help=text('Probability of crossover. Default is 0.84'),
                         type=float01(),
@@ -388,6 +405,46 @@ def prepare_output(ns: argparse.Namespace):
     return output_data
 
 
+def create_function(function_name: str, prep, cache: bool):
+    if function_name == 'Add2':
+        return lambda: prep(evo.sr.backpropagation.Add2(cache=cache))
+    if function_name == 'Div2':
+        return lambda: prep(evo.sr.backpropagation.Div2(cache=cache))
+    if function_name == 'Mul2':
+        return lambda: prep(evo.sr.backpropagation.Mul2(cache=cache))
+    if function_name == 'Sub2':
+        return lambda: prep(evo.sr.backpropagation.Sub2(cache=cache))
+    if function_name == 'Sin':
+        return lambda: prep(evo.sr.backpropagation.Sin(cache=cache))
+    if function_name == 'Cos':
+        return lambda: prep(evo.sr.backpropagation.Cos(cache=cache))
+    if function_name == 'Exp':
+        return lambda: prep(evo.sr.backpropagation.Exp(cache=cache))
+    if function_name == 'Abs':
+        return lambda: prep(evo.sr.backpropagation.Abs(cache=cache))
+    if function_name == 'Sqrt':
+        return lambda: prep(evo.sr.backpropagation.Sqrt(cache=cache))
+    if function_name == 'Sigmoid':
+        return lambda: prep(evo.sr.backpropagation.Sigmoid(cache=cache))
+    if function_name == 'Tanh':
+        return lambda: prep(evo.sr.backpropagation.Tanh(cache=cache))
+    if function_name == 'Sinc':
+        return lambda: prep(evo.sr.backpropagation.Sinc(cache=cache))
+    if function_name == 'Softplus':
+        return lambda: prep(evo.sr.backpropagation.Softplus(cache=cache))
+    if function_name == 'Gauss':
+        return lambda: prep(evo.sr.backpropagation.Gauss(cache=cache))
+
+    powmatch = re.fullmatch('Pow\(([0-9]+)\)', function_name)
+    if powmatch:
+        exponent = int(powmatch.group(1))
+        if exponent <= 0:
+            raise ValueError('Power in Pow(n) must be a positive integer.')
+        return lambda: prep(evo.sr.backpropagation.Power(power=exponent,
+                                                         cache=cache))
+    raise ValueError('Unrecognized function name {}.'.format(function_name))
+
+
 def create(x, y, ns: argparse.Namespace):
     # Extract simple parameters
     rng = random.Random(ns.seed)
@@ -469,26 +526,8 @@ def create(x, y, ns: argparse.Namespace):
                           weight_init_lb,
                           weight_init_ub)
     cache = True
-    funcs = [lambda: prep(evo.sr.backpropagation.Add2(cache=cache)),
-             # lambda: rnd(evo.sr.backpropagation.Div2(cache=cache)),
-             lambda: prep(evo.sr.backpropagation.Mul2(cache=cache)),
-             lambda: prep(evo.sr.backpropagation.Sub2(cache=cache)),
-             lambda: prep(evo.sr.backpropagation.Sin(cache=cache)),
-             lambda: prep(evo.sr.backpropagation.Cos(cache=cache)),
-             lambda: prep(evo.sr.backpropagation.Exp(cache=cache)),
-             # lambda: rnd(evo.sr.backpropagation.Abs(cache=cache)),
-             # lambda: rnd(evo.sr.backpropagation.Sqrt(cache=cache)),
-             lambda: prep(evo.sr.backpropagation.Sigmoid(cache=cache)),
-             lambda: prep(evo.sr.backpropagation.Tanh(cache=cache)),
-             lambda: prep(evo.sr.backpropagation.Sinc(cache=cache)),
-             lambda: prep(evo.sr.backpropagation.Softplus(cache=cache)),
-             lambda: prep(evo.sr.backpropagation.Gauss(cache=cache)),
-             lambda: prep(evo.sr.backpropagation.Power(power=2, cache=cache)),
-             lambda: prep(evo.sr.backpropagation.Power(power=3, cache=cache)),
-             lambda: prep(evo.sr.backpropagation.Power(power=4, cache=cache)),
-             lambda: prep(evo.sr.backpropagation.Power(power=5, cache=cache)),
-             lambda: prep(evo.sr.backpropagation.Power(power=6, cache=cache)),
-             ]
+    funcs = [create_function(func_name, prep, cache)
+             for func_name in ns.functions.split(',')]
 
     terms = []
     terms += [lambda n=n: evo.sr.Variable(index=n, cache=cache)

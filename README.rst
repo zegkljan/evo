@@ -212,6 +212,31 @@ All options are optional unless stated by **REQUIRED**.
 
     Default is infinity (i.e. unbounded).
 
+``--functions Function[,Function ...]``
+    A comma-separated (without whitespaces) list of functions available to the
+    algorithm.
+
+    Available functions are:
+
+    * ``Add2`` - binary addition
+    * ``Sub2`` - binary subtraction
+    * ``Mul2`` - binary multiplication
+    * ``Div2`` - binary division
+    * ``Sin`` - sine
+    * ``Cos`` - cosine
+    * ``Exp`` - e^x
+    * ``Abs`` - absolute value
+    * ``Sqrt`` - square root (unprotected, i.e. negative argument wil produce an
+      error and the individual will be assigned the worst fitness)
+    * ``Sigmoid`` - 1 / (1 + e^-x)`
+    * ``Tanh`` - hyperbolic tangent
+    * ``Sinc`` - sin x / x (defined as 1 at x = 0)
+    * ``Softplus`` - ln(1 + e^x)
+    * ``Gauss`` - e^-(x^2)
+    * ``Pow(n)`` - x^n (``n`` must be positive integer)
+
+    Default is ``Add2,Sub2,Mul2,Sin,Cos,Exp,Sigmoid,Tanh,Sinc,Softplus,Gauss,Pow(2),Pow(3),Pow(4),Pow(5),Pow(6)``.
+
 ``--crossover-prob CROSSOVER_PROB``
     Probability of crossover.
 

@@ -74,3 +74,8 @@ class DataSpec(object):
             return 'DataSpec(\'{}\')'.format(self.file)
         return 'DataSpec(\'{}:{}:{}\')'.format(self.file, self.x_cols,
                                                self.y_col)
+
+
+class PropagateExit(BaseException):
+    def __init__(self, status):
+        self.status = status

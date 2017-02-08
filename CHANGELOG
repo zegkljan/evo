@@ -1,3 +1,19 @@
+V0.1.3
+
+    * New featues
+
+        * Setup script defines entrypoint. That means that the package can be
+          run directly, i.e. without the "python -m" thing.
+        * Number of iterations and fitness evaluations for the found solution is
+          reported in the summary file.
+        * Used rng seed reported in the summary file.
+        * Worst-case AE is reported in the summary file.
+
+    * Fitness class saves best-so-far solutions via extra data class.
+    * Fitness counts number of evaluations.
+    * Fitness.compare() is no longer responsible for evaluation.
+    * Exit status is properly reported.
+
 v0.1.2
 
     * Bugfixes

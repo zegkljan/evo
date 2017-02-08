@@ -51,8 +51,6 @@ class FittedForestIndividual(evo.gp.support.ForestIndividual):
         gene_exprs = '\n'.join(
             ['g{{{}}} = {};'.format(i + 1, g.to_matlab_expr())
              for i, g in enumerate(self.genotype)])
-        genes_str = '[' + ' '.join(['g{}'.format(i)
-                                    for i in range(len(self.genotype))]) + ']'
 
         all_funcs = set()
         for g in self.genotype:
@@ -241,13 +239,16 @@ class BackpropagationFitness(evo.Fitness):
                             handled_errors)
         self.cost_derivative = cost_derivative
         self.updater = updater
+        # noinspection PyUnresolvedReferences
         if isinstance(steps, int):
             self.steps = steps
             self.get_max_steps = self.steps_number
         elif steps[0] == 'depth':
+            # noinspection PyUnresolvedReferences
             self.steps = steps[1]
             self.get_max_steps = self.steps_depth
         elif steps[0] == 'nodes':
+            # noinspection PyUnresolvedReferences
             self.steps = steps[1]
             self.get_max_steps = self.steps_nodes
         self.min_steps = min_steps
@@ -269,7 +270,7 @@ class BackpropagationFitness(evo.Fitness):
     def get_args(self):
         return self.get_train_inputs()
 
-    def steps_number(self, individual: FittedForestIndividual):
+    def steps_number(self, _):
         ret = self.steps
         return ret
 
@@ -322,13 +323,13 @@ class BackpropagationFitness(evo.Fitness):
                     'Step %d fitness: %f Full model: %s', i, fitness,
                     [g.infix() for g in individual.genotype])
             individual.set_fitness(fitness)
-        except self.errors as e:
+        except self.errors as _:
             BackpropagationFitness.LOG.debug(
                 'Exception occurred during evaluation, assigning fitness %f',
                 self.error_fitness, exc_info=True)
             fitness = self.error_fitness
             individual.set_fitness(fitness)
-        except evo.UnevaluableError as e:
+        except evo.UnevaluableError as _:
             pass
         return individual.get_fitness()
 
@@ -336,8 +337,8 @@ class BackpropagationFitness(evo.Fitness):
         if pick_lincombs:
             do = False
             lcs = list(itertools.chain.from_iterable(
-                [root.get_nodes_dfs(predicate=lambda n: isinstance(
-                    n, evo.sr.backpropagation.LincombVariable))
+                [root.get_nodes_dfs(predicate=lambda node: isinstance(
+                    node, evo.sr.backpropagation.LincombVariable))
                  for root in individual.genotype]))
             key = operator.attrgetter('index')
             lcs.sort(key=key)
@@ -350,7 +351,8 @@ class BackpropagationFitness(evo.Fitness):
                     values.append((numpy.copy(v.bias), numpy.copy(v.weights)))
                 b = []
                 w = []
-                subkey = lambda x: (list(x[0]), list(x[1]))
+
+                def subkey(x): return list(x[0]), list(x[1])
                 values.sort(key=subkey)
                 for j, g2 in itertools.groupby(values,
                                                key=subkey):
@@ -440,6 +442,7 @@ class BackpropagationFitness(evo.Fitness):
         if self.synchronize_lincomb_vars:
             self.synchronize_lincombs(individual.genotype)
 
+    # noinspection PyMethodMayBeStatic
     def synchronize_lincombs(self, roots: list):
         lcs = list(itertools.chain.from_iterable(
             [root.get_nodes_dfs(predicate=lambda n: isinstance(
@@ -471,6 +474,7 @@ class BackpropagationFitness(evo.Fitness):
     def update_base(self, fitness, base, prev_fitness):
         return self.updater.update(base, fitness, prev_fitness)
 
+    # noinspection PyMethodMayBeStatic
     def get_eval(self, individual: FittedForestIndividual, args):
         if individual.genes_num == 1:
             return individual.genotype[0].eval(args=args)
@@ -498,12 +502,13 @@ class BackpropagationFitness(evo.Fitness):
     def compare(self, i1, i2, context=None):
         f1 = i1.get_fitness()
         f2 = i2.get_fitness()
-        if f1 is None:
-            self.evaluate(i1, context)
-            f1 = i1.get_fitness()
-        if f2 is None:
-            self.evaluate(i2, context)
-            f2 = i2.get_fitness()
+        if f1 is None and f2 is not None:
+            raise ValueError('First individual has no fitness.')
+        if f1 is not None and f2 is None:
+            raise ValueError('Second individual has no fitness.')
+        if f1 is None and f2 is None:
+            raise ValueError('Neither individual has fitness.')
+
         return self.fitness_cmp(f1, f2)
 
     def fitness_cmp(self, f1, f2):
@@ -591,6 +596,7 @@ class RegressionFitness(BackpropagationFitness):
             return worst_case_ae
         raise ValueError('Invalid value of fitness_measure.')
 
+    # noinspection PyMethodMayBeStatic
     def get_output(self, outputs, individual: FittedForestIndividual):
         intercept = individual.intercept
         coefficients = individual.coefficients
@@ -719,6 +725,7 @@ class RegressionFitnessRst(RegressionFitness):
 def full_model_str(individual: FittedForestIndividual,
                    **kwargs) -> str:
     nf = kwargs.get('num_format', '.3f')
+    newline_genes = kwargs.get('newline_genes', False)
     ic = individual.intercept
     co = individual.coefficients
     if nf == 'repr':
@@ -729,7 +736,10 @@ def full_model_str(individual: FittedForestIndividual,
         strs = [('{:' + nf + '}').format(ic)]
         for c, g in zip(co, individual.genotype):
             strs.append(('{:' + nf + '} * {}').format(c, g.infix(**kwargs)))
-    return ' + '.join(strs)
+    if newline_genes:
+        return '\n+ '.join(strs)
+    else:
+        return ' + '.join(strs)
 
 
 class GlobalLincombsGp(evo.gp.Gp):
@@ -805,9 +815,10 @@ class GlobalLincombsGp(evo.gp.Gp):
             self.callback(self, evo.gp.Gp.CallbackSituation.iteration_end)
         self.iterations += 1
 
-    def eval_individual(self, i):
+    def eval_individual(self, i: evo.Individual):
         self.try_stop()
-        return self.fitness.evaluate(i, context=self)
+        if i.get_fitness() is None:
+            self.fitness.evaluate(i, self.iterations, context=self)
 
     def _eval_all(self):
         for i in self.population:

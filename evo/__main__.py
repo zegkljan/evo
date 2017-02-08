@@ -101,9 +101,12 @@ def main():
     print('Arguments: {}'.format(sys.argv[1:]), file=sys.stderr)
     parser = RootParser()
     ns = parser.parse()
+    status = None
     if ns.algorithm == 'bpgp':
-        bpgp.handle(ns)
+        status = bpgp.handle(ns)
+    if status is not None:
+        return status
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

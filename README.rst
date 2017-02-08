@@ -25,7 +25,8 @@ Installation
 
 5. Done, you can even delete the downloaded package (it is now
    installed in the conda environment).
-   Run with ``python -m evo [arguments]`` from anywhere.
+   Run with ``evo [arguments]`` (or "manually" with python by
+   ``python -m evo [arguments]`` if needed).
 
 If you have git access to the repository, you can replace the steps 1 to 4
 with::

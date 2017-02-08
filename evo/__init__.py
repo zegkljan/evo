@@ -6,7 +6,7 @@ import copy
 import logging
 from builtins import round
 
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 
 
 class Individual(object):
@@ -39,11 +39,14 @@ class Individual(object):
         """
         return self.fitness
 
-    def copy(self, carry_evaluation, carry_data):
+    def copy(self, carry_evaluation: bool=True, carry_data: bool=True):
         """Returns a copy of the individual.
 
-        :param bool carry_evaluation: specifies whether to copy the evaluation
+        :param carry_evaluation: specifies whether to copy the evaluation
             related data (most importantly the fitness value) too
+        :param carry_data: specifies whether to copy the data of the individual
+
+        .. seealso:: :meth:`.get_data`\ , :meth:`.set_data`\ ,
         """
         raise NotImplementedError()
 
@@ -103,14 +106,25 @@ class Fitness(object):
     COMPARE_TOURNAMENT = 'tournament'
     COMPARE_BSF = 'bsf'
 
+    class Bsf(object):
+        """Data class that holds the best-so-far individual along with some
+        data."""
+
+        def __init__(self, bsf, iteration, eval_count, data=None):
+            self.bsf = bsf
+            self.iteration = iteration
+            self.eval_count = eval_count
+            self.data = data
+
     def __init__(self, store_bsfs: bool=True):
         self.store_bsfs = store_bsfs
+        self.evaluation_count = 0
 
         self.bsf = None
         self.bsfs = []
 
-    def evaluate(self, individual, context=None):
-        """Evaluates the given individual, checkes whether it is a new bsf or
+    def evaluate(self, individual, iteration: int, context=None):
+        """Evaluates the given individual, checks whether it is a new bsf or
         not and if it is it stores it as one.
 
         The method effectively calls methods :meth:`.evaluate_individual` and
@@ -119,7 +133,8 @@ class Fitness(object):
         .. seealso:: :meth:`.evaluate_individual` and :meth:`handle_bsf`
         """
         self.evaluate_individual(individual, context)
-        self.handle_bsf(individual, context)
+        self.handle_bsf(individual, iteration)
+        self.evaluation_count += 1
 
     def evaluate_individual(self, individual: Individual, context=None):
         """Evaluates the given individual and assigns the resulting fitness
@@ -139,7 +154,7 @@ class Fitness(object):
         """
         raise NotImplementedError()
 
-    def handle_bsf(self, individual: Individual, context=None,
+    def handle_bsf(self, individual: Individual, iteration: int,
                    do_not_copy: bool=False):
         """Checks whether the given individual is best-so-far (bsf) and if it
         is it stores it.
@@ -151,27 +166,33 @@ class Fitness(object):
         ``True``\ .
 
         :param individual: individual to be checked for being bsf
-        :param context: arbitrary data an algorithm can provide to the fitness
-            (e.g. iteration number)
+        :param iteration: the iteration number the individual is handled in
         :param do_not_copy: if ``True`` the bsf is stored as the individual
             itself and not its copy
 
         .. seealso:: :meth:`.get_bsf`
         """
-        if self.bsf is None or self.compare(individual, self.bsf) < 0:
+        if self.bsf is None or self.compare(individual, self.bsf.bsf) < 0:
             if do_not_copy:
-                self.bsf = individual
+                self.bsf = Fitness.Bsf(individual, iteration,
+                                       self.evaluation_count)
             else:
-                self.bsf = individual.copy()
+                self.bsf = Fitness.Bsf(individual.copy(), iteration,
+                                       self.evaluation_count)
 
             if self.store_bsfs:
                 self.bsfs.append(self.bsf)
 
-    def compare(self, i1, i2, context=None):
+    def compare(self, i1: Individual, i2: Individual, context=None):
         """Returns ``-1`` if individual ``i1`` is strictly better than
         individual ``i2``, ``0`` if they are of equal quality and ``1`` if
         ``i1`` is strictly worse than ``i2``.
 
+        This method is NOT responsible for evaluation of the individuals. They
+        must be evaluted beforehand.
+
+        :param i1: first compared individual
+        :param i2: second compared individual
         :param context: arbitrary data an algorithm can provide to the fitness
             (e.g. iteration number)
         """
@@ -182,21 +203,24 @@ class Fitness(object):
         a boolean value which is ``True`` only if ``i1`` is strictly better than
         ``i2``.
 
+        This method is NOT responsible for evaluation of the individuals. They
+        must be evaluted beforehand.
+
         All arguments have exactly the same meaning as in
         :meth:`evo.Fitness.compare`.
         """
         return self.compare(i1, i2, context) < 0
 
-    def get_bsf(self) -> Individual:
+    def get_bsf(self) -> Bsf:
         """Returns the best solution encountered so far.
 
         :return: the best-so-far solution or ``None`` if there is no such
             solution (yet)
-        :rtype: :class:`evo.Individual`
+        :rtype: :class:`evo.Fitness.Bsf`
         """
         return self.bsf
 
-    def get_bsfs(self):
+    def get_bsfs(self) -> list:
         """Returns a list of the best-so-far solutions in order as they were
         found during the optimisation run.
         """

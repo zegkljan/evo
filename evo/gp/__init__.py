@@ -1175,9 +1175,10 @@ class Gp(evo.Evolution):
                 Gp.LOG.info('Finished.')
                 Gp.LOG.info('BSF: %s', str(self.fitness.get_bsf()))
                 Gp.LOG.info('BSF fitness: %s',
-                            self.fitness.get_bsf().get_fitness())
-                Gp.LOG.info('BSF data: %s',
-                            pprint.pformat(self.fitness.get_bsf().get_data()))
+                            self.fitness.get_bsf().bsf.get_fitness())
+                Gp.LOG.info(
+                    'BSF data: %s',
+                    pprint.pformat(self.fitness.get_bsf().bsf.get_data()))
             Gp.LOG.debug('Performing garbage collection.')
             Gp.LOG.debug('Collected %d objects.', gc.collect())
             try:
@@ -1212,9 +1213,9 @@ class Gp(evo.Evolution):
         Gp.LOG.info('Iteration %d / %.1f s. BSF %s | '
                     '%s | %s',
                     self.iterations, self.get_runtime(),
-                    self.fitness.get_bsf().get_fitness(),
-                    str(self.fitness.get_bsf()),
-                    self.fitness.get_bsf().get_data())
+                    self.fitness.get_bsf().bsf.get_fitness(),
+                    str(self.fitness.get_bsf().bsf),
+                    self.fitness.get_bsf().bsf.get_data())
         if self.callback is not None:
             self.callback(self, Gp.CallbackSituation.iteration_end)
         self.iterations += 1
@@ -1238,6 +1239,13 @@ class Gp(evo.Evolution):
     def get_runtime(self):
         return time.time() - self.start_time
 
-    def compare_individuals(self, a, b):
+    def compare_individuals(self, a: evo.Individual, b: evo.Individual):
         self.try_stop()
+        self.eval_individual(a)
+        self.eval_individual(b)
         return self.fitness.compare(a, b, context=self)
+
+    def eval_individual(self, i: evo.Individual):
+        self.try_stop()
+        if i.get_fitness() is None:
+            self.fitness.evaluate(i, self.iterations, context=self)

@@ -8,7 +8,6 @@ import math
 import os
 import random
 import re
-import sys
 import time
 
 import numpy as np
@@ -19,7 +18,8 @@ import evo.gp
 import evo.sr.backpropagation
 import evo.sr.bpgp
 import evo.utils
-from evo.runners import text, bounded_integer, bounded_float, float01, DataSpec
+from evo.runners import text, bounded_integer, bounded_float, float01, \
+    DataSpec, PropagateExit
 
 
 def create_bpgp_parser(subparsers):
@@ -318,8 +318,15 @@ def setup_parameters_arguments(parser):
                         default=[-10, 10])
 
 
-# noinspection PyUnresolvedReferences
 def handle(ns: argparse.Namespace):
+    try:
+        return handle_wrapper(ns)
+    except PropagateExit as e:
+        return e.status
+
+
+# noinspection PyUnresolvedReferences
+def handle_wrapper(ns: argparse.Namespace):
     with resource_stream('evo.resources', 'logging-default.yaml') as f:
         logging_conf = yaml.load(f)
     if ns.logconf is not None:
@@ -327,7 +334,7 @@ def handle(ns: argparse.Namespace):
             logging.config.dictConfig(logging_conf)
             logging.error('Supplied logging configuration file does not exist '
                           'or is not a file. Exitting.')
-            sys.exit(1)
+            raise PropagateExit(1)
         with open(ns.logconf) as f:
             local = yaml.load(f)
         evo.utils.nested_update(logging_conf, local)
@@ -339,7 +346,7 @@ def handle(ns: argparse.Namespace):
     if x_data_tst is not None and x_data_trn.shape[1] != x_data_tst.shape[1]:
         logging.error('Training and testing data have different number of '
                       'columns. Exitting.')
-        sys.exit(1)
+        raise PropagateExit(1)
 
     output = prepare_output(ns)
     algorithm = create(x=x_data_trn, y=y_data_trn, ns=ns)
@@ -347,7 +354,10 @@ def handle(ns: argparse.Namespace):
     np.seterr(all='raise', under='warn')
     result = algorithm.run()
     postprocess(algorithm, x_data_trn, y_data_trn, x_data_tst, y_data_tst,
-                output)
+                output, ns)
+    if result:
+        return 0
+    return 100
 
 
 def load_data(ds: DataSpec, delimiter: str, testing: bool=False):
@@ -358,9 +368,9 @@ def load_data(ds: DataSpec, delimiter: str, testing: bool=False):
         prefix = 'Testing'
 
     if not os.path.isfile(ds.file):
-        print('File {} does not exist or is not a file. '
-              'Exitting.'.format(ds.file), file=sys.stderr)
-        sys.exit(1)
+        logging.error('File %s does not exist or is not a file. Exitting.',
+                      ds.file)
+        raise PropagateExit(1)
     logging.info('%s data file: %s', prefix, ds.file)
     data = np.loadtxt(ds.file, delimiter=delimiter)
     if ds.x_cols is not None:
@@ -673,9 +683,11 @@ def create(x, y, ns: argparse.Namespace):
 
 
 def postprocess(algorithm, x_data_trn, y_data_trn, x_data_tst, y_data_tst,
-                output):
+                output, ns: argparse.Namespace):
     runtime = algorithm.end_time - algorithm.start_time
     bsfs = algorithm.fitness.bsfs
+    iterations = algorithm.iterations
+    fitness_evals = algorithm.fitness.evaluation_count
     del algorithm
 
     y_trn = None
@@ -684,9 +696,9 @@ def postprocess(algorithm, x_data_trn, y_data_trn, x_data_tst, y_data_tst,
     while cycle:
         bsf = bsfs.pop()
         try:
-            y_trn = eval_individual(x_data_trn, bsf)
+            y_trn = eval_individual(x_data_trn, bsf.bsf)
             if x_data_tst is not None:
-                y_tst = eval_individual(x_data_tst, bsf)
+                y_tst = eval_individual(x_data_tst, bsf.bsf)
             cycle = False
         except:
             logging.exception('Exception during final evaluation.')
@@ -697,19 +709,22 @@ def postprocess(algorithm, x_data_trn, y_data_trn, x_data_tst, y_data_tst,
                 logging.error(
                     'None of the %f BSFs evaluated without exception.')
                 logging.info('Runtime: {:.3f}'.format(runtime))
-                return 1
+                raise PropagateExit(1)
     r2_trn = r2(y_data_trn, y_trn)
     mse_trn = mse(y_data_trn, y_trn)
     mae_trn = mae(y_data_trn, y_trn)
+    wcae_trn = wcae(y_data_trn, y_trn)
     r2_tst = None
     mse_tst = None
     mae_tst = None
+    wcae_tst = None
     if y_data_tst is not None and y_tst is not None:
         r2_tst = r2(y_data_tst, y_tst)
         mse_tst = mse(y_data_tst, y_tst)
         mae_tst = mae(y_data_tst, y_tst)
-    nodes = sum(g.get_subtree_size() for g in bsf.genotype)
-    depth = max(g.get_subtree_depth() for g in bsf.genotype)
+        wcae_tst = wcae(y_data_tst, y_tst)
+    nodes = sum(g.get_subtree_size() for g in bsf.bsf.genotype)
+    depth = max(g.get_subtree_depth() for g in bsf.bsf.genotype)
 
     if output['y_trn'] is not None:
         np.savetxt(output['y_trn'], y_trn, delimiter=',')
@@ -717,10 +732,14 @@ def postprocess(algorithm, x_data_trn, y_data_trn, x_data_tst, y_data_tst,
         np.savetxt(output['y_tst'], y_tst, delimiter=',')
     if output['summary'] is not None:
         with open(output['summary'], 'w') as out:
-            print('model: {}'.format(
-                evo.sr.bpgp.full_model_str(bsf, num_format='repr')), file=out)
-            print('simplified model: {}'.format(str(bsf)), file=out)
-            print('time: {}'.format(runtime), file=out)
+            model_str = evo.sr.bpgp.full_model_str(bsf.bsf, num_format='repr',
+                                                   newline_genes=True)
+            print('model: {}'.format(model_str), file=out)
+            print('simplified model: {}'.format(str(bsf.bsf)), file=out)
+            print('this model found in iteration: {}'.format(bsf.iteration),
+                  file=out)
+            print('this model found in fitness evaluation: {}'.format(
+                bsf.eval_count), file=out)
             print('R2 train: {}'.format(r2_trn), file=out)
             if r2_tst is not None:
                 print('R2 test: {}'.format(r2_tst), file=out)
@@ -731,14 +750,22 @@ def postprocess(algorithm, x_data_trn, y_data_trn, x_data_tst, y_data_tst,
             if mse_tst is not None:
                 print('RMSE test:  {}'.format(math.sqrt(mse_tst)), file=out)
             print('MAE train: {}'.format(mae_trn), file=out)
-            print('MAE test:  {}'.format(mae_tst), file=out)
+            if mae_tst is not None:
+                print('MAE test:  {}'.format(mae_tst), file=out)
+            print('WCAE train: {}'.format(wcae_trn), file=out)
+            if mae_tst is not None:
+                print('WCAE test:  {}'.format(wcae_tst), file=out)
             print('nodes: {}'.format(nodes), file=out)
             print('depth: {}'.format(depth), file=out)
+            print('time: {}'.format(runtime), file=out)
+            print('iterations: {}'.format(iterations), file=out)
+            print('fitness evaluations: {}'.format(fitness_evals), file=out)
+            print('seed: {}'.format(ns.seed), file=out)
     if output['m_func_templ'] is not None:
         m_fun_fn = output['m_func_templ'].format(output['m_fun'])
         logging.info('Writing matlab function to %s', m_fun_fn)
         with open(m_fun_fn, 'w') as out:
-            print(bsf.to_matlab(output['m_fun']), file=out)
+            print(bsf.bsf.to_matlab(output['m_fun']), file=out)
     logging.info('Training R2: {}'.format(r2_trn))
     if r2_tst is not None:
         logging.info('Testing R2: {}'.format(r2_tst))
@@ -785,6 +812,11 @@ def mse(y, yhat):
 def mae(y, yhat):
     err = y - yhat
     return np.sum(np.abs(err)) / err.size
+
+
+def wcae(y, yhat):
+    err = y - yhat
+    return np.max(np.abs(err))
 
 
 class NodePreparator(object):

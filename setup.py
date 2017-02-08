@@ -25,6 +25,12 @@ setup(
     package_data={
         '': ['*']
     },
+    # entrypoints
+    entry_points={
+        'console_scripts': [
+            'evo = evo.__main__:main'
+        ]
+    },
     # metadata
     url='https://gitlab.fel.cvut.cz/zegkljan/evo',
     license='Academic Free License (AFL)',

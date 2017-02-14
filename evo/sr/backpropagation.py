@@ -580,9 +580,11 @@ class Sinc(WeightedNode, evo.sr.Sinc):
         super().__init__(**kwargs)
 
     def derivative(self, arg_no: int, x):
-        return numpy.true_divide(
+        ret = numpy.true_divide(
             x[:, 0] * numpy.cos(x[:, 0]) - numpy.sin(x[:, 0]),
             x[:, 0]**2)
+        ret[x[:, 0] == 0] = 0
+        return ret
 
     def full_infix(self, **kwargs):
         num_format = kwargs.get('num_format', '.3f')
@@ -655,6 +657,34 @@ class Gauss(WeightedNode, evo.sr.Gauss):
             self.children[0].infix(**kwargs))
 
     def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return '{pfx}{fn}({w} .* {arg} + {b})'.format(
+            arg=c, pfx=function_name_prefix, fn=self.__class__.__name__,
+            w=repr(self.weights[0]), b=repr(self.bias[0]))
+
+
+class BentIdentity(WeightedNode, evo.sr.BentIdentity):
+    """Weighted version of :class:`evo.sr.BentIdentity`\ .
+
+    .. seealso:: :class:`evo.sr.BentIdentity`
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def derivative(self, arg_no: int, x):
+        return x[:, 0] / (2 * numpy.sqrt(x[:, 0] ** 2 + 1)) + 1
+
+    def full_infix(self, **kwargs):
+        num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            return 'bentid({0} + {1} * {2})'.format(
+                repr(self.bias[0]), repr(self.weights[0]),
+                self.children[0].infix(**kwargs))
+        return ('bentid({0:' + num_format + '} + '
+                '{1:' + num_format + '} * {2}').format(
+            self.bias[0], self.weights[0], self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix=''):
         c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
         return '{pfx}{fn}({w} .* {arg} + {b})'.format(
             arg=c, pfx=function_name_prefix, fn=self.__class__.__name__,

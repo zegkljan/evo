@@ -235,8 +235,8 @@ class BackpropagationFitness(evo.Fitness):
         """
         super().__init__(store_bsfs)
         self.error_fitness = error_fitness
-        self.errors = tuple([ZeroDivisionError, FloatingPointError] +
-                            handled_errors)
+        self.errors = tuple([evo.UnevaluableError, ZeroDivisionError,
+                             FloatingPointError] + handled_errors)
         self.cost_derivative = cost_derivative
         self.updater = updater
         # noinspection PyUnresolvedReferences
@@ -329,8 +329,6 @@ class BackpropagationFitness(evo.Fitness):
                 self.error_fitness, exc_info=True)
             fitness = self.error_fitness
             individual.set_fitness(fitness)
-        except evo.UnevaluableError as _:
-            pass
         return individual.get_fitness()
 
     def _eval_individual(self, individual, pick_lincombs: bool, context=None):
@@ -541,7 +539,7 @@ class RegressionFitness(BackpropagationFitness):
                  synchronize_lincomb_vars: bool=False,
                  stats: evo.utils.stats.Stats=None,
                  fitness_measure: ErrorMeasure=ErrorMeasure.R2,
-                 backpropagate_only: bool=False):
+                 store_bsfs: bool=True, backpropagate_only: bool=False):
         """
         :param train_inputs: feature variables' values: an N x M matrix where N
             is the number of datapoints (the same N as in ``target`` argument)
@@ -555,6 +553,7 @@ class RegressionFitness(BackpropagationFitness):
         super().__init__(fitness_measure.worst, handled_errors,
                          lambda yhat, y: yhat - y, updater, steps, min_steps,
                          fit, synchronize_lincomb_vars, stats,
+                         store_bsfs=store_bsfs,
                          backpropagate_only=backpropagate_only)
         self.train_inputs = train_inputs
         self.train_output = numpy.array(train_output, copy=False)

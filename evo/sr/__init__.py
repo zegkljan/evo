@@ -771,6 +771,40 @@ class Gauss(MathNode):
                    name=self.__class__.__name__)).strip()
 
 
+class BentIdentity(MathNode):
+    """A non-linear strictly increasing function without limits in +- infinity.
+
+    The function is: :math:`bid(x) = \\frac{\\sqrt{x^2 + 1} - 1}{2} + x`.
+    """
+    INFIX_FMT = 'bentid({0})'
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.data['name'] = 'bentid'
+
+    def get_arity(self=None):
+        return 1
+
+    def operation(self, *args):
+        return 0.5 * (numpy.sqrt(args[0] ** 2 + 1) - 1) + args[0]
+
+    def infix(self, **kwargs):
+        return BentIdentity.INFIX_FMT.format(self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return '{pfx}{fn}({arg})'.format(arg=c, pfx=function_name_prefix,
+                                         fn=self.__class__.__name__)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return textwrap.dedent('''
+        function {out} = {prefix}{name}({arg})
+        {out} = 0.5 * sqrt({arg} .^ 2 + 1) + {arg}
+        end
+        ''')
+
+
 class Const(MathNode):
     """A constant.
     """

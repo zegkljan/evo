@@ -580,10 +580,12 @@ class Sinc(WeightedNode, evo.sr.Sinc):
         super().__init__(**kwargs)
 
     def derivative(self, arg_no: int, x):
+        olderr = numpy.seterr(divide='ignore')
         ret = numpy.true_divide(
             x[:, 0] * numpy.cos(x[:, 0]) - numpy.sin(x[:, 0]),
             x[:, 0]**2)
         ret[x[:, 0] == 0] = 0
+        numpy.seterr(**olderr)
         return ret
 
     def full_infix(self, **kwargs):

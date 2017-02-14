@@ -234,6 +234,7 @@ All options are optional unless stated by **REQUIRED**.
     * ``Sinc`` - sin x / x (defined as 1 at x = 0)
     * ``Softplus`` - ln(1 + e^x)
     * ``Gauss`` - e^-(x^2)
+    * ``BentIdentity`` - 1 / 2 * (sqrt(x + 1) - 1) + x
     * ``Pow(n)`` - x^n (``n`` must be positive integer)
 
     Default is ``Add2,Sub2,Mul2,Sin,Cos,Exp,Sigmoid,Tanh,Sinc,Softplus,Gauss,Pow(2),Pow(3),Pow(4),Pow(5),Pow(6)``.

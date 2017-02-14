@@ -172,8 +172,8 @@ def setup_parameters_arguments(parser):
                                   'algorithm. Available functions are: Add2, '
                                   'Sub2, Mul2, Div2, Sin, Cos, Exp, Abs, Sqrt, '
                                   'Sigmoid, Tanh, Sinc, Softplus, Gauss, '
-                                  'Pow(n) where n is the positive integer '
-                                  'power. Default is '
+                                  'BentIdentity, Pow(n) where n is the '
+                                  'positive integer power. Default is '
                                   'Add2,Sub2,Mul2,Sin,Cos,Exp,Sigmoid,Tanh,'
                                   'Sinc,Softplus,Gauss,Pow(2),Pow(3),Pow(4),'
                                   'Pow(5),Pow(6)'),
@@ -444,6 +444,8 @@ def create_function(function_name: str, prep, cache: bool):
         return lambda: prep(evo.sr.backpropagation.Softplus(cache=cache))
     if function_name == 'Gauss':
         return lambda: prep(evo.sr.backpropagation.Gauss(cache=cache))
+    if function_name == 'BentIdentity':
+        return lambda: prep(evo.sr.backpropagation.BentIdentity(cache=cache))
 
     powmatch = re.fullmatch('Pow\(([0-9]+)\)', function_name)
     if powmatch:

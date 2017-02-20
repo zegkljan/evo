@@ -153,6 +153,15 @@ All options are optional unless stated by **REQUIRED**.
 
     Default is ``func``.
 
+``--output-string-template OUTPUT_STRING_TEMPLATE```
+    Template for the string that will be printed to the standard output at the
+    very end of the algorithm. This can be used to report algorithm performance
+    to tuners such as SMAC. Default is no string (nothing is printed).
+
+    The string can contain any of the following placeholders: ``{tst_r2}``,
+    ``{trn_r2}``, ``{tst_mse}``, ``{trn_mse}``, ``{tst_mae}``, ``{trn_mae}``,
+    ``{runtime}``, ``{seed}``, ``{iterations}``.
+
 ``--seed n``
     Seed for random number generator.
 

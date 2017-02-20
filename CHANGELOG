@@ -1,4 +1,12 @@
-V0.1.4
+v0.1.5
+
+    * New features
+
+        * Added --output-string-template argument option.
+        * Enabled no output directory (i.e. nothing will be output) by supplying
+          "-" as the directory.
+
+v0.1.4
 
     * Bugfixes
 

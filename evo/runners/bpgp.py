@@ -92,7 +92,11 @@ def setup_input_data_arguments(parser):
 def setup_output_data_arguments(parser):
     parser.add_argument('-o', '--output-directory',
                         help=text('Directory to which the output files will be '
-                                  'written. Default is current directory.'),
+                                  'written. If "-" is specified, no output '
+                                  'will be written. If you need to output to a '
+                                  'directory literally named "-", specify an '
+                                  'absolute or relative path (e.g. "./-"). '
+                                  'Default is current directory.'),
                         default='.')
     parser.add_argument('--m-fun',
                         help=text('Name of the matlab function the model will '
@@ -100,6 +104,19 @@ def setup_output_data_arguments(parser):
                                   'is "func".'),
                         type=str,
                         default='func')
+    parser.add_argument('--output-string-template',
+                        help=text('Template for the string that will be '
+                                  'printed to the standard output at the very '
+                                  'end of the algorithm. This can be used to '
+                                  'report algorithm performance to tuners such '
+                                  'as SMAC. Default is no string (nothing is '
+                                  'printed).\n\n'
+                                  'The string can contain any of the following '
+                                  'placeholders: {tst_r2}, {trn_r2}, '
+                                  '{tst_mse}, {trn_mse}, {tst_mae}, {trn_mae}, '
+                                  '{runtime}, {seed}, {iterations}.'),
+                        type=str,
+                        default=None)
 
 
 def setup_general_settings_arguments(parser):
@@ -394,7 +411,16 @@ def load_data(ds: DataSpec, delimiter: str, testing: bool=False):
 # noinspection PyUnresolvedReferences
 def prepare_output(ns: argparse.Namespace):
     output_data = collections.defaultdict(lambda: None)
+
+    if ns.output_string_template is not None:
+        output_data['output_string_template'] = ns.output_string_template
+    output_data['m_fun'] = ns.m_fun
+
     if ns.output_directory is None:
+        return output_data
+
+    if ns.output_directory == '-':
+        logging.info('No output directory is used.')
         return output_data
 
     if os.path.isdir(ns.output_directory):
@@ -410,7 +436,6 @@ def prepare_output(ns: argparse.Namespace):
     output_data['y_tst'] = os.path.join(ns.output_directory, 'y_tst.txt')
     output_data['summary'] = os.path.join(ns.output_directory, 'summary.txt')
     output_data['m_func_templ'] = os.path.join(ns.output_directory, '{}.m')
-    output_data['m_fun'] = ns.m_fun
     output_data['stats'] = os.path.join(ns.output_directory, 'stats.csv')
     return output_data
 
@@ -772,6 +797,19 @@ def postprocess(algorithm, x_data_trn, y_data_trn, x_data_tst, y_data_tst,
     if r2_tst is not None:
         logging.info('Testing R2: {}'.format(r2_tst))
     logging.info('Runtime: {:.3f}'.format(runtime))
+    if output['output_string_template'] is not None:
+        output_string = output['output_string_template'].format(
+            tst_r2=r2_tst,
+            trn_r2=r2_trn,
+            tst_mse=mse_tst,
+            trn_mse=mse_trn,
+            tst_mae=mae_tst,
+            trn_mae=mae_trn,
+            runtime=runtime,
+            seed=ns.seed,
+            iterations=iterations)
+        logging.info('Output string: %s', output_string)
+        print(output_string)
 
 
 def eval_individual(x, individual):

@@ -158,9 +158,21 @@ All options are optional unless stated by **REQUIRED**.
     very end of the algorithm. This can be used to report algorithm performance
     to tuners such as SMAC. Default is no string (nothing is printed).
 
-    The string can contain any of the following placeholders: ``{tst_r2}``,
-    ``{trn_r2}``, ``{tst_mse}``, ``{trn_mse}``, ``{tst_mae}``, ``{trn_mae}``,
-    ``{runtime}``, ``{seed}``, ``{iterations}``.
+    The string can contain any of the following placeholders:
+
+    * ``{tst_r2}`` - R^2 on testing data
+    * ``{trn_r2}`` - R^2 on training data
+    * ``{tst_r2_inv}`` - 1 - R^2 on testing data
+    * ``{trn_r2_inv}`` - 1 - R^2 on training data
+    * ``{tst_mse}`` - MSE (mean squared error) on testing data
+    * ``{trn_mse}`` - MSE (mean squared error) on training data
+    * ``{tst_mae}`` - MAE (mean absolute error) on testing data
+    * ``{trn_mae}`` - MAE (mean absolute error) on training data
+    * ``{tst_wae}`` - WAE (worst or biggest absolute error) on testing data
+    * ``{trn_wae}`` - WAE (worst or biggest absolute error) on training data
+    * ``{runtime}`` - runtime of the algorithm
+    * ``{seed}`` - seed used by the algorithm
+    * ``{iterations}`` - number of iterations the algorithm ran for
 
 ``--seed n``
     Seed for random number generator.

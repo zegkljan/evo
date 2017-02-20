@@ -113,8 +113,10 @@ def setup_output_data_arguments(parser):
                                   'printed).\n\n'
                                   'The string can contain any of the following '
                                   'placeholders: {tst_r2}, {trn_r2}, '
-                                  '{tst_mse}, {trn_mse}, {tst_mae}, {trn_mae}, '
-                                  '{runtime}, {seed}, {iterations}.'),
+                                  '{tst_r2_inv}, {trn_r2_inv}, {tst_mse}, '
+                                  '{trn_mse}, {tst_mae}, {trn_mae}, {tst_wae}, '
+                                  '{trn_wae}, {runtime}, {seed}, '
+                                  '{iterations}.'),
                         type=str,
                         default=None)
 
@@ -801,10 +803,14 @@ def postprocess(algorithm, x_data_trn, y_data_trn, x_data_tst, y_data_tst,
         output_string = output['output_string_template'].format(
             tst_r2=r2_tst,
             trn_r2=r2_trn,
+            tst_r2_inv=1 - r2_tst,
+            trn_r2_inv=1 - r2_trn,
             tst_mse=mse_tst,
             trn_mse=mse_trn,
             tst_mae=mae_tst,
             trn_mae=mae_trn,
+            tst_wae=wcae_tst,
+            trn_wae=wcae_trn,
             runtime=runtime,
             seed=ns.seed,
             iterations=iterations)

@@ -1,3 +1,13 @@
+v0.1.6
+
+    * New features
+
+        * Added new --output-string-template placeholders: {tst_r2_inv},
+          {tnr_r2_inv}, {tst_wae}, {trn_wae}.
+
+    * Better formatting of --output-string-template option description in
+      readme.
+
 v0.1.5
 
     * New features

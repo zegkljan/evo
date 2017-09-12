@@ -22,7 +22,7 @@ from evo.runners import text, bounded_integer, bounded_float, float01, \
     DataSpec, PropagateExit
 
 
-def create_bpgp_parser(subparsers):
+def create_parser(subparsers):
     parser = subparsers.add_parser('bpgp',
                                    help='BackPropagation Genetic Programming')
 
@@ -366,9 +366,28 @@ def handle_wrapper(ns: argparse.Namespace):
         logging.error('Training and testing data have different number of '
                       'columns. Exitting.')
         raise PropagateExit(1)
-
     output = prepare_output(ns)
-    algorithm = create(x=x_data_trn, y=y_data_trn, ns=ns)
+
+    # prepare stuff needed for algorithm creation
+    params = get_params(ns)
+    functions = create_functions(params)
+    global_lcs, terminals = create_terminals(params, x, True)
+    fitness = create_fitness(params, x_data_trn, y_data_trn)
+    crossover = create_crossover(params)
+    mutation = create_mutation(functions, terminals, params)
+    population_strategy = create_population_strategy(params)
+    reproduction_strategy = create_reproduction_strategy(
+        crossover, mutation, functions, terminals, params)
+    callback = create_callback(params)
+    stopping_condition = create_stopping_condition(params)
+    population_initializer = create_population_initializer(functions, terminals,
+                                                           params)
+    # create algorithm
+    algorithm = create_algorithm(functions, terminals, global_lcs, fitness,
+                                 population_strategy, reproduction_strategy,
+                                 callback, stopping_condition,
+                                 population_initializer, params)
+
     # set numpy to raise an error for everything except underflow
     np.seterr(all='raise', under='warn')
     result = algorithm.run()
@@ -442,6 +461,17 @@ def prepare_output(ns: argparse.Namespace):
     return output_data
 
 
+def create_functions(params):
+    preparator = NodePreparator(params['weighted'],
+                                params['weight_init'] == 'random',
+                                params['rng'],
+                                params['weight_init_lb'],
+                                params['weight_init_ub'])
+    functions = [create_function(func_name, preparator, True)
+                 for func_name in params['functions'].split(',')]
+    return functions
+
+
 def create_function(function_name: str, prep, cache: bool):
     if function_name == 'Add2':
         return lambda: prep(evo.sr.backpropagation.Add2(cache=cache))
@@ -484,174 +514,229 @@ def create_function(function_name: str, prep, cache: bool):
     raise ValueError('Unrecognized function name {}.'.format(function_name))
 
 
-def create(x, y, ns: argparse.Namespace):
-    # Extract simple parameters
-    rng = random.Random(ns.seed)
+def get_params(ns: argparse.Namespace):
+    params = dict()
+
+    params['rng'] = random.Random(ns.seed)
     logging.info('Seed: %d', ns.seed)
 
-    generations = ns.generations
-    logging.info('Generations limit: %s', generations)
+    params['generations'] = ns.generations
+    logging.info('Generations limit: %s', params['generations'])
 
-    t = ns.time
-    logging.info('Time limit: %f', t)
+    params['t'] = ns.time
+    logging.info('Time limit: %f', params['t'])
 
-    combinator = ns.generation_time_combinator
-    logging.info('Generations + time: %s', combinator)
+    params['combinator'] = ns.generation_time_combinator
+    logging.info('Generations + time: %s', params['combinator'])
 
-    limits = {
+    params['limits'] = {
         'max-genes': ns.max_genes,
         'max-depth': ns.max_depth,
         'max-nodes': ns.max_nodes
     }
-    logging.info('Max genes: %s', limits['max-genes'])
-    logging.info('Max depth: %s', limits['max-depth'])
-    logging.info('Max nodes: %s', limits['max-nodes'])
+    logging.info('Max genes: %s', params['limits']['max-genes'])
+    logging.info('Max depth: %s', params['limits']['max-depth'])
+    logging.info('Max nodes: %s', params['limits']['max-nodes'])
 
-    pop_size = ns.pop_size
-    logging.info('Population size: %d', pop_size)
+    params['pop_size'] = ns.pop_size
+    logging.info('Population size: %d', params['pop_size'])
 
-    tournament_size = int(round(pop_size * ns.tournament_size))
-    assert tournament_size > 0, 'Effective tournament size is 0.'
-    logging.info('Tournament size: %d', tournament_size)
+    params['tournament_size'] = int(round(ns.pop_size * ns.tournament_size))
+    assert params['tournament_size'] > 0, 'Effective tournament size is 0.'
+    logging.info('Tournament size: %d', params['tournament_size'])
 
-    elitism = int(round(pop_size * ns.elitism))
-    logging.info('Elitism: %d', elitism)
+    params['elitism'] = int(round(ns.pop_size * ns.elitism))
+    logging.info('Elitism: %d', params['elitism'])
 
-    bprop_steps_min = ns.min_backpropagation_steps
-    bprop_steps = ns.backpropagation_steps
+    params['bprop_steps_min'] = ns.min_backpropagation_steps
+    params['bprop_steps'] = ns.backpropagation_steps
+    params['backpropagation_mode'] = ns.backpropagation_mode
     logging.info('Backpropagation mode: %s', ns.backpropagation_mode)
-    logging.info('Backpropagation min. steps: %d', bprop_steps_min)
-    logging.info('Backpropagation steps: %s', bprop_steps)
-    if ns.backpropagation_mode == 'none':
-        bprop_steps_min = 0
-        bprop_steps = 0
-    elif ns.backpropagation_mode != 'raw':
-        bprop_steps = (ns.backpropagation_mode, bprop_steps)
+    logging.info('Backpropagation min. steps: %d', params['bprop_steps_min'])
+    logging.info('Backpropagation steps: %s', params['bprop_steps'])
+    if params['backpropagation_mode'] == 'none':
+        params['bprop_steps_min'] = 0
+        params['bprop_steps'] = 0
 
-    pr_x = ns.crossover_prob
-    logging.info('Crossover prob.: %f', pr_x)
+    params['pr_x'] = ns.crossover_prob
+    logging.info('Crossover prob.: %f', params['pr_x'])
 
-    pr_hl_x = ns.highlevel_crossover_prob
-    logging.info('High-level crossover prob.: %f', pr_hl_x)
+    params['pr_hl_x'] = ns.highlevel_crossover_prob
+    logging.info('High-level crossover prob.: %f', params['pr_hl_x'])
 
-    r_hl_x = ns.highlevel_crossover_rate
-    logging.info('High-level crossover rate: %f', r_hl_x)
+    params['r_hl_x'] = ns.highlevel_crossover_rate
+    logging.info('High-level crossover rate: %f', params['r_hl_x'])
 
-    pr_m = ns.mutation_prob
-    logging.info('Mutation prob.: %f', pr_m)
+    params['pr_m'] = ns.mutation_prob
+    logging.info('Mutation prob.: %f', params['pr_m'])
 
-    pr_c_m = ns.constant_mutation_prob
-    logging.info('Constant mutation prob.: %f', pr_c_m)
+    params['pr_c_m'] = ns.constant_mutation_prob
+    logging.info('Constant mutation prob.: %f', params['pr_c_m'])
 
-    sigma_c_m = ns.constant_mutation_sigma
-    logging.info('Constant mutation sigma: %f', sigma_c_m)
+    params['sigma_c_m'] = ns.constant_mutation_sigma
+    logging.info('Constant mutation sigma: %f', params['sigma_c_m'])
 
-    pr_w_m = ns.weights_mutation_prob
-    logging.info('Weights mutation prob.: %f', pr_w_m)
+    params['pr_w_m'] = ns.weights_mutation_prob
+    logging.info('Weights mutation prob.: %f', params['pr_w_m'])
 
-    sigma_w_m = ns.weights_mutation_sigma
-    logging.info('Weights mutation sigma: %f', sigma_w_m)
+    params['sigma_w_m'] = ns.weights_mutation_sigma
+    logging.info('Weights mutation sigma: %f', params['sigma_w_m'])
 
-    # Prepare functions and terminals
-    logging.info('LCF mode: %s', ns.lcf_mode)
-    logging.info('Weight init: %s', ns.weight_init)
-    const_init_lb = min(ns.const_init_bounds)
-    const_init_ub = max(ns.const_init_bounds)
-    logging.info('Const init bounds: [%f, %f]', const_init_lb, const_init_ub)
-    weight_init_lb = min(ns.weight_init_bounds)
-    weight_init_ub = max(ns.weight_init_bounds)
-    logging.info('Weight init bounds: [%f, %f]', weight_init_lb, weight_init_ub)
-    prep = NodePreparator(ns.weighted, ns.weight_init == 'random', rng,
-                          weight_init_lb,
-                          weight_init_ub)
-    cache = True
-    funcs = [create_function(func_name, prep, cache)
-             for func_name in ns.functions.split(',')]
+    params['lcf_mode'] = ns.lcf_mode
+    logging.info('LCF mode: %s', params['lcf_mode'])
 
+    params['weight_init'] = ns.weight_init
+    logging.info('Weight init: %s', params['weight_init'])
+
+    params['const_init_lb'] = min(ns.const_init_bounds)
+    params['const_init_ub'] = max(ns.const_init_bounds)
+    logging.info('Const init bounds: [%f, %f]', params['const_init_lb'],
+                 params['const_init_ub'])
+
+    params['weight_init_lb'] = min(ns.weight_init_bounds)
+    params['weight_init_ub'] = max(ns.weight_init_bounds)
+    logging.info('Weight init bounds: [%f, %f]', params['weight_init_lb'],
+                 params['weight_init_ub'])
+
+    params['weighted'] = ns.weighted
+    logging.info('Weighted: %s', params['weighted'])
+
+    params['functions'] = ns.functions
+    logging.info('Functions: %s', params['functions'])
+
+    params['backpropagation_mode'] = ns.backpropagation_mode
+    logging.info('Backpropagation mode: %s', params['backpropagation_mode'])
+
+    params['generation_time_combinator'] = ns.generation_time_combinator
+    logging.info('Generation-time combinator: %s',
+                 params['generation_time_combinator'])
+
+    return params
+
+
+def create_population_strategy(params):
+    ps = evo.GenerationalPopulationStrategy(params['pop_size'],
+                                            params['elitism'])
+    return ps
+
+
+def create_mutation(functions, terminals, params):
+    if ((params['weighted'] or params['lcf_mode'] != 'none') and
+                params['pr_w_m'] > 0):
+        if params['lcf_mode'] == 'global':
+            muts = [
+                (1 - params['pr_c_m'], evo.gp.SubtreeMutation(
+                    float('inf'), params['rng'], functions, terminals,
+                    params['limits'])),
+                (params['pr_c_m'], evo.sr.bpgp.ConstantsMutation(
+                    params['sigma_c_m'], params['rng']))
+            ]
+        else:
+            muts = [
+                (1 - params['pr_w_m'] - params['pr_c_m'],
+                 evo.gp.SubtreeMutation(float('inf'), params['rng'], functions,
+                                        terminals, params['limits'])),
+                (params['pr_c_m'], evo.sr.bpgp.ConstantsMutation(
+                    params['sigma_c_m'], params['rng'])),
+                (params['pr_w_m'], evo.sr.bpgp.CoefficientsMutation(
+                    params['sigma_w_m'], params['rng']))
+            ]
+        mutation = evo.gp.StochasticChoiceMutation(muts, params['rng'],
+                                                   fallback_method=muts[0][1])
+    else:
+        muts = [
+            (1 - params['pr_c_m'], evo.gp.SubtreeMutation(
+                float('inf'), params['rng'], functions, terminals,
+                params['limits'])),
+            (params['pr_c_m'], evo.sr.bpgp.ConstantsMutation(
+                params['sigma_c_m'], params['rng']))
+        ]
+        mutation = evo.gp.StochasticChoiceMutation(muts, params['rng'],
+                                                   fallback_method=muts[0][1])
+        params['pr_w_m'] = 0
+
+    return mutation
+
+
+def create_crossover(params):
+    if params['limits']['max-genes'] > 1 and params['pr_hl_x'] > 0:
+        crossover = evo.gp.StochasticChoiceCrossover([
+            (params['pr_hl_x'], evo.gp.CrHighlevelCrossover(params['r_hl_x'],
+                                                            params['rng'],
+                                                            params['limits'])),
+            (1 - params['pr_hl_x'], evo.gp.SubtreeCrossover(params['rng'],
+                                                            params['limits']))
+        ], params['rng'])
+    else:
+        crossover = evo.gp.SubtreeCrossover(params['rng'], params['limits'])
+
+    return crossover
+
+
+def create_fitness(params, x, y):
+    if params['backpropagation_mode'] not in ['raw', 'none']:
+        steps = (params['backpropagation_mode'], params['bprop_steps'])
+    else:
+        steps = params['bprop_steps']
+    fitness = evo.sr.bpgp.RegressionFitness(
+        handled_errors=[],
+        train_inputs=x,
+        train_output=y,
+        updater=evo.sr.backpropagation.IRpropMinus(maximize=True),
+        steps=steps,
+        min_steps=params['bprop_steps_min'],
+        fit=True,
+        synchronize_lincomb_vars=params['lcf_mode'] == 'synced',
+        ## stats=stats,
+        fitness_measure=evo.sr.bpgp.ErrorMeasure.R2,
+        backpropagate_only=params['lcf_mode'] == 'global'
+    )
+    return fitness
+
+
+def create_terminals(params, x, cache):
     terms = []
     terms += [lambda n=n: evo.sr.Variable(index=n, cache=cache)
               for n in range(x.shape[1])]
-    if ns.lcf_mode != 'none':
+    global_lcs = None
+    if params['lcf_mode'] != 'none':
         lc_prep = NodePreparator(True,
-                                 ns.lcf_mode not in ['synced', 'global'],
-                                 rng,
-                                 weight_init_lb,
-                                 weight_init_ub)
+                                 params['lcf_mode'] not in ['synced', 'global'],
+                                 params['rng'],
+                                 params['weight_init_lb'],
+                                 params['weight_init_ub'])
         global_lcs = []
         for n in range(x.shape[1]):
             terms.append(
                 lambda n=n: lc_prep(evo.sr.backpropagation.LincombVariable(
                     index=n, num_vars=x.shape[1], cache=cache)))
             global_lcs.append(terms[-1]())
-    terms += [lambda: evo.sr.Const(rng.uniform(const_init_lb, const_init_ub))]
+    terms += [
+        lambda: evo.sr.Const(params['rng'].uniform(params['const_init_lb'],
+                                                   params['const_init_ub']))
+    ]
+    return global_lcs, terms
 
-    # Prepare fitness
-    fitness = evo.sr.bpgp.RegressionFitness(
-        handled_errors=[],
-        train_inputs=x,
-        train_output=y,
-        updater=evo.sr.backpropagation.IRpropMinus(maximize=True),
-        steps=bprop_steps,
-        min_steps=bprop_steps_min,
-        fit=True,
-        synchronize_lincomb_vars=ns.lcf_mode == 'synced',
-        ## stats=stats,
-        fitness_measure=evo.sr.bpgp.ErrorMeasure.R2,
-        backpropagate_only=ns.lcf_mode == 'global'
-    )
 
-    # Prepare population strategy
-    ps = evo.GenerationalPopulationStrategy(pop_size, elitism)
-
-    # Prepare crossover
-    if limits['max-genes'] > 1 and ns.highlevel_crossover_prob > 0:
-        crossover = evo.gp.StochasticChoiceCrossover([
-            (pr_hl_x, evo.gp.CrHighlevelCrossover(r_hl_x, rng, limits)),
-            (1 - pr_hl_x, evo.gp.SubtreeCrossover(rng, limits))
-        ], rng)
+def create_stopping_condition(params):
+    if math.isinf(params['t']) and math.isinf(params['generations']):
+        logging.warning('Both time and generational stopping condition will '
+                        'never be met. Algorithm must be terminated '
+                        'externally.')
+    time_stop = evo.gp.Gp.time(params['t'])
+    generations_stop = evo.gp.Gp.generations(params['generations'])
+    if params['generation_time_combinator'] == 'any':
+        stop = evo.gp.Gp.any(time_stop, generations_stop)
+    elif params['generation_time_combinator'] == 'all':
+        stop = evo.gp.Gp.all(time_stop, generations_stop)
     else:
-        crossover = evo.gp.SubtreeCrossover(rng, limits)
+        raise ValueError('Invalid generation-time-combinator')
 
-    # Prepare mutation
-    if (ns.weighted or ns.lcf_mode != 'none') and pr_w_m > 0:
-        if ns.lcf_mode == 'global':
-            muts = [
-                (1 - pr_c_m, evo.gp.SubtreeMutation(float('inf'), rng, funcs,
-                                                    terms, limits)),
-                (pr_c_m, evo.sr.bpgp.ConstantsMutation(sigma_c_m, rng))
-            ]
-        else:
-            muts = [
-                (1 - pr_w_m - pr_c_m, evo.gp.SubtreeMutation(float('inf'), rng,
-                                                             funcs, terms,
-                                                             limits)),
-                (pr_c_m, evo.sr.bpgp.ConstantsMutation(sigma_c_m, rng)),
-                (pr_w_m, evo.sr.bpgp.CoefficientsMutation(sigma_w_m, rng))
-            ]
-        mutation = evo.gp.StochasticChoiceMutation(muts, rng,
-                                                   fallback_method=muts[0][1])
-    else:
-        muts = [
-            (1 - pr_c_m, evo.gp.SubtreeMutation(float('inf'), rng, funcs, terms,
-                                                limits)),
-            (pr_c_m, evo.sr.bpgp.ConstantsMutation(sigma_c_m, rng))
-        ]
-        mutation = evo.gp.StochasticChoiceMutation(muts, rng,
-                                                   fallback_method=muts[0][1])
-        pr_w_m = 0
+    return stop
 
-    # Prepare reproduction strategy
-    rs = evo.gp.ChoiceReproductionStrategy(
-        funcs, terms, rng,
-        crossover=crossover,
-        mutation=mutation,
-        limits=limits,
-        crossover_prob=pr_x,
-        mutation_prob=pr_m,
-        crossover_both=False)
 
-    # Prepare callback
-    if ns.backpropagation_mode != 'none':
+def create_callback(params):
+    if params['backpropagation_mode'] != 'none':
         def cb(a, situation):
             if situation == evo.gp.Gp.CallbackSituation.iteration_start:
                 for i in a.population:
@@ -659,53 +744,61 @@ def create(x, y, ns: argparse.Namespace):
     else:
         cb = None
 
-    # Prepare stopping condition
-    if math.isinf(t) and math.isinf(generations):
-        logging.warning('Both time and generational stopping condition will '
-                        'never be met. Algorithm must be terminated '
-                        'externally.')
-    time_stop = evo.gp.Gp.time(t)
-    generations_stop = evo.gp.Gp.generations(generations)
-    if ns.generation_time_combinator == 'any':
-        stop = evo.gp.Gp.any(time_stop, generations_stop)
-    elif ns.generation_time_combinator == 'all':
-        stop = evo.gp.Gp.all(time_stop, generations_stop)
-    else:
-        raise ValueError('Invalid generation-time-combinator')
+    return cb
 
+
+def create_reproduction_strategy(crossover, mutation, functions, terminals,
+                                 params):
+    return evo.gp.ChoiceReproductionStrategy(
+        functions, terminals, params['rng'],
+        crossover=crossover,
+        mutation=mutation,
+        limits=params['limits'],
+        crossover_prob=params['pr_x'],
+        mutation_prob=params['pr_m'],
+        crossover_both=False)
+
+
+def create_population_initializer(functions, terminals, params):
+    return evo.sr.bpgp.FittedForestIndividualInitializer(
+        evo.gp.support.RampedHalfHalfInitializer(
+            functions=functions,
+            terminals=terminals,
+            min_depth=1,
+            max_depth=params['limits']['max-depth'],
+            max_genes=params['limits']['max-genes'],
+            generator=params['rng']
+        )
+    )
+
+
+def create_algorithm(functions, terminals, global_lcs, fitness,
+                     population_strategy, reproduction_strategy, callback,
+                     stopping_condition, population_initializer, params: dict):
     # Prepare final algorithm
-    if ns.lcf_mode == 'global':
+    if params['lcf_mode'] == 'global':
         alg_class = evo.sr.bpgp.GlobalLincombsGp
         # noinspection PyUnboundLocalVariable
         extra_kwargs = {'global_lcs': global_lcs,
-                        'update_steps': bprop_steps,
-                        'coeff_mut_prob': pr_w_m,
-                        'coeff_mut_sigma': sigma_w_m}
+                        'update_steps': params['bprop_steps'],
+                        'coeff_mut_prob': params['pr_w_m'],
+                        'coeff_mut_sigma': params['sigma_w_m']}
     else:
         alg_class = evo.gp.Gp
         extra_kwargs = {}
     alg = alg_class(
         fitness=fitness,
-        pop_strategy=ps,
-        selection_strategy=evo.TournamentSelectionStrategy(tournament_size,
-                                                           rng),
-        reproduction_strategy=rs,
-        population_initializer=evo.sr.bpgp.FittedForestIndividualInitializer(
-            evo.gp.support.RampedHalfHalfInitializer(
-                functions=funcs,
-                terminals=terms,
-                min_depth=1,
-                max_depth=limits['max-depth'],
-                max_genes=limits['max-genes'],
-                generator=rng
-            )
-        ),
-        functions=funcs,
-        terminals=terms,
-        stop=stop,
-        generator=rng,
-        limits=limits,
-        callback=cb,
+        pop_strategy=population_strategy,
+        selection_strategy=evo.TournamentSelectionStrategy(
+            params['tournament_size'], params['rng']),
+        reproduction_strategy=reproduction_strategy,
+        population_initializer=population_initializer,
+        functions=functions,
+        terminals=terminals,
+        stop=stopping_condition,
+        generator=params['rng'],
+        limits=params['limits'],
+        callback=callback,
         **extra_kwargs
     )
     return alg

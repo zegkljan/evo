@@ -768,26 +768,26 @@ class GlobalLincombsGp(evo.gp.Gp):
 
         prev_bsf_fitness = None
         if self.fitness.bsf is not None:
-            prev_bsf_fitness = self.fitness.bsf.get_fitness()
+            prev_bsf_fitness = self.fitness.get_bsf().bsf.get_fitness()
         self._eval_all()
-        cur_bsf_fitness = self.fitness.bsf.get_fitness()
+        cur_bsf_fitness = self.fitness.get_bsf().bsf.get_fitness()
         if prev_bsf_fitness is None:
             prev_bsf_fitness = cur_bsf_fitness
         GlobalLincombsGp.LOG.debug('Before global update: BSF %s | %s | %s',
-                                   self.fitness.get_bsf().get_fitness(),
-                                   str(self.fitness.get_bsf()),
-                                   self.fitness.get_bsf().get_data())
+                                   self.fitness.get_bsf().bsf.get_fitness(),
+                                   str(self.fitness.get_bsf().bsf),
+                                   self.fitness.get_bsf().bsf.get_data())
         for i in range(self.update_steps):
             self._synchronize()
             self._update(prev_bsf_fitness, cur_bsf_fitness)
             prev_bsf_fitness = cur_bsf_fitness
             self._eval_all()
-            cur_bsf_fitness = self.fitness.bsf.get_fitness()
+            cur_bsf_fitness = self.fitness.get_bsf().bsf.get_fitness()
             GlobalLincombsGp.LOG.debug('After global update step %d / %d: BSF '
                                        '%s | %s | %s', i + 1, self.update_steps,
-                                       self.fitness.get_bsf().get_fitness(),
-                                       str(self.fitness.get_bsf()),
-                                       self.fitness.get_bsf().get_data())
+                                       self.fitness.get_bsf().bsf.get_fitness(),
+                                       str(self.fitness.get_bsf().bsf),
+                                       self.fitness.get_bsf().bsf.get_data())
 
         elites = self.top_individuals(self.pop_strategy.get_elites_number())
 
@@ -807,9 +807,9 @@ class GlobalLincombsGp(evo.gp.Gp):
         GlobalLincombsGp.LOG.info('Iteration %d / %.1f s. BSF %s | '
                                   '%s | %s',
                                   self.iterations, self.get_runtime(),
-                                  self.fitness.get_bsf().get_fitness(),
-                                  str(self.fitness.get_bsf()),
-                                  self.fitness.get_bsf().get_data())
+                                  self.fitness.get_bsf().bsf.get_fitness(),
+                                  str(self.fitness.get_bsf().bsf),
+                                  self.fitness.get_bsf().bsf.get_data())
         if self.callback is not None:
             self.callback(self, evo.gp.Gp.CallbackSituation.iteration_end)
         self.iterations += 1

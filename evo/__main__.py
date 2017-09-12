@@ -91,7 +91,7 @@ class RootParser(object):
         subparsers = parser.add_subparsers(title='algorithms',
                                            metavar='<algorithm>',
                                            dest='algorithm')
-        bpgp.create_bpgp_parser(subparsers)
+        bpgp.create_parser(subparsers)
 
     def parse(self):
         return self.parser.parse_args()

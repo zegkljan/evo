@@ -71,9 +71,9 @@ class DataSpec(object):
 
     def __repr__(self):
         if self.x_cols is None and self.y_col is None:
-            return 'DataSpec(\'{}\')'.format(self.file)
-        return 'DataSpec(\'{}:{}:{}\')'.format(self.file, self.x_cols,
-                                               self.y_col)
+            return '{}(\'{}\')'.format(self.__class__.__name__, self.file)
+        return '{}(\'{}:{}:{}\')'.format(self.__class__.__name__, self.file,
+                                         self.x_cols, self.y_col)
 
 
 class PropagateExit(BaseException):

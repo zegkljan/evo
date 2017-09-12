@@ -173,12 +173,13 @@ class Fitness(object):
         .. seealso:: :meth:`.get_bsf`
         """
         if self.bsf is None or self.compare(individual, self.bsf.bsf) < 0:
+            data = self.compute_individual_data(individual)
             if do_not_copy:
                 self.bsf = Fitness.Bsf(individual, iteration,
-                                       self.evaluation_count)
+                                       self.evaluation_count, data)
             else:
                 self.bsf = Fitness.Bsf(individual.copy(), iteration,
-                                       self.evaluation_count)
+                                       self.evaluation_count, data)
 
             if self.store_bsfs:
                 self.bsfs.append(self.bsf)
@@ -225,6 +226,15 @@ class Fitness(object):
         found during the optimisation run.
         """
         return self.bsfs
+
+    # noinspection PyMethodMayBeStatic
+    def compute_individual_data(self, individual: Individual):
+        """Computes additional data for the individual.
+
+        The data should be very low-level and should not contain references to
+        the individual as it is stored along with the best-so-far individuals.
+        """
+        return None
 
 
 class UnevaluableError(Exception):

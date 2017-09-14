@@ -21,6 +21,8 @@ import evo.utils
 from evo.runners import text, bounded_integer, bounded_float, float01, \
     DataSpec, PropagateExit
 
+_parser_arg = 'bpgp'
+
 
 def create_parser(subparsers):
     parser = subparsers.add_parser('bpgp',
@@ -37,6 +39,8 @@ def create_parser(subparsers):
 
     # algorithm parameters
     setup_parameters_arguments(parser)
+
+    return _parser_arg, handle
 
 
 def setup_input_data_arguments(parser):
@@ -335,6 +339,18 @@ def setup_parameters_arguments(parser):
                         type=float,
                         metavar='bound',
                         default=[-10, 10])
+    parser.add_argument('--constants',
+                        help=text('Type constant leaf nodes work. One of the '
+                                  'following: none, classical, tunable.'
+                                  'The "none" type means no such nodes will be '
+                                  'available. Type "classical" means that the '
+                                  'constants will be generated randomly at '
+                                  'initialization (and subtree mutation) and '
+                                  'can be modified via mutation. The type '
+                                  '"tunable" means the values of the constants '
+                                  'are subject to gradient-based tuning.'),
+                        choices=['none', 'classical', 'tunable'],
+                        default='classical')
 
 
 def handle(ns: argparse.Namespace):
@@ -371,7 +387,7 @@ def handle_wrapper(ns: argparse.Namespace):
     # prepare stuff needed for algorithm creation
     params = get_params(ns)
     functions = create_functions(params)
-    global_lcs, terminals = create_terminals(params, x, True)
+    global_lcs, terminals = create_terminals(params, x_data_trn, True)
     fitness = create_fitness(params, x_data_trn, y_data_trn)
     crossover = create_crossover(params)
     mutation = create_mutation(functions, terminals, params)
@@ -457,6 +473,7 @@ def prepare_output(ns: argparse.Namespace):
     output_data['y_tst'] = os.path.join(ns.output_directory, 'y_tst.txt')
     output_data['summary'] = os.path.join(ns.output_directory, 'summary.txt')
     output_data['m_func_templ'] = os.path.join(ns.output_directory, '{}.m')
+    output_data['m_fun'] = ns.m_fun
     output_data['stats'] = os.path.join(ns.output_directory, 'stats.csv')
     return output_data
 
@@ -611,6 +628,9 @@ def get_params(ns: argparse.Namespace):
     logging.info('Generation-time combinator: %s',
                  params['generation_time_combinator'])
 
+    params['constants'] = ns.constants
+    logging.info('Constants mode: %s', params['constants'])
+
     return params
 
 
@@ -711,10 +731,17 @@ def create_terminals(params, x, cache):
                 lambda n=n: lc_prep(evo.sr.backpropagation.LincombVariable(
                     index=n, num_vars=x.shape[1], cache=cache)))
             global_lcs.append(terms[-1]())
-    terms += [
-        lambda: evo.sr.Const(params['rng'].uniform(params['const_init_lb'],
-                                                   params['const_init_ub']))
-    ]
+    if params['constants'] == 'classical':
+        terms += [
+            lambda: evo.sr.Const(params['rng'].uniform(params['const_init_lb'],
+                                                       params['const_init_ub']))
+        ]
+    elif params['constants'] == 'tunable':
+        terms += [
+            lambda: evo.sr.backpropagation.TunableConst(
+                params['rng'].uniform(params['const_init_lb'],
+                                      params['const_init_ub']))
+        ]
     return global_lcs, terms
 
 

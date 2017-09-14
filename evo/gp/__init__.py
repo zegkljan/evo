@@ -1173,7 +1173,7 @@ class Gp(evo.Evolution):
                 Gp.LOG.info('Finished. No BSF acquired.')
             else:
                 Gp.LOG.info('Finished.')
-                Gp.LOG.info('BSF: %s', str(self.fitness.get_bsf()))
+                Gp.LOG.info('BSF: %s', str(self.fitness.get_bsf().bsf))
                 Gp.LOG.info('BSF fitness: %s',
                             self.fitness.get_bsf().bsf.get_fitness())
                 Gp.LOG.info(

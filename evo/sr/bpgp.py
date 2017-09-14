@@ -423,7 +423,7 @@ class BackpropagationFitness(evo.Fitness):
         fitness = self.get_error(yhats, individual)
         return fitness, otf, otf_d
 
-    def backpropagate_bases(self, individual, transform, tansform_derivative):
+    def backpropagate_bases(self, individual, transform, transform_derivative):
         for n in range(individual.genes_num):
             try:
                 base = individual.genotype[n]
@@ -433,7 +433,7 @@ class BackpropagationFitness(evo.Fitness):
                     cost_derivative=self.cost_derivative,
                     true_output=self.get_train_output(),
                     output_transform=transform(n),
-                    output_transform_derivative=tansform_derivative(n)
+                    output_transform_derivative=transform_derivative(n)
                 )
             except AttributeError:
                 continue

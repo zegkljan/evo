@@ -800,9 +800,10 @@ class BentIdentity(MathNode):
                       function_name_prefix='') -> str:
         return textwrap.dedent('''
         function {out} = {prefix}{name}({arg})
-        {out} = 0.5 * (sqrt({arg} .^ 2 + 1) - 1) + {arg}
+        {out} = 0.5 * sqrt({arg} .^ 2 + 1) + {arg};
         end
-        ''')
+        '''.format(arg=argname, out=outname, prefix=function_name_prefix,
+                   name=self.__class__.__name__)).strip()
 
 
 class Const(MathNode):

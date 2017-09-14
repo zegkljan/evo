@@ -91,19 +91,22 @@ class RootParser(object):
         subparsers = parser.add_subparsers(title='algorithms',
                                            metavar='<algorithm>',
                                            dest='algorithm')
-        bpgp.create_parser(subparsers)
+        self.parser_handlers = {p: h for p, h in [
+            bpgp.create_parser(subparsers)
+        ]}
 
     def parse(self):
         return self.parser.parse_args()
+
+    def handle(self, ns: argparse.Namespace):
+        return self.parser_handlers[ns.algorithm](ns)
 
 
 def main():
     print('Arguments: {}'.format(sys.argv[1:]), file=sys.stderr)
     parser = RootParser()
     ns = parser.parse()
-    status = None
-    if ns.algorithm == 'bpgp':
-        status = bpgp.handle(ns)
+    status = parser.handle(ns)
     if status is not None:
         return status
 

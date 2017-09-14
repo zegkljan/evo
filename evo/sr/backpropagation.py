@@ -693,6 +693,70 @@ class BentIdentity(WeightedNode, evo.sr.BentIdentity):
             w=repr(self.weights[0]), b=repr(self.bias[0]))
 
 
+class TunableConst(WeightedNode, evo.sr.Const):
+    """A version of Const whose value can be tuned. For the purposes of this
+    framework the constant's value and what is tuned is the bias. Weights have
+    no meaning and cannot be tuned.
+    """
+    def __init__(self, val=None, **kwargs):
+        """TunableConstant does never use weights (only bias), therefore
+        ``tune_weights`` argument has no effect and is always overridden to
+        ``False``\ .
+        """
+        kwargs['tune_weights'] = False
+        super().__init__(val=numpy.atleast_1d(val), **kwargs)
+        self.data['name'] = 'C'
+        self.weights = []
+
+    @property
+    def bias(self):
+        return self.value
+
+    @bias.setter
+    def bias(self, value):
+        self.value = value
+        self.data['name'] = str(value)
+
+    def full_infix(self, **kwargs) -> str:
+        num_format = kwargs.get('num_format', '.3f')
+        if num_format == 'repr':
+            r = repr(self.bias[0])
+        else:
+            r = ('{0:' + num_format + '}').format(self.bias[0])
+        return r
+
+    def backpropagate(self, args, datapts_no: int,
+                      cost_derivative: callable = None, true_output=None,
+                      output_transform: callable = None,
+                      output_transform_derivative: callable = None):
+        if output_transform is None:
+            output_transform = identity
+        if output_transform_derivative is None:
+            output_transform_derivative = identity_d
+
+        # bias derivative
+        self.data['d_bias'] = numpy.empty((datapts_no, 1))
+        # if this is the root call, do it differently
+        if cost_derivative is not None and true_output is not None:
+            cd = cost_derivative(output_transform(self.eval(args)),
+                                 true_output)
+            otfd = output_transform_derivative(self.eval(args))
+            db = cd * otfd
+        else:
+            pd = self.parent.data['d_bias'][:, self.parent_index]
+            pw = self.parent.weights[self.parent_index]
+            db = pd * pw
+        self.data['d_bias'][:, 0] = db
+
+        # no weights derivative
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        return repr(self.bias[0])
+
+    def __str__(self):
+        return str(self.value)
+
+
 class LincombVariable(WeightedNode, evo.sr.Variable):
     def __init__(self, num_vars=1, names=None, **kwargs):
         super().__init__(**kwargs)

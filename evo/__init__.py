@@ -6,7 +6,7 @@ import copy
 import logging
 from builtins import round
 
-__version__ = '0.1.6'
+__version__ = '0.1.7'
 
 
 class Individual(object):

@@ -473,7 +473,6 @@ def prepare_output(ns: argparse.Namespace):
     output_data['y_tst'] = os.path.join(ns.output_directory, 'y_tst.txt')
     output_data['summary'] = os.path.join(ns.output_directory, 'summary.txt')
     output_data['m_func_templ'] = os.path.join(ns.output_directory, '{}.m')
-    output_data['m_fun'] = ns.m_fun
     output_data['stats'] = os.path.join(ns.output_directory, 'stats.csv')
     return output_data
 

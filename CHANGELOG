@@ -1,3 +1,14 @@
+v0.1.7
+
+    * Bugfixes
+
+        * BentIdentity was incorrectly exported to matlab.
+
+    * New features
+
+        * Constants (leaf nodes) can be tuned via backpropagation using. This
+          can be specified via a new switch --constants.
+
 v0.1.6
 
     * New features

@@ -545,43 +545,38 @@ def create_function(function_name: str, prep, cache: bool):
     raise ValueError('Unrecognized function name {}.'.format(function_name))
 
 
+# noinspection PyTypeChecker
 def get_params(ns: argparse.Namespace):
     params = dict()
 
-    params['logconf'] = ns.logconf
+    get_logging_params(ns, params)
+    get_input_params(ns, params)
+    get_output_params(ns, params)
+    get_algorithm_params(ns, params)
 
-    params['training-data'] = ns.training_data
-    params['testing-data'] = ns.testing_data
-    params['delimiter'] = ns.delimiter
+    return params
 
-    params['output_string_template'] = ns.output_string_template
-    params['m_fun'] = ns.m_fun
-    params['output_directory'] = ns.output_directory
 
+def get_algorithm_params(ns, params):
     params['seed'] = ns.seed
-
     params['generations'] = ns.generations
     params['t'] = ns.time
     params['generation_time_combinator'] = ns.generation_time_combinator
-
     params['limits'] = {
         'max-genes': ns.max_genes,
         'max-depth': ns.max_depth,
         'max-nodes': ns.max_nodes
     }
-
     params['pop_size'] = ns.pop_size
     params['tournament_size'] = int(round(ns.pop_size * ns.tournament_size))
     assert params['tournament_size'] > 0, 'Effective tournament size is 0.'
     params['elitism'] = int(round(ns.pop_size * ns.elitism))
-
     params['bprop_steps_min'] = ns.min_backpropagation_steps
     params['bprop_steps'] = ns.backpropagation_steps
     params['backpropagation_mode'] = ns.backpropagation_mode
     if params['backpropagation_mode'] == 'none':
         params['bprop_steps_min'] = 0
         params['bprop_steps'] = 0
-
     params['pr_x'] = ns.crossover_prob
     params['pr_hl_x'] = ns.highlevel_crossover_prob
     params['r_hl_x'] = ns.highlevel_crossover_rate
@@ -590,24 +585,38 @@ def get_params(ns: argparse.Namespace):
     params['sigma_c_m'] = ns.constant_mutation_sigma
     params['pr_w_m'] = ns.weights_mutation_prob
     params['sigma_w_m'] = ns.weights_mutation_sigma
-
     params['lcf_mode'] = ns.lcf_mode
-
     params['weight_init'] = ns.weight_init
     params['const_init_lb'] = min(ns.const_init_bounds)
     params['const_init_ub'] = max(ns.const_init_bounds)
     params['weight_init_lb'] = min(ns.weight_init_bounds)
     params['weight_init_ub'] = max(ns.weight_init_bounds)
-
     params['weighted'] = ns.weighted
-
     params['functions'] = ns.functions
     params['constants'] = ns.constants
 
-    return params
+
+def get_output_params(ns, params):
+    params['output_string_template'] = ns.output_string_template
+    params['m_fun'] = ns.m_fun
+    params['output_directory'] = ns.output_directory
+
+
+def get_input_params(ns, params):
+    params['training-data'] = ns.training_data
+    params['testing-data'] = ns.testing_data
+    params['delimiter'] = ns.delimiter
+
+
+def get_logging_params(ns, params):
+    params['logconf'] = ns.logconf
 
 
 def log_params(params):
+    log_algorithm_params(params)
+
+
+def log_algorithm_params(params):
     logging.info('Seed: %d', params['seed'])
     logging.info('Generations limit: %s', params['generations'])
     logging.info('Time limit: %f', params['t'])

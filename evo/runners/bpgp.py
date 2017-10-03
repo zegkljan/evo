@@ -362,44 +362,46 @@ def handle(ns: argparse.Namespace):
 
 # noinspection PyUnresolvedReferences
 def handle_wrapper(ns: argparse.Namespace):
+    params = get_params(ns)
+
     with resource_stream('evo.resources', 'logging-default.yaml') as f:
         logging_conf = yaml.load(f)
-    if ns.logconf is not None:
-        if not os.path.isfile(ns.logconf):
+    if params['logconf'] is not None:
+        if not os.path.isfile(params['logconf']):
             logging.config.dictConfig(logging_conf)
             logging.error('Supplied logging configuration file does not exist '
                           'or is not a file. Exitting.')
             raise PropagateExit(1)
-        with open(ns.logconf) as f:
+        with open(params['logconf']) as f:
             local = yaml.load(f)
         evo.utils.nested_update(logging_conf, local)
     logging.config.dictConfig(logging_conf)
     logging.info('Starting evo.')
 
-    x_data_trn, y_data_trn = load_data(ns.training_data, ns.delimiter)
-    x_data_tst, y_data_tst = load_data(ns.testing_data, ns.delimiter, True)
+    x_data_trn, y_data_trn, x_data_tst, y_data_tst = load_data(params)
     if x_data_tst is not None and x_data_trn.shape[1] != x_data_tst.shape[1]:
         logging.error('Training and testing data have different number of '
                       'columns. Exitting.')
         raise PropagateExit(1)
-    output = prepare_output(ns)
+    output = prepare_output(params)
 
+    log_params(params)
     # prepare stuff needed for algorithm creation
-    params = get_params(ns)
-    functions = create_functions(params)
-    global_lcs, terminals = create_terminals(params, x_data_trn, True)
+    rng = create_rng(params)
+    functions = create_functions(rng, params)
+    global_lcs, terminals = create_terminals(rng, x_data_trn, True, params)
     fitness = create_fitness(params, x_data_trn, y_data_trn)
-    crossover = create_crossover(params)
-    mutation = create_mutation(functions, terminals, params)
+    crossover = create_crossover(rng, params)
+    mutation = create_mutation(rng, functions, terminals, params)
     population_strategy = create_population_strategy(params)
     reproduction_strategy = create_reproduction_strategy(
-        crossover, mutation, functions, terminals, params)
+        rng, crossover, mutation, functions, terminals, params)
     callback = create_callback(params)
     stopping_condition = create_stopping_condition(params)
-    population_initializer = create_population_initializer(functions, terminals,
-                                                           params)
+    population_initializer = create_population_initializer(rng, functions,
+                                                           terminals, params)
     # create algorithm
-    algorithm = create_algorithm(functions, terminals, global_lcs, fitness,
+    algorithm = create_algorithm(rng, functions, terminals, global_lcs, fitness,
                                  population_strategy, reproduction_strategy,
                                  callback, stopping_condition,
                                  population_initializer, params)
@@ -414,73 +416,86 @@ def handle_wrapper(ns: argparse.Namespace):
     return 100
 
 
-def load_data(ds: DataSpec, delimiter: str, testing: bool=False):
-    if ds is None:
-        return None, None
-    prefix = 'Training'
-    if testing:
-        prefix = 'Testing'
+def load_data(params: dict):
+    def load(ds: DataSpec, delimiter: str, prefix: str):
+        if not os.path.isfile(ds.file):
+            logging.error('%s data file %s does not exist or is not a file. '
+                          'Exitting.', prefix, ds.file)
+            raise PropagateExit(1)
+        logging.info('%s data file: %s', prefix, ds.file)
+        data = np.loadtxt(ds.file, delimiter=delimiter)
+        if ds.x_cols is not None:
+            logging.info('%s data x columns: %s', prefix, ds.x_cols)
+            x_data = data[:, ds.x_cols]
+        else:
+            x_data = data[:, :-1]
 
-    if not os.path.isfile(ds.file):
-        logging.error('File %s does not exist or is not a file. Exitting.',
-                      ds.file)
-        raise PropagateExit(1)
-    logging.info('%s data file: %s', prefix, ds.file)
-    data = np.loadtxt(ds.file, delimiter=delimiter)
-    if ds.x_cols is not None:
-        logging.info('%s data x columns: %s', prefix, ds.x_cols)
-        x_data = data[:, ds.x_cols]
-    else:
-        x_data = data[:, :-1]
+        if ds.y_col is not None:
+            logging.info('%s data y column: %i', prefix, ds.y_col)
+            y_data = data[:, ds.y_col]
+        else:
+            y_data = data[:, -1]
 
-    if ds.y_col is not None:
-        logging.info('%s data y column: %i', prefix, ds.y_col)
-        y_data = data[:, ds.y_col]
-    else:
-        y_data = data[:, -1]
+        return x_data, y_data
 
-    logging.info('%s X data shape (rows, cols): %s', prefix, x_data.shape)
-    logging.info('%s Y data shape (elements,): %s', prefix, y_data.shape)
+    dlm = params['delimiter']
+    training_ds = params['training-data']
+    testing_ds = params['testing-data']
 
-    return x_data, y_data
+    training_x, training_y = load(training_ds, dlm, 'Training')
+    logging.info('Training X data shape (rows, cols): %s', training_x.shape)
+    logging.info('Training Y data shape (elements,): %s', training_y.shape)
+    testing_x, testing_y = None, None
+    if testing_ds is not None:
+        testing_x, testing_y = load(testing_ds, dlm, 'Testing')
+        logging.info('Testing X data shape (rows, cols): %s', training_x.shape)
+        logging.info('Testing Y data shape (elements,): %s', training_y.shape)
+
+    return training_x, training_y, testing_x, testing_y
 
 
 # noinspection PyUnresolvedReferences
-def prepare_output(ns: argparse.Namespace):
+def prepare_output(params: dict):
     output_data = collections.defaultdict(lambda: None)
 
-    if ns.output_string_template is not None:
-        output_data['output_string_template'] = ns.output_string_template
-    output_data['m_fun'] = ns.m_fun
+    if params['output_string_template'] is not None:
+        output_data['output_string_template'] = params['output_string_template']
+    output_data['m_fun'] = params['m_fun']
 
-    if ns.output_directory is None:
+    if params['output_directory'] is None:
         return output_data
 
-    if ns.output_directory == '-':
+    if params['output_directory'] == '-':
         logging.info('No output directory is used.')
         return output_data
 
-    if os.path.isdir(ns.output_directory):
+    if os.path.isdir(params['output_directory']):
         logging.warning('Output directory %s already exists! Contents might be '
-                        'overwritten', ns.output_directory)
-    os.makedirs(ns.output_directory, exist_ok=True)
+                        'overwritten', params['output_directory'])
+    os.makedirs(params['output_directory'], exist_ok=True)
     logging.info('Output directory (relative): %s',
-                 os.path.relpath(ns.output_directory, os.getcwd()))
+                 os.path.relpath(params['output_directory'], os.getcwd()))
     logging.info('Output directory (absolute): %s',
-                 os.path.abspath(ns.output_directory))
+                 os.path.abspath(params['output_directory']))
 
-    output_data['y_trn'] = os.path.join(ns.output_directory, 'y_trn.txt')
-    output_data['y_tst'] = os.path.join(ns.output_directory, 'y_tst.txt')
-    output_data['summary'] = os.path.join(ns.output_directory, 'summary.txt')
-    output_data['m_func_templ'] = os.path.join(ns.output_directory, '{}.m')
-    output_data['stats'] = os.path.join(ns.output_directory, 'stats.csv')
+    output_data['y_trn'] = os.path.join(params['output_directory'], 'y_trn.txt')
+    output_data['y_tst'] = os.path.join(params['output_directory'], 'y_tst.txt')
+    output_data['summary'] = os.path.join(params['output_directory'],
+                                          'summary.txt')
+    output_data['m_func_templ'] = os.path.join(params['output_directory'],
+                                               '{}.m')
+    output_data['stats'] = os.path.join(params['output_directory'], 'stats.csv')
     return output_data
 
 
-def create_functions(params):
+def create_rng(params):
+    return random.Random(params['seed'])
+
+
+def create_functions(rng, params):
     preparator = NodePreparator(params['weighted'],
                                 params['weight_init'] == 'random',
-                                params['rng'],
+                                rng,
                                 params['weight_init_lb'],
                                 params['weight_init_ub'])
     functions = [create_function(func_name, preparator, True)
@@ -533,104 +548,99 @@ def create_function(function_name: str, prep, cache: bool):
 def get_params(ns: argparse.Namespace):
     params = dict()
 
-    params['rng'] = random.Random(ns.seed)
-    logging.info('Seed: %d', ns.seed)
+    params['logconf'] = ns.logconf
+
+    params['training-data'] = ns.training_data
+    params['testing-data'] = ns.testing_data
+    params['delimiter'] = ns.delimiter
+
+    params['output_string_template'] = ns.output_string_template
+    params['m_fun'] = ns.m_fun
+    params['output_directory'] = ns.output_directory
+
+    params['seed'] = ns.seed
 
     params['generations'] = ns.generations
-    logging.info('Generations limit: %s', params['generations'])
-
     params['t'] = ns.time
-    logging.info('Time limit: %f', params['t'])
-
-    params['combinator'] = ns.generation_time_combinator
-    logging.info('Generations + time: %s', params['combinator'])
+    params['generation_time_combinator'] = ns.generation_time_combinator
 
     params['limits'] = {
         'max-genes': ns.max_genes,
         'max-depth': ns.max_depth,
         'max-nodes': ns.max_nodes
     }
-    logging.info('Max genes: %s', params['limits']['max-genes'])
-    logging.info('Max depth: %s', params['limits']['max-depth'])
-    logging.info('Max nodes: %s', params['limits']['max-nodes'])
 
     params['pop_size'] = ns.pop_size
-    logging.info('Population size: %d', params['pop_size'])
-
     params['tournament_size'] = int(round(ns.pop_size * ns.tournament_size))
     assert params['tournament_size'] > 0, 'Effective tournament size is 0.'
-    logging.info('Tournament size: %d', params['tournament_size'])
-
     params['elitism'] = int(round(ns.pop_size * ns.elitism))
-    logging.info('Elitism: %d', params['elitism'])
 
     params['bprop_steps_min'] = ns.min_backpropagation_steps
     params['bprop_steps'] = ns.backpropagation_steps
     params['backpropagation_mode'] = ns.backpropagation_mode
-    logging.info('Backpropagation mode: %s', ns.backpropagation_mode)
-    logging.info('Backpropagation min. steps: %d', params['bprop_steps_min'])
-    logging.info('Backpropagation steps: %s', params['bprop_steps'])
     if params['backpropagation_mode'] == 'none':
         params['bprop_steps_min'] = 0
         params['bprop_steps'] = 0
 
     params['pr_x'] = ns.crossover_prob
-    logging.info('Crossover prob.: %f', params['pr_x'])
-
     params['pr_hl_x'] = ns.highlevel_crossover_prob
-    logging.info('High-level crossover prob.: %f', params['pr_hl_x'])
-
     params['r_hl_x'] = ns.highlevel_crossover_rate
-    logging.info('High-level crossover rate: %f', params['r_hl_x'])
-
     params['pr_m'] = ns.mutation_prob
-    logging.info('Mutation prob.: %f', params['pr_m'])
-
     params['pr_c_m'] = ns.constant_mutation_prob
-    logging.info('Constant mutation prob.: %f', params['pr_c_m'])
-
     params['sigma_c_m'] = ns.constant_mutation_sigma
-    logging.info('Constant mutation sigma: %f', params['sigma_c_m'])
-
     params['pr_w_m'] = ns.weights_mutation_prob
-    logging.info('Weights mutation prob.: %f', params['pr_w_m'])
-
     params['sigma_w_m'] = ns.weights_mutation_sigma
-    logging.info('Weights mutation sigma: %f', params['sigma_w_m'])
 
     params['lcf_mode'] = ns.lcf_mode
-    logging.info('LCF mode: %s', params['lcf_mode'])
 
     params['weight_init'] = ns.weight_init
-    logging.info('Weight init: %s', params['weight_init'])
-
     params['const_init_lb'] = min(ns.const_init_bounds)
     params['const_init_ub'] = max(ns.const_init_bounds)
-    logging.info('Const init bounds: [%f, %f]', params['const_init_lb'],
-                 params['const_init_ub'])
-
     params['weight_init_lb'] = min(ns.weight_init_bounds)
     params['weight_init_ub'] = max(ns.weight_init_bounds)
-    logging.info('Weight init bounds: [%f, %f]', params['weight_init_lb'],
-                 params['weight_init_ub'])
 
     params['weighted'] = ns.weighted
-    logging.info('Weighted: %s', params['weighted'])
 
     params['functions'] = ns.functions
-    logging.info('Functions: %s', params['functions'])
-
-    params['backpropagation_mode'] = ns.backpropagation_mode
-    logging.info('Backpropagation mode: %s', params['backpropagation_mode'])
-
-    params['generation_time_combinator'] = ns.generation_time_combinator
-    logging.info('Generation-time combinator: %s',
-                 params['generation_time_combinator'])
-
     params['constants'] = ns.constants
-    logging.info('Constants mode: %s', params['constants'])
 
     return params
+
+
+def log_params(params):
+    logging.info('Seed: %d', params['seed'])
+    logging.info('Generations limit: %s', params['generations'])
+    logging.info('Time limit: %f', params['t'])
+    logging.info('Generations + time: %s', params['generation_time_combinator'])
+    logging.info('Max genes: %s', params['limits']['max-genes'])
+    logging.info('Max depth: %s', params['limits']['max-depth'])
+    logging.info('Max nodes: %s', params['limits']['max-nodes'])
+    logging.info('Population size: %d', params['pop_size'])
+    logging.info('Tournament size: %d', params['tournament_size'])
+    logging.info('Elitism: %d', params['elitism'])
+    logging.info('Backpropagation mode: %s', params['backpropagation_mode'])
+    logging.info('Backpropagation min. steps: %d', params['bprop_steps_min'])
+    logging.info('Backpropagation steps: %s', params['bprop_steps'])
+    logging.info('Crossover prob.: %f', params['pr_x'])
+    logging.info('High-level crossover prob.: %f', params['pr_hl_x'])
+    logging.info('High-level crossover rate: %f', params['r_hl_x'])
+    logging.info('Mutation prob.: %f', params['pr_m'])
+    logging.info('Constant mutation prob.: %f', params['pr_c_m'])
+    logging.info('Constant mutation sigma: %f', params['sigma_c_m'])
+    logging.info('Weights mutation prob.: %f', params['pr_w_m'])
+    logging.info('Weights mutation sigma: %f', params['sigma_w_m'])
+    logging.info('LCF mode: %s', params['lcf_mode'])
+    logging.info('Weight init: %s', params['weight_init'])
+    logging.info('Const init bounds: [%f, %f]', params['const_init_lb'],
+                 params['const_init_ub'])
+    logging.info('Weight init bounds: [%f, %f]', params['weight_init_lb'],
+                 params['weight_init_ub'])
+    logging.info('Weighted: %s', params['weighted'])
+    logging.info('Functions: %s', params['functions'])
+    logging.info('Backpropagation mode: %s', params['backpropagation_mode'])
+    logging.info('Generation-time combinator: %s',
+                 params['generation_time_combinator'])
+    logging.info('Constants mode: %s', params['constants'])
 
 
 def create_population_strategy(params):
@@ -639,55 +649,55 @@ def create_population_strategy(params):
     return ps
 
 
-def create_mutation(functions, terminals, params):
+def create_mutation(rng, functions, terminals, params):
     if ((params['weighted'] or params['lcf_mode'] != 'none') and
                 params['pr_w_m'] > 0):
         if params['lcf_mode'] == 'global':
             muts = [
                 (1 - params['pr_c_m'], evo.gp.SubtreeMutation(
-                    float('inf'), params['rng'], functions, terminals,
+                    float('inf'), rng, functions, terminals,
                     params['limits'])),
                 (params['pr_c_m'], evo.sr.bpgp.ConstantsMutation(
-                    params['sigma_c_m'], params['rng']))
+                    params['sigma_c_m'], rng))
             ]
         else:
             muts = [
                 (1 - params['pr_w_m'] - params['pr_c_m'],
-                 evo.gp.SubtreeMutation(float('inf'), params['rng'], functions,
+                 evo.gp.SubtreeMutation(float('inf'), rng, functions,
                                         terminals, params['limits'])),
                 (params['pr_c_m'], evo.sr.bpgp.ConstantsMutation(
-                    params['sigma_c_m'], params['rng'])),
+                    params['sigma_c_m'], rng)),
                 (params['pr_w_m'], evo.sr.bpgp.CoefficientsMutation(
-                    params['sigma_w_m'], params['rng']))
+                    params['sigma_w_m'], rng))
             ]
-        mutation = evo.gp.StochasticChoiceMutation(muts, params['rng'],
+        mutation = evo.gp.StochasticChoiceMutation(muts, rng,
                                                    fallback_method=muts[0][1])
     else:
         muts = [
             (1 - params['pr_c_m'], evo.gp.SubtreeMutation(
-                float('inf'), params['rng'], functions, terminals,
+                float('inf'), rng, functions, terminals,
                 params['limits'])),
             (params['pr_c_m'], evo.sr.bpgp.ConstantsMutation(
-                params['sigma_c_m'], params['rng']))
+                params['sigma_c_m'], rng))
         ]
-        mutation = evo.gp.StochasticChoiceMutation(muts, params['rng'],
+        mutation = evo.gp.StochasticChoiceMutation(muts, rng,
                                                    fallback_method=muts[0][1])
         params['pr_w_m'] = 0
 
     return mutation
 
 
-def create_crossover(params):
+def create_crossover(rng, params):
     if params['limits']['max-genes'] > 1 and params['pr_hl_x'] > 0:
         crossover = evo.gp.StochasticChoiceCrossover([
             (params['pr_hl_x'], evo.gp.CrHighlevelCrossover(params['r_hl_x'],
-                                                            params['rng'],
+                                                            rng,
                                                             params['limits'])),
-            (1 - params['pr_hl_x'], evo.gp.SubtreeCrossover(params['rng'],
+            (1 - params['pr_hl_x'], evo.gp.SubtreeCrossover(rng,
                                                             params['limits']))
-        ], params['rng'])
+        ], rng)
     else:
-        crossover = evo.gp.SubtreeCrossover(params['rng'], params['limits'])
+        crossover = evo.gp.SubtreeCrossover(rng, params['limits'])
 
     return crossover
 
@@ -713,7 +723,7 @@ def create_fitness(params, x, y):
     return fitness
 
 
-def create_terminals(params, x, cache):
+def create_terminals(rng, x, cache, params):
     terms = []
     terms += [lambda n=n: evo.sr.Variable(index=n, cache=cache)
               for n in range(x.shape[1])]
@@ -721,7 +731,7 @@ def create_terminals(params, x, cache):
     if params['lcf_mode'] != 'none':
         lc_prep = NodePreparator(True,
                                  params['lcf_mode'] not in ['synced', 'global'],
-                                 params['rng'],
+                                 rng,
                                  params['weight_init_lb'],
                                  params['weight_init_ub'])
         global_lcs = []
@@ -732,13 +742,13 @@ def create_terminals(params, x, cache):
             global_lcs.append(terms[-1]())
     if params['constants'] == 'classical':
         terms += [
-            lambda: evo.sr.Const(params['rng'].uniform(params['const_init_lb'],
+            lambda: evo.sr.Const(rng.uniform(params['const_init_lb'],
                                                        params['const_init_ub']))
         ]
     elif params['constants'] == 'tunable':
         terms += [
             lambda: evo.sr.backpropagation.TunableConst(
-                params['rng'].uniform(params['const_init_lb'],
+                rng.uniform(params['const_init_lb'],
                                       params['const_init_ub']))
         ]
     return global_lcs, terms
@@ -773,10 +783,10 @@ def create_callback(params):
     return cb
 
 
-def create_reproduction_strategy(crossover, mutation, functions, terminals,
+def create_reproduction_strategy(rng, crossover, mutation, functions, terminals,
                                  params):
     return evo.gp.ChoiceReproductionStrategy(
-        functions, terminals, params['rng'],
+        functions, terminals, rng,
         crossover=crossover,
         mutation=mutation,
         limits=params['limits'],
@@ -785,7 +795,7 @@ def create_reproduction_strategy(crossover, mutation, functions, terminals,
         crossover_both=False)
 
 
-def create_population_initializer(functions, terminals, params):
+def create_population_initializer(rng, functions, terminals, params):
     return evo.sr.bpgp.FittedForestIndividualInitializer(
         evo.gp.support.RampedHalfHalfInitializer(
             functions=functions,
@@ -793,12 +803,12 @@ def create_population_initializer(functions, terminals, params):
             min_depth=1,
             max_depth=params['limits']['max-depth'],
             max_genes=params['limits']['max-genes'],
-            generator=params['rng']
+            generator=rng
         )
     )
 
 
-def create_algorithm(functions, terminals, global_lcs, fitness,
+def create_algorithm(rng, functions, terminals, global_lcs, fitness,
                      population_strategy, reproduction_strategy, callback,
                      stopping_condition, population_initializer, params: dict):
     # Prepare final algorithm
@@ -816,13 +826,13 @@ def create_algorithm(functions, terminals, global_lcs, fitness,
         fitness=fitness,
         pop_strategy=population_strategy,
         selection_strategy=evo.TournamentSelectionStrategy(
-            params['tournament_size'], params['rng']),
+            params['tournament_size'], rng),
         reproduction_strategy=reproduction_strategy,
         population_initializer=population_initializer,
         functions=functions,
         terminals=terminals,
         stop=stopping_condition,
-        generator=params['rng'],
+        generator=rng,
         limits=params['limits'],
         callback=callback,
         **extra_kwargs

@@ -560,7 +560,7 @@ def get_params(ns: argparse.Namespace):
 def get_algorithm_params(ns, params):
     params['seed'] = ns.seed
     params['generations'] = ns.generations
-    params['t'] = ns.time
+    params['time'] = ns.time
     params['generation_time_combinator'] = ns.generation_time_combinator
     params['limits'] = {
         'max-genes': ns.max_genes,
@@ -619,7 +619,7 @@ def log_params(params):
 def log_algorithm_params(params):
     logging.info('Seed: %d', params['seed'])
     logging.info('Generations limit: %s', params['generations'])
-    logging.info('Time limit: %f', params['t'])
+    logging.info('Time limit: %f', params['time'])
     logging.info('Generations + time: %s', params['generation_time_combinator'])
     logging.info('Max genes: %s', params['limits']['max-genes'])
     logging.info('Max depth: %s', params['limits']['max-depth'])
@@ -764,11 +764,11 @@ def create_terminals(rng, x, cache, params):
 
 
 def create_stopping_condition(params):
-    if math.isinf(params['t']) and math.isinf(params['generations']):
+    if math.isinf(params['time']) and math.isinf(params['generations']):
         logging.warning('Both time and generational stopping condition will '
                         'never be met. Algorithm must be terminated '
                         'externally.')
-    time_stop = evo.gp.Gp.time(params['t'])
+    time_stop = evo.gp.Gp.time(params['time'])
     generations_stop = evo.gp.Gp.generations(params['generations'])
     if params['generation_time_combinator'] == 'any':
         stop = evo.gp.Gp.any(time_stop, generations_stop)

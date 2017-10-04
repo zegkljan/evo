@@ -22,7 +22,7 @@ from evo.runners import text, bounded_integer, bounded_float, float01, \
     DataSpec, PropagateExit
 
 
-class BpgpRunner(object):
+class Runner(object):
 
     def __init__(self, subparsers):
         self.parser_arg = 'bpgp'

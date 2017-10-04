@@ -92,14 +92,14 @@ class RootParser(object):
                                            metavar='<algorithm>',
                                            dest='algorithm')
         self.parser_handlers = {p: h for p, h in [
-            bpgp.create_parser(subparsers)
+            (lambda r: (r.parser_arg, r))(bpgp.BpgpRunner(subparsers))
         ]}
 
     def parse(self):
         return self.parser.parse_args()
 
     def handle(self, ns: argparse.Namespace):
-        return self.parser_handlers[ns.algorithm](ns)
+        return self.parser_handlers[ns.algorithm].handle(ns)
 
 
 def main():

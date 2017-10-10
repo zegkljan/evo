@@ -23,354 +23,388 @@ from evo.runners import text, bounded_integer, bounded_float, float01, \
 
 
 class Runner(object):
+    PARSER_ARG = 'bpgp'
 
     def __init__(self, subparsers):
-        self.parser_arg = 'bpgp'
-
-        parser = subparsers.add_parser(
-            'bpgp', help='BackPropagation Genetic Programming')
+        self.parser = subparsers.add_parser(
+            self.PARSER_ARG, help='BackPropagation Genetic Programming',
+            conflict_handler='resolve')
 
         # input data setup
-        self.setup_input_data_arguments(parser)
+        self.setup_input_data_arguments()
 
         # output data setup
-        self.setup_output_data_arguments(parser)
+        self.setup_output_data_arguments()
 
         # general settings
-        self.setup_general_settings_arguments(parser)
+        self.setup_general_settings_arguments()
 
         # algorithm parameters
-        self.setup_parameters_arguments(parser)
+        self.setup_parameters_arguments()
 
-    def setup_input_data_arguments(self, parser):
-        parser.add_argument('--training-data',
-                            help=text(
-                                'Specification of the training data in the '
-                                'format file[:x-columns:y-column].\n\n'
-                                '"file" is a path to a CSV file to be '
-                                'loaded.\n\n'
-                                '"x-columns" is a comma-separated (only comma, '
-                                'without whitespaces) list of numbers of '
-                                'columns (zero-based) to be used as the '
-                                'features.\n\n'
-                                '"y-column" is a number of column that will be '
-                                'used as the target. You can use negative '
-                                'numbers to count from back, i.e. -1 is the '
-                                'last column, -2 is the second to the last '
-                                'column, etc.\n\n'
-                                'The bracketed part is optional and can be '
-                                'left out. If it is left out, all columns '
-                                'except the last one are used as features and '
-                                'the last one is used as target.'),
-                            type=DataSpec,
-                            required=True,
-                            metavar='file[:x-columns:y-column]')
-        parser.add_argument('--testing-data',
-                            help=text(
-                                'Specification of the testing data. The format '
-                                'is identical to the one of --training-data. '
-                                'The testing data must have the same number of '
-                                'columns as --training-data.\n\n'
-                                'The testing data are evaluated with the best '
-                                'individual after the evolution finishes. If, '
-                                'for some reason, the individual fails to '
-                                'evaluate (e.g. due to numerical errors like '
-                                'division by zero), the second best individual '
-                                'is tried and so forth until the individual '
-                                'evaluates or there is no individual left.\n\n'
-                                'If the testing data is not specified, no '
-                                'testing is done (only training measures are '
-                                'reported).'),
-                            type=DataSpec,
-                            required=False,
-                            metavar='file[:x-columns:y-column]')
-        parser.add_argument('--delimiter',
-                            help=text(
-                                'Field delimiter of the CSV files specified in '
-                                '--training-data and --testing-data. Default '
-                                'is ",".'),
-                            type=str,
-                            default=',')
+    def setup_input_data_arguments(self):
+        self.parser.add_argument(
+            '--training-data',
+            help=text(
+                'Specification of the training data in the '
+                'format file[:x-columns:y-column].\n\n'
+                '"file" is a path to a CSV file to be '
+                'loaded.\n\n'
+                '"x-columns" is a comma-separated (only comma, '
+                'without whitespaces) list of numbers of '
+                'columns (zero-based) to be used as the '
+                'features.\n\n'
+                '"y-column" is a number of column that will be '
+                'used as the target. You can use negative '
+                'numbers to count from back, i.e. -1 is the '
+                'last column, -2 is the second to the last '
+                'column, etc.\n\n'
+                'The bracketed part is optional and can be '
+                'left out. If it is left out, all columns '
+                'except the last one are used as features and '
+                'the last one is used as target.'),
+            type=DataSpec,
+            required=True,
+            metavar='file[:x-columns:y-column]')
+        self.parser.add_argument(
+            '--testing-data',
+            help=text(
+                'Specification of the testing data. The format '
+                'is identical to the one of --training-data. '
+                'The testing data must have the same number of '
+                'columns as --training-data.\n\n'
+                'The testing data are evaluated with the best '
+                'individual after the evolution finishes. If, '
+                'for some reason, the individual fails to '
+                'evaluate (e.g. due to numerical errors like '
+                'division by zero), the second best individual '
+                'is tried and so forth until the individual '
+                'evaluates or there is no individual left.\n\n'
+                'If the testing data is not specified, no '
+                'testing is done (only training measures are '
+                'reported).'),
+            type=DataSpec,
+            required=False,
+            metavar='file[:x-columns:y-column]')
+        self.parser.add_argument(
+            '--delimiter',
+            help=text(
+                'Field delimiter of the CSV files specified in '
+                '--training-data and --testing-data. Default '
+                'is ",".'),
+            type=str,
+            default=',')
 
-    def setup_output_data_arguments(self, parser):
-        parser.add_argument('-o', '--output-directory',
-                            help=text(
-                                'Directory to which the output files will be '
-                                'written. If "-" is specified, no output will '
-                                'be written. If you need to output to a '
-                                'directory literally named "-", specify an '
-                                'absolute or relative path (e.g. "./-"). '
-                                'Default is the current directory.'),
-                            default='.')
-        parser.add_argument('--m-fun',
-                            help=text(
-                                'Name of the matlab function the model will be '
-                                'written to (without extension). Default is '
-                                '"func".'),
-                            type=str,
-                            default='func')
-        parser.add_argument('--output-string-template',
-                            help=text(
-                                'Template for the string that will be printed '
-                                'to the standard output at the very end of the '
-                                'algorithm. This can be used to report '
-                                'algorithm performance to tuners such as SMAC. '
-                                'Default is no string (nothing is printed).\n\n'
-                                'The string can contain any of the following '
-                                'placeholders: {tst_r2}, {trn_r2}, '
-                                '{tst_r2_inv}, {trn_r2_inv}, {tst_mse}, '
-                                '{trn_mse}, {tst_mae}, {trn_mae}, {tst_wae}, '
-                                '{trn_wae}, {runtime}, {seed}, {iterations}.'),
-                            type=str,
-                            default=None)
+    def setup_output_data_arguments(self):
+        self.parser.add_argument(
+            '-o', '--output-directory',
+            help=text(
+                'Directory to which the output files will be '
+                'written. If "-" is specified, no output will '
+                'be written. If you need to output to a '
+                'directory literally named "-", specify an '
+                'absolute or relative path (e.g. "./-"). '
+                'Default is the current directory.'),
+            default='.')
+        self.parser.add_argument(
+            '--m-fun',
+            help=text(
+                'Name of the matlab function the model will be '
+                'written to (without extension). Default is '
+                '"func".'),
+            type=str,
+            default='func')
+        self.parser.add_argument(
+            '--output-string-template',
+            help=text(
+                'Template for the string that will be printed '
+                'to the standard output at the very end of the '
+                'algorithm. This can be used to report '
+                'algorithm performance to tuners such as SMAC. '
+                'Default is no string (nothing is printed).\n\n'
+                'The string can contain any of the following '
+                'placeholders: {tst_r2}, {trn_r2}, '
+                '{tst_r2_inv}, {trn_r2_inv}, {tst_mse}, '
+                '{trn_mse}, {tst_mae}, {trn_mae}, {tst_wae}, '
+                '{trn_wae}, {runtime}, {seed}, {iterations}.'),
+            type=str,
+            default=None)
 
-    def setup_general_settings_arguments(self, parser):
-        parser.add_argument('--seed',
-                            help=text(
-                                'Seed for random number generator. If not '
-                                'specified, current time will be used.'),
-                            type=int,
-                            default=int(10 * time.time()),
-                            metavar='n')
-        parser.add_argument('--generations',
-                            help=text(
-                                'The maximum number of generations to run for. '
-                                'Default is infinity (i.e. until stopped '
-                                'externally or with some other stopping '
-                                'condition).'),
-                            type=bounded_integer(1),
-                            default=float('inf'))
-        parser.add_argument('--time',
-                            help=text(
-                                'The maximum number of seconds to run for. '
-                                'Default is infinity (i.e. until stopped '
-                                'externally or with some other stopping '
-                                'condition).'),
-                            type=bounded_float(0),
-                            default=float('inf'))
-        parser.add_argument('--generation-time-combinator',
-                            help=text(
-                                'If both --generations and --time are '
-                                'specified, this determines how are the two '
-                                'conditions combined. The value of "any" '
-                                'causes termination when any of the two '
-                                'conditions is met. The value of "all" causes '
-                                'termination only after both conditions are '
-                                'met. Default is "any".'),
-                            choices=['any', 'all'],
-                            default='any')
+    def setup_general_settings_arguments(self):
+        self.parser.add_argument(
+            '--seed',
+            help=text(
+                'Seed for random number generator. If not '
+                'specified, current time will be used.'),
+            type=int,
+            default=int(10 * time.time()),
+            metavar='n')
+        self.parser.add_argument(
+            '--generations',
+            help=text(
+                'The maximum number of generations to run for. '
+                'Default is infinity (i.e. until stopped '
+                'externally or with some other stopping '
+                'condition).'),
+            type=bounded_integer(1),
+            default=float('inf'))
+        self.parser.add_argument(
+            '--time',
+            help=text(
+                'The maximum number of seconds to run for. '
+                'Default is infinity (i.e. until stopped '
+                'externally or with some other stopping '
+                'condition).'),
+            type=bounded_float(0),
+            default=float('inf'))
+        self.parser.add_argument(
+            '--generation-time-combinator',
+            help=text(
+                'If both --generations and --time are '
+                'specified, this determines how are the two '
+                'conditions combined. The value of "any" '
+                'causes termination when any of the two '
+                'conditions is met. The value of "all" causes '
+                'termination only after both conditions are '
+                'met. Default is "any".'),
+            choices=['any', 'all'],
+            default='any')
 
-    def setup_parameters_arguments(self, parser):
-        parser.add_argument('--pop-size',
-                            help=text('Population size. Default is 100.'),
-                            type=bounded_integer(1),
-                            default=100)
-        parser.add_argument('--elitism',
-                            help=text(
-                                'Number of elites as a fraction (float between '
-                                '0 and 1) of the population size. Default is '
-                                '0.15.'),
-                            type=float01(),
-                            default=0.15)
-        parser.add_argument('--tournament-size',
-                            help=text(
-                                'Number of individuals competing in a '
-                                'tournament selection as a fraction (float '
-                                'between 0 and 1) of the population size. '
-                                'Default is 0.1.'),
-                            type=float01(),
-                            default=0.1)
-        parser.add_argument('--max-genes',
-                            help=text('Maximum number of genes. Default is 4.'),
-                            type=bounded_integer(1),
-                            default=4)
-        parser.add_argument('--max-depth',
-                            help=text('Maximum depth of a gene. Default is 5.'),
-                            type=bounded_integer(1),
-                            default=5)
-        parser.add_argument('--max-nodes',
-                            help=text(
-                                'Maximum number of nodes in a gene. Default is '
-                                'infinity (i.e. unbounded).'),
-                            type=bounded_integer(1),
-                            default=float('inf'))
-        parser.add_argument('--functions',
-                            help=text(
-                                'A comma-separated (without whitespaces) list '
-                                'of functions available to the algorithm. '
-                                'Available functions are: Add2, Sub2, Mul2, '
-                                'Div2, Sin, Cos, Exp, Abs, Sqrt, Sigmoid, '
-                                'Tanh, Sinc, Softplus, Gauss, BentIdentity, '
-                                'Pow(n) where n is the positive integer power. '
-                                'Default is Add2,Sub2,Mul2,Sin,Cos,Exp,Sigmoid,'
-                                'Tanh,Sinc,Softplus,Gauss,Pow(2),Pow(3),Pow(4),'
-                                'Pow(5),Pow(6)'),
-                            type=str,
-                            metavar='Function[,Function ...]',
-                            default='Add2,Sub2,Mul2,Sin,Cos,Exp,Sigmoid,Tanh,'
-                                    'Sinc,Softplus,Gauss,Pow(2),Pow(3),Pow(4),'
-                                    'Pow(5),Pow(6)')
-        parser.add_argument('--crossover-prob',
-                            help=text(
-                                'Probability of crossover. Default is 0.84'),
-                            type=float01(),
-                            default=0.84)
-        parser.add_argument('--highlevel-crossover-prob',
-                            help=text(
-                                'Probability of choosing a high-level '
-                                'crossover as a crossover operation. The '
-                                'complement to 1 is then the probability of '
-                                'subtree crossover. If --max-genes is 1, this '
-                                'parameter is ignored (even if not specified) '
-                                'and set to 0. Default is 0.2.'),
-                            type=float01(),
-                            default=0.2)
-        parser.add_argument('--highlevel-crossover-rate',
-                            help=text(
-                                'Probability that a gene is chosen for '
-                                'crossover in high-level crossover. Default is '
-                                '0.5.'),
-                            type=float01(),
-                            default=0.5)
-        parser.add_argument('--mutation-prob',
-                            help=text(
-                                'Probability of mutation. Default is 0.14.'),
-                            type=float01(),
-                            default=0.14)
-        parser.add_argument('--constant-mutation-prob',
-                            help=text(
-                                'Probability of choosing mutation of constants '
-                                'as a mutation operation. The complement to 1 '
-                                'of this parameter and of '
-                                '--weights-muatation-prob is then the '
-                                'probability of subtree mutation. To turn this '
-                                'mutation off, set the parameter to 0. Default '
-                                'is 0.05.'),
-                            type=float01(),
-                            default=0.05)
-        parser.add_argument('--constant-mutation-sigma',
-                            help=text(
-                                'Standard deviation of the normal distribution '
-                                'used to mutate the constant values. Default '
-                                'is 0.1.'),
-                            type=bounded_float(0),
-                            default=0.1)
-        parser.add_argument('--weights-mutation-prob',
-                            help=text(
-                                'Probability of choosing mutation of weights '
-                                'as a mutation operation. The complement to 1 '
-                                'of this parameter and of '
-                                '--constant-muatation-prob is then the '
-                                'probability of subtree mutation. To turn this '
-                                'mutation off, set the parameter to 0. Default '
-                                'is 0.05.'),
-                            type=float01(),
-                            default=0.05)
-        parser.add_argument('--weights-mutation-sigma',
-                            help=text(
-                                'Standard deviation of the normal distribution '
-                                'used to mutate the weights. Default is 3.'),
-                            type=bounded_float(0),
-                            default=3)
-        parser.add_argument('--backpropagation-mode',
-                            help=text(
-                                'How backpropagation is used. Mode "none" '
-                                'turns the backpropagation off completely. '
-                                'Mode "raw" means that the number of steps is '
-                                'always the number specified in '
-                                '--backpropagation-steps (and hence '
-                                '--min-backpropagation-steps is ignored). '
-                                'Modes "nodes" and "depth" mean that the '
-                                'number of steps is the number specified in '
-                                '--backpropagation-steps minus the total '
-                                'number of nodes of the individual (for '
-                                '"nodes") or the maximum depth of the genes '
-                                '(for "depth"). Default is "none", i.e. no '
-                                'backpropagation.'),
-                            choices=['none', 'raw', 'nodes', 'depth'],
-                            default='none')
-        parser.add_argument('--backpropagation-steps',
-                            help=text(
-                                'How many backpropagation steps are performed '
-                                'per evaluation. The actual number is computed '
-                                'based on the value of --backpropagation-mode. '
-                                'Default is 25.'),
-                            type=bounded_integer(0),
-                            default=25)
-        parser.add_argument('--min-backpropagation-steps',
-                            help=text(
-                                'At least this number of backpropagation steps '
-                                'is always performed, no matter what '
-                                '--backpropagation-steps and '
-                                '--backpropagation-mode are set to (except for '
-                                '"none" mode). Default is 2.'),
-                            type=bounded_integer(0),
-                            default=2)
-        parser.add_argument('--weighted',
-                            help=text(
-                                'If specified, the inner nodes will be '
-                                'weighted, i.e. with multiplicative and '
-                                'additive weights, tunable by backpropagation '
-                                'and weights mutation.'),
-                            action='store_true')
-        parser.add_argument('--lcf-mode',
-                            help=text(
-                                'How the LCFs are used. Mode "none" turns the '
-                                'LCFs off completely. Mode "unsynced" means '
-                                'that each LCF is free to change on its own '
-                                '(by backpropagation and/or mutation). Mode '
-                                '"synced" means that the LCFs are synchronized '
-                                'across the individual. Mode "global" means '
-                                'that the LCFs are synchronized across the '
-                                'whole population. Default is "none", i.e. no '
-                                'LCFs.'),
-                            choices=['none', 'unsynced', 'synced', 'global'],
-                            default='none')
-        parser.add_argument('--weight-init',
-                            help=text(
-                                'How are weights in weighted nodes and LCFs '
-                                '(if they are turned on) initialized. Mode '
-                                '"latent" means that the initial values of '
-                                'weights are such that they play no role, i.e. '
-                                'additive weights set to zero, multiplicative '
-                                'weights set to one (or only one of them in '
-                                'case of LCFs). Mode "random" means that the '
-                                'values of weights are chosen randomly (see '
-                                'option --random-init-bounds). Default is '
-                                '"latent".'),
-                            choices=['latent', 'random'],
-                            default='latent')
-        parser.add_argument('--weight-init-bounds',
-                            help=text(
-                                'Bounds of the range the weights are sampled '
-                                'from when --weight-init is set to "random". '
-                                'Default is -10 and 10.'),
-                            nargs=2,
-                            type=float,
-                            metavar='bound',
-                            default=[-10, 10])
-        parser.add_argument('--const-init-bounds',
-                            help=text(
-                                'Bounds of the range the constants (leaf '
-                                'nodes) are sampled from. Default is -10 and '
-                                '10.'),
-                            nargs=2,
-                            type=float,
-                            metavar='bound',
-                            default=[-10, 10])
-        parser.add_argument('--constants',
-                            help=text(
-                                'Type constant leaf nodes work. One of the '
-                                'following: none, classical, tunable. The '
-                                '"none" type means no such nodes will be '
-                                'available. Type "classical" means that the '
-                                'constants will be generated randomly at '
-                                'initialization (and subtree mutation) and can '
-                                'be modified via mutation. The type "tunable" '
-                                'means the values of the constants are subject '
-                                'to gradient-based tuning.'),
-                            choices=['none', 'classical', 'tunable'],
-                            default='classical')
+    def setup_parameters_arguments(self):
+        self.parser.add_argument(
+            '--pop-size',
+            help=text('Population size. Default is 100.'),
+            type=bounded_integer(1),
+            default=100)
+        self.parser.add_argument(
+            '--elitism',
+            help=text(
+                'Number of elites as a fraction (float between '
+                '0 and 1) of the population size. Default is '
+                '0.15.'),
+            type=float01(),
+            default=0.15)
+        self.parser.add_argument(
+            '--tournament-size',
+            help=text(
+                'Number of individuals competing in a '
+                'tournament selection as a fraction (float '
+                'between 0 and 1) of the population size. '
+                'Default is 0.1.'),
+            type=float01(),
+            default=0.1)
+        self.parser.add_argument(
+            '--max-genes',
+            help=text('Maximum number of genes. Default is 4.'),
+            type=bounded_integer(1),
+            default=4)
+        self.parser.add_argument(
+            '--max-depth',
+            help=text('Maximum depth of a gene. Default is 5.'),
+            type=bounded_integer(1),
+            default=5)
+        self.parser.add_argument(
+            '--max-nodes',
+            help=text(
+                'Maximum number of nodes in a gene. Default is '
+                'infinity (i.e. unbounded).'),
+            type=bounded_integer(1),
+            default=float('inf'))
+        self.parser.add_argument(
+            '--functions',
+            help=text(
+                'A comma-separated (without whitespaces) list '
+                'of functions available to the algorithm. '
+                'Available functions are: Add2, Sub2, Mul2, '
+                'Div2, Sin, Cos, Exp, Abs, Sqrt, Sigmoid, '
+                'Tanh, Sinc, Softplus, Gauss, BentIdentity, '
+                'Pow(n) where n is the positive integer power. '
+                'Default is Add2,Sub2,Mul2,Sin,Cos,Exp,Sigmoid,'
+                'Tanh,Sinc,Softplus,Gauss,Pow(2),Pow(3),Pow(4),'
+                'Pow(5),Pow(6)'),
+            type=str,
+            metavar='Function[,Function ...]',
+            default='Add2,Sub2,Mul2,Sin,Cos,Exp,Sigmoid,Tanh,'
+                    'Sinc,Softplus,Gauss,Pow(2),Pow(3),Pow(4),'
+                    'Pow(5),Pow(6)')
+        self.parser.add_argument(
+            '--crossover-prob',
+            help=text(
+                'Probability of crossover. Default is 0.84'),
+            type=float01(),
+            default=0.84)
+        self.parser.add_argument(
+            '--highlevel-crossover-prob',
+            help=text(
+                'Probability of choosing a high-level '
+                'crossover as a crossover operation. The '
+                'complement to 1 is then the probability of '
+                'subtree crossover. If --max-genes is 1, this '
+                'parameter is ignored (even if not specified) '
+                'and set to 0. Default is 0.2.'),
+            type=float01(),
+            default=0.2)
+        self.parser.add_argument(
+            '--highlevel-crossover-rate',
+            help=text(
+                'Probability that a gene is chosen for '
+                'crossover in high-level crossover. Default is '
+                '0.5.'),
+            type=float01(),
+            default=0.5)
+        self.parser.add_argument(
+            '--mutation-prob',
+            help=text(
+                'Probability of mutation. Default is 0.14.'),
+            type=float01(),
+            default=0.14)
+        self.parser.add_argument(
+            '--constant-mutation-prob',
+            help=text(
+                'Probability of choosing mutation of constants '
+                'as a mutation operation. The complement to 1 '
+                'of this parameter and of '
+                '--weights-muatation-prob is then the '
+                'probability of subtree mutation. To turn this '
+                'mutation off, set the parameter to 0. Default '
+                'is 0.05.'),
+            type=float01(),
+            default=0.05)
+        self.parser.add_argument(
+            '--constant-mutation-sigma',
+            help=text(
+                'Standard deviation of the normal distribution '
+                'used to mutate the constant values. Default '
+                'is 0.1.'),
+            type=bounded_float(0),
+            default=0.1)
+        self.parser.add_argument(
+            '--weights-mutation-prob',
+            help=text(
+                'Probability of choosing mutation of weights '
+                'as a mutation operation. The complement to 1 '
+                'of this parameter and of '
+                '--constant-muatation-prob is then the '
+                'probability of subtree mutation. To turn this '
+                'mutation off, set the parameter to 0. Default '
+                'is 0.05.'),
+            type=float01(),
+            default=0.05)
+        self.parser.add_argument(
+            '--weights-mutation-sigma',
+            help=text(
+                'Standard deviation of the normal distribution '
+                'used to mutate the weights. Default is 3.'),
+            type=bounded_float(0),
+            default=3)
+        self.parser.add_argument(
+            '--backpropagation-mode',
+            help=text(
+                'How backpropagation is used. Mode "none" '
+                'turns the backpropagation off completely. '
+                'Mode "raw" means that the number of steps is '
+                'always the number specified in '
+                '--backpropagation-steps (and hence '
+                '--min-backpropagation-steps is ignored). '
+                'Modes "nodes" and "depth" mean that the '
+                'number of steps is the number specified in '
+                '--backpropagation-steps minus the total '
+                'number of nodes of the individual (for '
+                '"nodes") or the maximum depth of the genes '
+                '(for "depth"). Default is "none", i.e. no '
+                'backpropagation.'),
+            choices=['none', 'raw', 'nodes', 'depth'],
+            default='none')
+        self.parser.add_argument(
+            '--backpropagation-steps',
+            help=text(
+                'How many backpropagation steps are performed '
+                'per evaluation. The actual number is computed '
+                'based on the value of --backpropagation-mode. '
+                'Default is 25.'),
+            type=bounded_integer(0),
+            default=25)
+        self.parser.add_argument(
+            '--min-backpropagation-steps',
+            help=text(
+                'At least this number of backpropagation steps '
+                'is always performed, no matter what '
+                '--backpropagation-steps and '
+                '--backpropagation-mode are set to (except for '
+                '"none" mode). Default is 2.'),
+            type=bounded_integer(0),
+            default=2)
+        self.parser.add_argument(
+            '--weighted',
+            help=text(
+                'If specified, the inner nodes will be '
+                'weighted, i.e. with multiplicative and '
+                'additive weights, tunable by backpropagation '
+                'and weights mutation.'),
+            action='store_true')
+        self.parser.add_argument(
+            '--lcf-mode',
+            help=text(
+                'How the LCFs are used. Mode "none" turns the '
+                'LCFs off completely. Mode "unsynced" means '
+                'that each LCF is free to change on its own '
+                '(by backpropagation and/or mutation). Mode '
+                '"synced" means that the LCFs are synchronized '
+                'across the individual. Mode "global" means '
+                'that the LCFs are synchronized across the '
+                'whole population. Default is "none", i.e. no '
+                'LCFs.'),
+            choices=['none', 'unsynced', 'synced', 'global'],
+            default='none')
+        self.parser.add_argument(
+            '--weight-init',
+            help=text(
+                'How are weights in weighted nodes and LCFs '
+                '(if they are turned on) initialized. Mode '
+                '"latent" means that the initial values of '
+                'weights are such that they play no role, i.e. '
+                'additive weights set to zero, multiplicative '
+                'weights set to one (or only one of them in '
+                'case of LCFs). Mode "random" means that the '
+                'values of weights are chosen randomly (see '
+                'option --random-init-bounds). Default is '
+                '"latent".'),
+            choices=['latent', 'random'],
+            default='latent')
+        self.parser.add_argument(
+            '--weight-init-bounds',
+            help=text(
+                'Bounds of the range the weights are sampled '
+                'from when --weight-init is set to "random". '
+                'Default is -10 and 10.'),
+            nargs=2,
+            type=float,
+            metavar='bound',
+            default=[-10, 10])
+        self.parser.add_argument(
+            '--const-init-bounds',
+            help=text(
+                'Bounds of the range the constants (leaf '
+                'nodes) are sampled from. Default is -10 and '
+                '10.'),
+            nargs=2,
+            type=float,
+            metavar='bound',
+            default=[-10, 10])
+        self.parser.add_argument(
+            '--constants',
+            help=text(
+                'Type constant leaf nodes work. One of the '
+                'following: none, classical, tunable. The '
+                '"none" type means no such nodes will be '
+                'available. Type "classical" means that the '
+                'constants will be generated randomly at '
+                'initialization (and subtree mutation) and can '
+                'be modified via mutation. The type "tunable" '
+                'means the values of the constants are subject '
+                'to gradient-based tuning.'),
+            choices=['none', 'classical', 'tunable'],
+            default='classical')
 
     def handle(self, ns: argparse.Namespace):
         try:

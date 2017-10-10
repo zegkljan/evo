@@ -92,7 +92,7 @@ class RootParser(object):
                                            metavar='<algorithm>',
                                            dest='algorithm')
         self.parser_handlers = {p: h for p, h in [
-            (lambda r: (r.parser_arg, r))(bpgp.Runner(subparsers))
+            (lambda r: (r.PARSER_ARG, r))(bpgp.Runner(subparsers))
         ]}
 
     def parse(self):

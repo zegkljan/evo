@@ -822,10 +822,12 @@ class Runner(object):
 
     def create_callback(self, params):
         if params['backpropagation_mode'] != 'none':
-            def cb(a, situation):
-                if situation == evo.gp.Gp.CallbackSituation.iteration_start:
-                    for i in a.population:
+            class Cb(evo.gp.Callback):
+                def iteration_start(self, algorithm: evo.Evolution):
+                    for i in algorithm.population:
                         i.set_fitness(None)
+
+            cb = Cb()
         else:
             cb = None
 

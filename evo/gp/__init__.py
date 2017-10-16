@@ -24,6 +24,31 @@ class Error(Exception):
         super().__init__(*args, **kwargs)
 
 
+class Callback(object):
+    def start(self, algorithm: evo.Evolution):
+        pass
+
+    def iteration_start(self, algorithm: evo.Evolution):
+        pass
+
+    def before_eval_individual(self, algorithm: evo.Evolution,
+                               individual: evo.Individual):
+        pass
+
+    def after_eval_individual(self, algorithm: evo.Evolution,
+                              individual: evo.Individual):
+        pass
+
+    def iteration_end(self, algorithm: evo.Evolution):
+        pass
+
+    def end_normal(self, algorithm: evo.Evolution):
+        pass
+
+    def end_exception(self, algorithm: evo.Evolution, exception: Exception):
+        pass
+
+
 class OperatorNotApplicableError(Error):
     """Risen when an operator that should be applied is not applicable in the
     given context."""
@@ -954,12 +979,6 @@ class Gp(evo.Evolution):
 
     LOG = logging.getLogger(__name__ + '.Gp')
 
-    class CallbackSituation(enum.Enum):
-        iteration_start = 1
-        iteration_end = 2
-        end = 3
-        start = 4
-
     @staticmethod
     def generations(g):
         return lambda gp: gp.iterations >= g
@@ -1045,11 +1064,10 @@ class Gp(evo.Evolution):
 
             The default is no limits.
         :keyword evo.support.Stats stats: stats saving class
-        :keyword callback: a callable which will be called during the
-            evolution. It must take two arguments, first one is the algorithm
-            instance itself (i.e. instance of this class), and the second is a
-            :class:`.CallbackSituation` value specifying where is the
-            callback called.
+        :keyword callback: an object with the methods defined in the
+            :class:`evo.gp.Callback` class; these will be called in the
+            corresponding situations; default is no callback
+        :type callback: :class:`evo.gp.Callback`
 
         .. _evo.gp.Gp.limits:
 
@@ -1118,8 +1136,6 @@ class Gp(evo.Evolution):
         self.callback = None
         if 'callback' in kwargs:
             self.callback = kwargs['callback']
-            if self.callback is not None and not callable(self.callback):
-                raise TypeError('Keyword argument callback is not a callable.')
 
         self.population = []
         self.population_sorted = False
@@ -1154,7 +1170,7 @@ class Gp(evo.Evolution):
                 self.pop_strategy.get_parents_number(), self.limits)
 
             if self.callback is not None:
-                self.callback(self, Gp.CallbackSituation.start)
+                self.callback.start(self)
             Gp.LOG.info('Starting evolution.')
             try:
                 self._run()
@@ -1162,9 +1178,11 @@ class Gp(evo.Evolution):
                 Gp.LOG.debug('Evolution terminated.', exc_info=True)
             Gp.LOG.info('Finished evolution.')
             if self.callback is not None:
-                self.callback(self, Gp.CallbackSituation.end)
+                self.callback.end_normal(self)
             return True
-        except:
+        except BaseException as e:
+            if self.callback is not None:
+                self.callback.end_exception(self, e)
             Gp.LOG.warning('Evolution terminated by exception.', exc_info=True)
             return False
         finally:
@@ -1195,7 +1213,7 @@ class Gp(evo.Evolution):
         Gp.LOG.debug('Starting iteration %d', self.iterations)
         self.try_stop()
         if self.callback is not None:
-            self.callback(self, Gp.CallbackSituation.iteration_start)
+            self.callback.iteration_start(self)
 
         elites = self.top_individuals(self.pop_strategy.get_elites_number())
 
@@ -1217,7 +1235,7 @@ class Gp(evo.Evolution):
                     str(self.fitness.get_bsf().bsf),
                     self.fitness.get_bsf().bsf.get_data())
         if self.callback is not None:
-            self.callback(self, Gp.CallbackSituation.iteration_end)
+            self.callback.iteration_end(self)
         self.iterations += 1
 
     def try_stop(self):
@@ -1248,4 +1266,8 @@ class Gp(evo.Evolution):
     def eval_individual(self, i: evo.Individual):
         self.try_stop()
         if i.get_fitness() is None:
+            if self.callback is not None:
+                self.callback.before_eval_individual(self, i)
             self.fitness.evaluate(i, self.iterations, context=self)
+            if self.callback is not None:
+                self.callback.after_eval_individual(self, i)

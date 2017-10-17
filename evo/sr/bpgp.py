@@ -84,6 +84,18 @@ class FittedForestIndividual(evo.gp.support.ForestIndividual):
 
         return '\n\n'.join([matlab_str] + all_funcs)
 
+    def serialize(self, element_delimiter: str='\n', element_prefix: str='',
+                  start_string: str='', end_string: str=''):
+        strings = []
+        if start_string:
+            strings.append(start_string)
+        strings += [repr(self.intercept),
+                   repr([v for v in self.coefficients])]
+        strings += [str(g.serialize()) for g in self.genotype]
+        if end_string:
+            strings.append(end_string)
+        return element_delimiter.join([element_prefix + s for s in strings])
+
 
 class FittedForestIndividualInitializer(evo.PopulationInitializer):
     def __init__(self, other: evo.PopulationInitializer):

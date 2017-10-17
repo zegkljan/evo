@@ -548,6 +548,13 @@ class Power(MathNode):
                       function_name_prefix='') -> str:
         return None
 
+    def serialize(self):
+        sstr = "{}({})".format(self.__class__.__name__, self.power)
+        if self.children is None:
+            return sstr
+        children = [child.serialize() for child in self.children]
+        return [sstr, children]
+
 
 class Sqrt(MathNode):
     """Square root.
@@ -871,3 +878,8 @@ class Variable(MathNode):
     def to_matlab_def(self, argname='X', outname='Y',
                       function_name_prefix='') -> str:
         return None
+
+    def serialize(self):
+        return '{}({})'.format(self.__class__.__name__, self.data['name'])
+
+

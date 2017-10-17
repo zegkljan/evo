@@ -266,3 +266,10 @@ class TreeNode(object):
         if 'name' in self.data:
             return '{0}'.format(self.data['name'])
         return '{0}'.format(type(self).__name__)
+
+    def serialize(self):
+        sstr = self.self_str()
+        if self.children is None:
+            return sstr
+        children = [child.serialize() for child in self.children]
+        return [sstr, children]

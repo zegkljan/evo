@@ -59,6 +59,13 @@ class GpNode(evo.utils.tree.TreeNode):
 
         self.parent.child_changed(self.parent_index, data)
 
+    def serialize(self):
+        sstr = self.__class__.__name__
+        if self.children is None:
+            return sstr
+        children = [child.serialize() for child in self.children]
+        return [sstr, children]
+
 
 class ForestIndividual(evo.Individual):
     """A class representing an individual as a forest, i.e. a set of trees.

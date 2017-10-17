@@ -167,6 +167,24 @@ class WeightedNode(evo.sr.MathNode):
             if isinstance(c, WeightedNode):
                 c.backpropagate(args, datapts_no)
 
+    def serialize(self):
+        sstr = '{}({}, {})'.format(
+            self.__class__.__name__,
+            ", ".join([repr(b) + ('T' if self.tune_bias is True or
+                                  (self.tune_bias is not False and
+                                      self.tune_bias[i])
+                                  else '')
+                       for i, b in enumerate(self.bias)]),
+            ", ".join([repr(w) + ('T' if self.tune_weights is True or
+                                  (self.tune_weights is not False and
+                                      self.tune_weights[i])
+                                  else '')
+                       for i, w in enumerate(self.bias)]))
+        if self.children is None:
+            return sstr
+        children = [child.serialize() for child in self.children]
+        return [sstr, children]
+
 
 class Add2(WeightedNode, evo.sr.Add2):
     """Weighted version of :class:`evo.sr.Add2`\ .
@@ -510,6 +528,24 @@ class Power(WeightedNode, evo.sr.Power):
         return '(({w} .* {arg} + {b}) .^ {exp})'.format(
             arg=c, exp=repr(self.power), w=repr(self.weights[0]),
             b=repr(self.bias[0]))
+
+    def serialize(self):
+        sstr = '{}({}, {}, {})'.format(
+            self.__class__.__name__, repr(self.power),
+            ", ".join([repr(b) + ('T' if self.tune_bias is True or
+                                  (self.tune_bias is not False and
+                                      self.tune_bias[i])
+                                  else '')
+                       for i, b in enumerate(self.bias)]),
+            ", ".join([repr(w) + ('T' if self.tune_weights is True or
+                                  (self.tune_weights is not False and
+                                      self.tune_weights[i])
+                                  else '')
+                       for i, w in enumerate(self.bias)]))
+        if self.children is None:
+            return sstr
+        children = [child.serialize() for child in self.children]
+        return [sstr, children]
 
 
 class Sigmoid(WeightedNode, evo.sr.Sigmoid):
@@ -872,6 +908,11 @@ class LincombVariable(WeightedNode, evo.sr.Variable):
         end
         '''.format(arg=argname, out=outname, prefix=function_name_prefix,
                    name=self.__class__.__name__)).strip()
+
+    def serialize(self):
+        icept = repr(self.bias[0])
+        coeffs = ", ".join([repr(c) for c in self.weights])
+        return "{}({}, {})".format(self.__class__.__name__, icept, coeffs)
 
 
 # Weight updaters

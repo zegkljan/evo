@@ -67,6 +67,15 @@ class Runner(object):
             required=True,
             metavar='file[:x-columns:y-column]')
         self.parser.add_argument(
+            '--training-data-skiprows',
+            help=text(
+                'Determines how many rows at the top of the training data file '
+                'should be skipped before loading the actual data. Default is '
+                '0.'),
+            type=int,
+            required=False,
+            default=0)
+        self.parser.add_argument(
             '--testing-data',
             help=text(
                 'Specification of the testing data. The format '
@@ -86,6 +95,15 @@ class Runner(object):
             type=DataSpec,
             required=False,
             metavar='file[:x-columns:y-column]')
+        self.parser.add_argument(
+            '--testing-data-skiprows',
+            help=text(
+                'Determines how many rows at the top of the testing data file '
+                'should be skipped before loading the actual data. Default is '
+                '0.'),
+            type=int,
+            required=False,
+            default=0)
         self.parser.add_argument(
             '--delimiter',
             help=text(
@@ -217,7 +235,7 @@ class Runner(object):
                 'of functions available to the algorithm. '
                 'Available functions are: Add2, Sub2, Mul2, '
                 'Div2, Sin, Cos, Exp, Abs, Sqrt, Sigmoid, '
-                'Tanh, Sinc, Softplus, Gauss, BentIdentity, '
+                'Tanh, Sinc, Softplus, Gauss, BentIdentity, Signum, '
                 'Pow(n) where n is the positive integer power. '
                 'Default is Add2,Sub2,Mul2,Sin,Cos,Exp,Sigmoid,'
                 'Tanh,Sinc,Softplus,Gauss,Pow(2),Pow(3),Pow(4),'
@@ -471,13 +489,13 @@ class Runner(object):
         return 100
 
     def load_data(self, params: dict):
-        def load(ds: DataSpec, delimiter: str, prefix: str):
+        def load(ds: DataSpec, delimiter: str, skiprows: int, prefix: str):
             if not os.path.isfile(ds.file):
                 logging.error('%s data file %s does not exist or is not a '
                               'file. Exitting.', prefix, ds.file)
                 raise PropagateExit(1)
             logging.info('%s data file: %s', prefix, ds.file)
-            data = np.loadtxt(ds.file, delimiter=delimiter)
+            data = np.loadtxt(ds.file, delimiter=delimiter, skiprows=skiprows)
             if ds.x_cols is not None:
                 logging.info('%s data x columns: %s', prefix, ds.x_cols)
                 x_data = data[:, ds.x_cols]
@@ -494,14 +512,16 @@ class Runner(object):
 
         dlm = params['delimiter']
         training_ds = params['training-data']
+        training_sk = params['training-data-skiprows']
         testing_ds = params['testing-data']
+        testing_sk = params['testing-data-skiprows']
 
-        training_x, training_y = load(training_ds, dlm, 'Training')
+        training_x, training_y = load(training_ds, dlm, training_sk, 'Training')
         logging.info('Training X data shape (rows, cols): %s', training_x.shape)
         logging.info('Training Y data shape (elements,): %s', training_y.shape)
         testing_x, testing_y = None, None
         if testing_ds is not None:
-            testing_x, testing_y = load(testing_ds, dlm, 'Testing')
+            testing_x, testing_y = load(testing_ds, dlm, testing_sk, 'Testing')
             logging.info('Testing X data shape (rows, cols): %s',
                          training_x.shape)
             logging.info('Testing Y data shape (elements,): %s',
@@ -590,6 +610,8 @@ class Runner(object):
         if function_name == 'BentIdentity':
             return lambda: prep(evo.sr.backpropagation.BentIdentity(
                 cache=cache))
+        if function_name == 'Signum':
+            return lambda: evo.sr.Signum(cache=cache)
 
         powmatch = re.fullmatch('Pow\(([0-9]+)\)', function_name)
         if powmatch:
@@ -655,7 +677,9 @@ class Runner(object):
 
     def get_input_params(self, ns, params):
         params['training-data'] = ns.training_data
+        params['training-data-skiprows'] = ns.training_data_skiprows
         params['testing-data'] = ns.testing_data
+        params['testing-data-skiprows'] = ns.testing_data_skiprows
         params['delimiter'] = ns.delimiter
 
     def get_logging_params(self, ns, params):

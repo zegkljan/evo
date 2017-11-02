@@ -813,6 +813,33 @@ class BentIdentity(MathNode):
                    name=self.__class__.__name__)).strip()
 
 
+class Signum(MathNode):
+    """The signum function.
+    """
+    INFIX_FMT = 'sgn({0})'
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.data['name'] = 'sgn'
+
+    def get_arity(self=None):
+        return 1
+
+    def operation(self, *args):
+        return numpy.sign(args[0])
+
+    def infix(self, **kwargs):
+        return Signum.INFIX_FMT.format(self.children[0].infix(**kwargs))
+
+    def to_matlab_expr(self, data_name='X', function_name_prefix='') -> str:
+        c = self.children[0].to_matlab_expr(data_name, function_name_prefix)
+        return 'sign({arg})'.format(arg=c)
+
+    def to_matlab_def(self, argname='X', outname='Y',
+                      function_name_prefix='') -> str:
+        return None
+
+
 class Const(MathNode):
     """A constant.
     """

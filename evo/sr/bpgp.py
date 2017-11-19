@@ -305,6 +305,7 @@ class BackpropagationFitness(evo.Fitness):
         try:
             fitness, otf, otf_d = self._eval_individual(
                 individual, self.synchronize_lincomb_vars, context)
+            individual.set_fitness(fitness)
             prev_fitness = fitness
             BackpropagationFitness.LOG.debug('Optimising inner parameters...')
             BackpropagationFitness.LOG.debug('Initial fitness: %f', fitness)
@@ -316,6 +317,7 @@ class BackpropagationFitness(evo.Fitness):
                 if steps < self.min_steps:
                     steps = self.min_steps
             for i in range(steps):
+                self.handle_bsf(individual, context.iterations)
                 self.backpropagate_bases(individual, otf, otf_d)
                 updated = self.update_bases(fitness, individual, prev_fitness)
 
@@ -326,6 +328,7 @@ class BackpropagationFitness(evo.Fitness):
 
                 prev_fitness = fitness
                 fitness, otf, otf_d = self._eval_individual(individual, False)
+                individual.set_fitness(fitness)
                 if not self.has_improved(prev_fitness, fitness):
                     BackpropagationFitness.LOG.debug('Improvement below '
                                                      'threshold, stopping '
@@ -433,6 +436,7 @@ class BackpropagationFitness(evo.Fitness):
             self.fit_outputs(individual, yhats)
             otf, otf_d = self.get_output_transformation(individual, yhats)
         fitness = self.get_error(yhats, individual)
+        self.evaluation_count += 1
         return fitness, otf, otf_d
 
     def backpropagate_bases(self, individual, transform, transform_derivative):

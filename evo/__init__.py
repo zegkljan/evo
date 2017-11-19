@@ -134,7 +134,6 @@ class Fitness(object):
         """
         self.evaluate_individual(individual, context)
         self.handle_bsf(individual, iteration)
-        self.evaluation_count += 1
 
     def evaluate_individual(self, individual: Individual, context=None):
         """Evaluates the given individual and assigns the resulting fitness

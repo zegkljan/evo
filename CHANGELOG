@@ -1,3 +1,19 @@
+v0.1.8
+
+    * New Features
+
+        * new situations in Gp callback
+        * serialization of trees and FittedForestIndividual
+
+    * Other
+
+        * bpgp runner refactored so all settings and params are passed through
+          get_params()
+        * bpgp runner converted to object for better extendability
+        * BpgpRunner renamed to Runner
+        * callback in Gp is now a class instead of callable
+
+
 v0.1.7
 
     * Bugfixes

@@ -3,7 +3,6 @@
 """
 
 import copy
-import enum
 import itertools
 import logging
 import operator
@@ -43,7 +42,9 @@ class FittedForestIndividual(evo.gp.support.ForestIndividual):
         evo.Individual.copy_data(self, clone, carry_data)
         return clone
 
-    def to_matlab(self, function_name='bp_mggp_fn'):
+    def to_matlab(self, function_name='bp_mggp_fn', comments: list=None):
+        if comments is None:
+            comments = []
         coeff_mat_str = '; '.join([repr(c) for c in self.coefficients])
         coeff_mat_str = '[' + coeff_mat_str + ']'
         intercept_str = repr(self.intercept)
@@ -59,9 +60,12 @@ class FittedForestIndividual(evo.gp.support.ForestIndividual):
                 if f is not None:
                     all_funcs.add(f)
         all_funcs = sorted(all_funcs)
+        comments = [c.replace('\n', '\n%   ') for c in comments]
+        comments_str = '% ' + '\n% '.join(comments)
 
         matlab_str = textwrap.dedent('''
         function out = {fname}(X)
+        {comments}
 
         intercept = {intercept};
         coefficients = {coeffs};
@@ -77,6 +81,7 @@ class FittedForestIndividual(evo.gp.support.ForestIndividual):
 
         end
         ''').format(fname=function_name,
+                    comments=comments_str,
                     intercept=intercept_str,
                     coeffs=coeff_mat_str,
                     num_bases=self.genes_num,
@@ -149,48 +154,6 @@ class CoefficientsMutation(evo.gp.MutationOperator):
                     node.weights[i] += self.generator.gauss(0, sigma)
 
         node.notify_change()
-
-
-class ConstantsMutation(evo.gp.MutationOperator):
-    def __init__(self, sigma, generator):
-        self.sigma = sigma
-        self.generator = generator
-
-    def mutate(self, i):
-        all_nodes = []
-
-        for g in i.genotype:
-            all_nodes.extend(g.get_nodes_dfs(
-                predicate=ConstantsMutation.predicate))
-        if all_nodes:
-            self.mutate_node(self.generator.choice(all_nodes), self.sigma)
-            i.set_fitness(None)
-        else:
-            raise evo.gp.OperatorNotApplicableError('No constants found.')
-        return i
-
-    @staticmethod
-    def predicate(n):
-        return isinstance(n, evo.sr.Const)
-
-    def mutate_node(self, node, sigma):
-        node.value += self.generator.gauss(0, sigma)
-        node.data['name'] = str(node.value)
-
-        node.notify_change()
-
-
-class ErrorMeasure(enum.Enum):
-    R2 = 0
-    MSE = 1
-    MAE = 2
-    WORST_CASE_AE = 3
-
-    @property
-    def worst(self):
-        if self is ErrorMeasure.R2:
-            return -numpy.inf
-        return numpy.inf
 
 
 # noinspection PyAbstractClass
@@ -554,7 +517,7 @@ class RegressionFitness(BackpropagationFitness):
                  min_steps=0, fit: bool=False,
                  synchronize_lincomb_vars: bool=False,
                  stats: evo.utils.stats.Stats=None,
-                 fitness_measure: ErrorMeasure=ErrorMeasure.R2,
+                 fitness_measure: evo.sr.ErrorMeasure = evo.sr.ErrorMeasure.R2,
                  store_bsfs: bool=True, backpropagate_only: bool=False):
         """
         :param train_inputs: feature variables' values: an N x M matrix where N
@@ -601,13 +564,13 @@ class RegressionFitness(BackpropagationFitness):
         individual.set_data('MSE', mse)
         individual.set_data('MAE', mae)
         individual.set_data('WORST_CASE_AE', worst_case_ae)
-        if self.fitness_measure is ErrorMeasure.R2:
+        if self.fitness_measure is evo.sr.ErrorMeasure.R2:
             return r2
-        if self.fitness_measure is ErrorMeasure.MSE:
+        if self.fitness_measure is evo.sr.ErrorMeasure.MSE:
             return mse
-        if self.fitness_measure is ErrorMeasure.MAE:
+        if self.fitness_measure is evo.sr.ErrorMeasure.MAE:
             return mae
-        if self.fitness_measure is ErrorMeasure.WORST_CASE_AE:
+        if self.fitness_measure is evo.sr.ErrorMeasure.WORST_CASE_AE:
             return worst_case_ae
         raise ValueError('Invalid value of fitness_measure.')
 
@@ -666,7 +629,7 @@ class RegressionFitness(BackpropagationFitness):
         return otf, otf_d
 
     def fitness_cmp(self, f1, f2):
-        if self.fitness_measure is ErrorMeasure.R2:
+        if self.fitness_measure is evo.sr.ErrorMeasure.R2:
             if f1 > f2:
                 return -1
             if f1 < f2:

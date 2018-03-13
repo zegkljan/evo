@@ -4,6 +4,7 @@
 
 import logging
 import random
+import textwrap
 
 import evo
 import evo.utils.tree
@@ -97,6 +98,39 @@ class ForestIndividual(evo.Individual):
         evo.Individual.copy_evaluation(self, clone, carry_evaluation)
         evo.Individual.copy_data(self, clone, carry_data)
         return clone
+
+    def to_matlab(self, function_name='bp_mggp_fn', comments: list=None):
+        if comments is None:
+            comments = []
+
+        all_funcs = set()
+        for g in self.genotype:
+            for n in g.get_nodes_bfs():
+                f = n.to_matlab_def()
+                if f is not None:
+                    all_funcs.add(f)
+        all_funcs = sorted(all_funcs)
+        comments = [c.replace('\n', '\n%   ') for c in comments]
+        comments_str = '% ' + '\n% '.join(comments)
+
+        if self.genes_num == 1:
+            body = 'out = {out}'.format(out=self.genotype[0].to_matlab_expr())
+        else:
+            body = 'out = ' + ' + ...\n      '.join([g.to_matlab_expr()
+                                                     for g in self.genotype])
+
+        matlab_str = textwrap.dedent('''
+        function out = {fname}(X)
+        {comments}
+
+        {body}
+        
+        end
+        ''').format(fname=function_name,
+                    comments=comments_str,
+                    body=body).strip()
+
+        return '\n\n'.join([matlab_str] + all_funcs)
 
 
 class RampedHalfHalfInitializer(evo.PopulationInitializer):

@@ -3,13 +3,16 @@
 
 The package itself contains common mathematical functions and operators as
 subclasses of :class:`evo.gp.support.GpNode` for use in symbolic regression
-tasks.
+tasks. It also contains common utilities and operators used in symbolic
+regression.
 """
-
+import enum
 import textwrap
 
 import numpy
 
+import evo
+import evo.gp
 import evo.gp.support
 
 
@@ -910,3 +913,43 @@ class Variable(MathNode):
         return '{}({})'.format(self.__class__.__name__, self.data['name'])
 
 
+class ConstantsMutation(evo.gp.MutationOperator):
+    def __init__(self, sigma, generator):
+        self.sigma = sigma
+        self.generator = generator
+
+    def mutate(self, i):
+        all_nodes = []
+
+        for g in i.genotype:
+            all_nodes.extend(g.get_nodes_dfs(
+                predicate=ConstantsMutation.predicate))
+        if all_nodes:
+            self.mutate_node(self.generator.choice(all_nodes), self.sigma)
+            i.set_fitness(None)
+        else:
+            raise evo.gp.OperatorNotApplicableError('No constants found.')
+        return i
+
+    @staticmethod
+    def predicate(n):
+        return isinstance(n, evo.sr.Const)
+
+    def mutate_node(self, node, sigma):
+        node.value += self.generator.gauss(0, sigma)
+        node.data['name'] = str(node.value)
+
+        node.notify_change()
+
+
+class ErrorMeasure(enum.Enum):
+    R2 = 0
+    MSE = 1
+    MAE = 2
+    WORST_CASE_AE = 3
+
+    @property
+    def worst(self):
+        if self is ErrorMeasure.R2:
+            return -numpy.inf
+        return numpy.inf

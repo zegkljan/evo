@@ -11,6 +11,7 @@ import textwrap
 import evo
 import evo.gp
 import evo.runners.bpgp as bpgp
+import evo.runners.gp as gp
 import evo.sr
 import evo.sr.backpropagation
 import evo.sr.bpgp
@@ -92,6 +93,7 @@ class RootParser(object):
                                            metavar='<algorithm>',
                                            dest='algorithm')
         self.parser_handlers = {p: h for p, h in [
+            (lambda r: (r.PARSER_ARG, r))(gp.Runner(subparsers)),
             (lambda r: (r.PARSER_ARG, r))(bpgp.Runner(subparsers))
         ]}
 

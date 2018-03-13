@@ -18,17 +18,18 @@ import evo.gp
 import evo.sr
 import evo.sr.backpropagation
 import evo.sr.bpgp
+import evo.sr.gp
 import evo.utils
 from evo.runners import text, bounded_integer, bounded_float, float01, \
     DataSpec, PropagateExit
 
 
 class Runner(object):
-    PARSER_ARG = 'bpgp'
+    PARSER_ARG = 'gp'
 
     def __init__(self, subparsers):
         self.parser = subparsers.add_parser(
-            self.PARSER_ARG, help='BackPropagation Genetic Programming',
+            self.PARSER_ARG, help='Genetic Programming',
             conflict_handler='resolve')
 
         # input data setup
@@ -223,11 +224,6 @@ class Runner(object):
             type=float01(),
             default=0.1)
         self.parser.add_argument(
-            '--max-genes',
-            help=text('Maximum number of genes. Default is 4.'),
-            type=bounded_integer(1),
-            default=4)
-        self.parser.add_argument(
             '--max-depth',
             help=text('Maximum depth of a gene. Default is 5.'),
             type=bounded_integer(1),
@@ -263,25 +259,6 @@ class Runner(object):
             type=float01(),
             default=0.84)
         self.parser.add_argument(
-            '--highlevel-crossover-prob',
-            help=text(
-                'Probability of choosing a high-level '
-                'crossover as a crossover operation. The '
-                'complement to 1 is then the probability of '
-                'subtree crossover. If --max-genes is 1, this '
-                'parameter is ignored (even if not specified) '
-                'and set to 0. Default is 0.2.'),
-            type=float01(),
-            default=0.2)
-        self.parser.add_argument(
-            '--highlevel-crossover-rate',
-            help=text(
-                'Probability that a gene is chosen for '
-                'crossover in high-level crossover. Default is '
-                '0.5.'),
-            type=float01(),
-            default=0.5)
-        self.parser.add_argument(
             '--mutation-prob',
             help=text(
                 'Probability of mutation. Default is 0.14.'),
@@ -292,11 +269,9 @@ class Runner(object):
             help=text(
                 'Probability of choosing mutation of constants '
                 'as a mutation operation. The complement to 1 '
-                'of this parameter and of '
-                '--weights-muatation-prob is then the '
-                'probability of subtree mutation. To turn this '
-                'mutation off, set the parameter to 0. Default '
-                'is 0.05.'),
+                'of this parameter is then the probability of subtree '
+                'mutation. To turn this mutation off, set the parameter to 0. '
+                'Default is 0.05.'),
             type=float01(),
             default=0.05)
         self.parser.add_argument(
@@ -308,109 +283,6 @@ class Runner(object):
             type=bounded_float(0),
             default=0.1)
         self.parser.add_argument(
-            '--weights-mutation-prob',
-            help=text(
-                'Probability of choosing mutation of weights '
-                'as a mutation operation. The complement to 1 '
-                'of this parameter and of '
-                '--constant-muatation-prob is then the '
-                'probability of subtree mutation. To turn this '
-                'mutation off, set the parameter to 0. Default '
-                'is 0.05.'),
-            type=float01(),
-            default=0.05)
-        self.parser.add_argument(
-            '--weights-mutation-sigma',
-            help=text(
-                'Standard deviation of the normal distribution '
-                'used to mutate the weights. Default is 3.'),
-            type=bounded_float(0),
-            default=3)
-        self.parser.add_argument(
-            '--backpropagation-mode',
-            help=text(
-                'How backpropagation is used. Mode "none" '
-                'turns the backpropagation off completely. '
-                'Mode "raw" means that the number of steps is '
-                'always the number specified in '
-                '--backpropagation-steps (and hence '
-                '--min-backpropagation-steps is ignored). '
-                'Modes "nodes" and "depth" mean that the '
-                'number of steps is the number specified in '
-                '--backpropagation-steps minus the total '
-                'number of nodes of the individual (for '
-                '"nodes") or the maximum depth of the genes '
-                '(for "depth"). Default is "none", i.e. no '
-                'backpropagation.'),
-            choices=['none', 'raw', 'nodes', 'depth'],
-            default='none')
-        self.parser.add_argument(
-            '--backpropagation-steps',
-            help=text(
-                'How many backpropagation steps are performed '
-                'per evaluation. The actual number is computed '
-                'based on the value of --backpropagation-mode. '
-                'Default is 25.'),
-            type=bounded_integer(0),
-            default=25)
-        self.parser.add_argument(
-            '--min-backpropagation-steps',
-            help=text(
-                'At least this number of backpropagation steps '
-                'is always performed, no matter what '
-                '--backpropagation-steps and '
-                '--backpropagation-mode are set to (except for '
-                '"none" mode). Default is 2.'),
-            type=bounded_integer(0),
-            default=2)
-        self.parser.add_argument(
-            '--weighted',
-            help=text(
-                'If specified, the inner nodes will be '
-                'weighted, i.e. with multiplicative and '
-                'additive weights, tunable by backpropagation '
-                'and weights mutation.'),
-            action='store_true')
-        self.parser.add_argument(
-            '--lcf-mode',
-            help=text(
-                'How the LCFs are used. Mode "none" turns the '
-                'LCFs off completely. Mode "unsynced" means '
-                'that each LCF is free to change on its own '
-                '(by backpropagation and/or mutation). Mode '
-                '"synced" means that the LCFs are synchronized '
-                'across the individual. Mode "global" means '
-                'that the LCFs are synchronized across the '
-                'whole population. Default is "none", i.e. no '
-                'LCFs.'),
-            choices=['none', 'unsynced', 'synced', 'global'],
-            default='none')
-        self.parser.add_argument(
-            '--weight-init',
-            help=text(
-                'How are weights in weighted nodes and LCFs '
-                '(if they are turned on) initialized. Mode '
-                '"latent" means that the initial values of '
-                'weights are such that they play no role, i.e. '
-                'additive weights set to zero, multiplicative '
-                'weights set to one (or only one of them in '
-                'case of LCFs). Mode "random" means that the '
-                'values of weights are chosen randomly (see '
-                'option --random-init-bounds). Default is '
-                '"latent".'),
-            choices=['latent', 'random'],
-            default='latent')
-        self.parser.add_argument(
-            '--weight-init-bounds',
-            help=text(
-                'Bounds of the range the weights are sampled '
-                'from when --weight-init is set to "random". '
-                'Default is -10 and 10.'),
-            nargs=2,
-            type=float,
-            metavar='bound',
-            default=[-10, 10])
-        self.parser.add_argument(
             '--const-init-bounds',
             help=text(
                 'Bounds of the range the constants (leaf '
@@ -420,20 +292,6 @@ class Runner(object):
             type=float,
             metavar='bound',
             default=[-10, 10])
-        self.parser.add_argument(
-            '--constants',
-            help=text(
-                'Type constant leaf nodes work. One of the '
-                'following: none, classical, tunable. The '
-                '"none" type means no such nodes will be '
-                'available. Type "classical" means that the '
-                'constants will be generated randomly at '
-                'initialization (and subtree mutation) and can '
-                'be modified via mutation. The type "tunable" '
-                'means the values of the constants are subject '
-                'to gradient-based tuning.'),
-            choices=['none', 'classical', 'tunable'],
-            default='classical')
 
     def handle(self, ns: argparse.Namespace):
         try:
@@ -459,7 +317,8 @@ class Runner(object):
         logging.info('Starting evo.')
 
         x_data_trn, y_data_trn, x_data_tst, y_data_tst = self.load_data(params)
-        if x_data_tst is not None and x_data_trn.shape[1] != x_data_tst.shape[1]:
+        if (x_data_tst is not None and
+                x_data_trn.shape[1] != x_data_tst.shape[1]):
             logging.error('Training and testing data have different number of '
                           'columns. Exitting.')
             raise PropagateExit(1)
@@ -468,8 +327,8 @@ class Runner(object):
         self.log_params(params)
         # prepare stuff needed for algorithm creation
         rng = self.create_rng(params)
-        functions = self.create_functions(rng, params)
-        global_lcs, terminals = self.create_terminals(rng, x_data_trn, True,
+        functions = self.create_functions(params)
+        terminals = self.create_terminals(rng, x_data_trn, True,
                                                       params)
         fitness = self.create_fitness(params, x_data_trn, y_data_trn)
         crossover = self.create_crossover(rng, params)
@@ -477,6 +336,7 @@ class Runner(object):
         population_strategy = self.create_population_strategy(params)
         reproduction_strategy = self.create_reproduction_strategy(
             rng, crossover, mutation, functions, terminals, params)
+        # noinspection PyNoneFunctionAssignment
         callback = self.create_callback(params)
         stopping_condition = self.create_stopping_condition(params)
         population_initializer = self.create_population_initializer(rng,
@@ -484,8 +344,8 @@ class Runner(object):
                                                                     terminals,
                                                                     params)
         # create algorithm
-        algorithm = self.create_algorithm(rng, functions, terminals, global_lcs,
-                                          fitness, population_strategy,
+        algorithm = self.create_algorithm(rng, functions, terminals, fitness,
+                                          population_strategy,
                                           reproduction_strategy, callback,
                                           stopping_condition,
                                           population_initializer, params)
@@ -579,48 +439,42 @@ class Runner(object):
     def create_rng(self, params):
         return random.Random(params['seed'])
 
-    def create_functions(self, rng, params):
-        preparator = NodePreparator(params['weighted'],
-                                    params['weight_init'] == 'random',
-                                    rng,
-                                    params['weight_init_lb'],
-                                    params['weight_init_ub'])
-        functions = [self.create_function(func_name, preparator, True)
+    def create_functions(self, params):
+        functions = [self.create_function(func_name, True)
                      for func_name in params['functions'].split(',')]
         return functions
 
-    def create_function(self, function_name: str, prep, cache: bool):
+    def create_function(self, function_name: str, cache: bool):
         if function_name == 'Add2':
-            return lambda: prep(evo.sr.backpropagation.Add2(cache=cache))
+            return lambda: evo.sr.Add2(cache=cache)
         if function_name == 'Div2':
-            return lambda: prep(evo.sr.backpropagation.Div2(cache=cache))
+            return lambda: evo.sr.Div2(cache=cache)
         if function_name == 'Mul2':
-            return lambda: prep(evo.sr.backpropagation.Mul2(cache=cache))
+            return lambda: evo.sr.Mul2(cache=cache)
         if function_name == 'Sub2':
-            return lambda: prep(evo.sr.backpropagation.Sub2(cache=cache))
+            return lambda: evo.sr.Sub2(cache=cache)
         if function_name == 'Sin':
-            return lambda: prep(evo.sr.backpropagation.Sin(cache=cache))
+            return lambda: evo.sr.Sin(cache=cache)
         if function_name == 'Cos':
-            return lambda: prep(evo.sr.backpropagation.Cos(cache=cache))
+            return lambda: evo.sr.Cos(cache=cache)
         if function_name == 'Exp':
-            return lambda: prep(evo.sr.backpropagation.Exp(cache=cache))
+            return lambda: evo.sr.Exp(cache=cache)
         if function_name == 'Abs':
-            return lambda: prep(evo.sr.backpropagation.Abs(cache=cache))
+            return lambda: evo.sr.Abs(cache=cache)
         if function_name == 'Sqrt':
-            return lambda: prep(evo.sr.backpropagation.Sqrt(cache=cache))
+            return lambda: evo.sr.Sqrt(cache=cache)
         if function_name == 'Sigmoid':
-            return lambda: prep(evo.sr.backpropagation.Sigmoid(cache=cache))
+            return lambda: evo.sr.Sigmoid(cache=cache)
         if function_name == 'Tanh':
-            return lambda: prep(evo.sr.backpropagation.Tanh(cache=cache))
+            return lambda: evo.sr.Tanh(cache=cache)
         if function_name == 'Sinc':
-            return lambda: prep(evo.sr.backpropagation.Sinc(cache=cache))
+            return lambda: evo.sr.Sinc(cache=cache)
         if function_name == 'Softplus':
-            return lambda: prep(evo.sr.backpropagation.Softplus(cache=cache))
+            return lambda: evo.sr.Softplus(cache=cache)
         if function_name == 'Gauss':
-            return lambda: prep(evo.sr.backpropagation.Gauss(cache=cache))
+            return lambda: evo.sr.Gauss(cache=cache)
         if function_name == 'BentIdentity':
-            return lambda: prep(evo.sr.backpropagation.BentIdentity(
-                cache=cache))
+            return lambda: evo.sr.BentIdentity(cache=cache)
         if function_name == 'Signum':
             return lambda: evo.sr.Signum(cache=cache)
 
@@ -629,8 +483,7 @@ class Runner(object):
             exponent = int(powmatch.group(1))
             if exponent <= 0:
                 raise ValueError('Power in Pow(n) must be a positive integer.')
-            return lambda: prep(evo.sr.backpropagation.Power(power=exponent,
-                                                             cache=cache))
+            return lambda: evo.sr.Power(power=exponent, cache=cache)
         raise ValueError('Unrecognized function name {}.'.format(function_name))
 
     def get_params(self, ns: argparse.Namespace):
@@ -649,7 +502,6 @@ class Runner(object):
         params['time'] = ns.time
         params['generation_time_combinator'] = ns.generation_time_combinator
         params['limits'] = {
-            'max-genes': ns.max_genes,
             'max-depth': ns.max_depth,
             'max-nodes': ns.max_nodes
         }
@@ -657,29 +509,13 @@ class Runner(object):
         params['tournament_size'] = int(round(ns.pop_size * ns.tournament_size))
         assert params['tournament_size'] > 0, 'Effective tournament size is 0.'
         params['elitism'] = int(round(ns.pop_size * ns.elitism))
-        params['bprop_steps_min'] = ns.min_backpropagation_steps
-        params['bprop_steps'] = ns.backpropagation_steps
-        params['backpropagation_mode'] = ns.backpropagation_mode
-        if params['backpropagation_mode'] == 'none':
-            params['bprop_steps_min'] = 0
-            params['bprop_steps'] = 0
         params['pr_x'] = ns.crossover_prob
-        params['pr_hl_x'] = ns.highlevel_crossover_prob
-        params['r_hl_x'] = ns.highlevel_crossover_rate
         params['pr_m'] = ns.mutation_prob
         params['pr_c_m'] = ns.constant_mutation_prob
         params['sigma_c_m'] = ns.constant_mutation_sigma
-        params['pr_w_m'] = ns.weights_mutation_prob
-        params['sigma_w_m'] = ns.weights_mutation_sigma
-        params['lcf_mode'] = ns.lcf_mode
-        params['weight_init'] = ns.weight_init
         params['const_init_lb'] = min(ns.const_init_bounds)
         params['const_init_ub'] = max(ns.const_init_bounds)
-        params['weight_init_lb'] = min(ns.weight_init_bounds)
-        params['weight_init_ub'] = max(ns.weight_init_bounds)
-        params['weighted'] = ns.weighted
         params['functions'] = ns.functions
-        params['constants'] = ns.constants
 
     def get_output_params(self, ns, params):
         params['output_string_template'] = ns.output_string_template
@@ -706,36 +542,20 @@ class Runner(object):
         logging.info('Time limit: %f', params['time'])
         logging.info('Generations + time: %s',
                      params['generation_time_combinator'])
-        logging.info('Max genes: %s', params['limits']['max-genes'])
         logging.info('Max depth: %s', params['limits']['max-depth'])
         logging.info('Max nodes: %s', params['limits']['max-nodes'])
         logging.info('Population size: %d', params['pop_size'])
         logging.info('Tournament size: %d', params['tournament_size'])
         logging.info('Elitism: %d', params['elitism'])
-        logging.info('Backpropagation mode: %s', params['backpropagation_mode'])
-        logging.info('Backpropagation min. steps: %d',
-                     params['bprop_steps_min'])
-        logging.info('Backpropagation steps: %s', params['bprop_steps'])
         logging.info('Crossover prob.: %f', params['pr_x'])
-        logging.info('High-level crossover prob.: %f', params['pr_hl_x'])
-        logging.info('High-level crossover rate: %f', params['r_hl_x'])
         logging.info('Mutation prob.: %f', params['pr_m'])
         logging.info('Constant mutation prob.: %f', params['pr_c_m'])
         logging.info('Constant mutation sigma: %f', params['sigma_c_m'])
-        logging.info('Weights mutation prob.: %f', params['pr_w_m'])
-        logging.info('Weights mutation sigma: %f', params['sigma_w_m'])
-        logging.info('LCF mode: %s', params['lcf_mode'])
-        logging.info('Weight init: %s', params['weight_init'])
         logging.info('Const init bounds: [%f, %f]', params['const_init_lb'],
                      params['const_init_ub'])
-        logging.info('Weight init bounds: [%f, %f]', params['weight_init_lb'],
-                     params['weight_init_ub'])
-        logging.info('Weighted: %s', params['weighted'])
         logging.info('Functions: %s', params['functions'])
-        logging.info('Backpropagation mode: %s', params['backpropagation_mode'])
         logging.info('Generation-time combinator: %s',
                      params['generation_time_combinator'])
-        logging.info('Constants mode: %s', params['constants'])
 
     def create_population_strategy(self, params):
         ps = evo.GenerationalPopulationStrategy(params['pop_size'],
@@ -743,72 +563,28 @@ class Runner(object):
         return ps
 
     def create_mutation(self, rng, functions, terminals, params):
-        if ((params['weighted'] or params['lcf_mode'] != 'none') and
-                    params['pr_w_m'] > 0):
-            if params['lcf_mode'] == 'global':
-                muts = [
-                    (1 - params['pr_c_m'], evo.gp.SubtreeMutation(
-                        float('inf'), rng, functions, terminals,
-                        params['limits'])),
-                    (params['pr_c_m'], evo.sr.ConstantsMutation(
-                        params['sigma_c_m'], rng))
-                ]
-            else:
-                muts = [
-                    (1 - params['pr_w_m'] - params['pr_c_m'],
-                     evo.gp.SubtreeMutation(float('inf'), rng, functions,
-                                            terminals, params['limits'])),
-                    (params['pr_c_m'], evo.sr.ConstantsMutation(
-                        params['sigma_c_m'], rng)),
-                    (params['pr_w_m'], evo.sr.bpgp.CoefficientsMutation(
-                        params['sigma_w_m'], rng))
-                ]
-            mutation = evo.gp.StochasticChoiceMutation(
-                muts, rng, fallback_method=muts[0][1])
-        else:
-            muts = [
-                (1 - params['pr_c_m'], evo.gp.SubtreeMutation(
-                    float('inf'), rng, functions, terminals,
-                    params['limits'])),
-                (params['pr_c_m'], evo.sr.ConstantsMutation(
-                    params['sigma_c_m'], rng))
-            ]
-            mutation = evo.gp.StochasticChoiceMutation(
-                muts, rng, fallback_method=muts[0][1])
-            params['pr_w_m'] = 0
+        muts = [(1 - params['pr_c_m'],
+                 evo.gp.SubtreeMutation(float('inf'), rng, functions, terminals,
+                                        params['limits'])),
+                (params['pr_c_m'],
+                 evo.sr.ConstantsMutation(params['sigma_c_m'], rng))]
+        mutation = evo.gp.StochasticChoiceMutation(
+            muts, rng, fallback_method=muts[0][1])
 
         return mutation
 
     def create_crossover(self, rng, params):
-        if params['limits']['max-genes'] > 1 and params['pr_hl_x'] > 0:
-            crossover = evo.gp.StochasticChoiceCrossover([
-                (params['pr_hl_x'], evo.gp.CrHighlevelCrossover(
-                    params['r_hl_x'], rng, params['limits'])),
-                (1 - params['pr_hl_x'], evo.gp.SubtreeCrossover(
-                    rng, params['limits']))
-            ], rng)
-        else:
-            crossover = evo.gp.SubtreeCrossover(rng, params['limits'])
+        crossover = evo.gp.SubtreeCrossover(rng, params['limits'])
 
         return crossover
 
     def create_fitness(self, params, x, y):
-        if params['backpropagation_mode'] not in ['raw', 'none']:
-            steps = (params['backpropagation_mode'], params['bprop_steps'])
-        else:
-            steps = params['bprop_steps']
-        fitness = evo.sr.bpgp.RegressionFitness(
-            handled_errors=[],
+        fitness = evo.sr.gp.RegressionFitness(
             train_inputs=x,
             train_output=y,
-            updater=evo.sr.backpropagation.IRpropMinus(maximize=True),
-            steps=steps,
-            min_steps=params['bprop_steps_min'],
-            fit=True,
-            synchronize_lincomb_vars=params['lcf_mode'] == 'synced',
-            ## stats=stats,
-            fitness_measure=evo.sr.ErrorMeasure.R2,
-            backpropagate_only=params['lcf_mode'] == 'global'
+            error_fitness=evo.sr.ErrorMeasure.R2.worst,
+            handled_errors=[],
+            fitness_measure=evo.sr.ErrorMeasure.R2
         )
         return fitness
 
@@ -816,29 +592,9 @@ class Runner(object):
         terms = []
         terms += [lambda n=n: evo.sr.Variable(index=n, cache=cache)
                   for n in range(x.shape[1])]
-        global_lcs = None
-        if params['lcf_mode'] != 'none':
-            lc_prep = NodePreparator(
-                True, params['lcf_mode'] not in ['synced', 'global'], rng,
-                params['weight_init_lb'], params['weight_init_ub'])
-            global_lcs = []
-            for n in range(x.shape[1]):
-                terms.append(
-                    lambda n=n: lc_prep(evo.sr.backpropagation.LincombVariable(
-                        index=n, num_vars=x.shape[1], cache=cache)))
-                global_lcs.append(terms[-1]())
-        if params['constants'] == 'classical':
-            terms += [
-                lambda: evo.sr.Const(rng.uniform(
-                    params['const_init_lb'], params['const_init_ub']))
-            ]
-        elif params['constants'] == 'tunable':
-            terms += [
-                lambda: evo.sr.backpropagation.TunableConst(
-                    rng.uniform(params['const_init_lb'],
-                                params['const_init_ub']))
-            ]
-        return global_lcs, terms
+        terms += [lambda: evo.sr.Const(rng.uniform(params['const_init_lb'],
+                                                   params['const_init_ub']))]
+        return terms
 
     def create_stopping_condition(self, params):
         if math.isinf(params['time']) and math.isinf(params['generations']):
@@ -857,15 +613,7 @@ class Runner(object):
         return stop
 
     def create_callback(self, params):
-        if params['backpropagation_mode'] != 'none':
-            class Cb(evo.gp.Callback):
-                def iteration_start(self, algorithm: evo.Evolution):
-                    for i in algorithm.population:
-                        i.set_fitness(None)
-
-            cb = Cb()
-        else:
-            cb = None
+        cb = None
 
         return cb
 
@@ -881,33 +629,21 @@ class Runner(object):
             crossover_both=False)
 
     def create_population_initializer(self, rng, functions, terminals, params):
-        return evo.sr.bpgp.FittedForestIndividualInitializer(
-            evo.gp.support.RampedHalfHalfInitializer(
-                functions=functions,
-                terminals=terminals,
-                min_depth=1,
-                max_depth=params['limits']['max-depth'],
-                max_genes=params['limits']['max-genes'],
-                generator=rng
-            )
+        return evo.gp.support.RampedHalfHalfInitializer(
+            functions=functions,
+            terminals=terminals,
+            min_depth=1,
+            max_depth=params['limits']['max-depth'],
+            max_genes=1,
+            generator=rng
         )
 
-    def create_algorithm(self, rng, functions, terminals, global_lcs, fitness,
+    def create_algorithm(self, rng, functions, terminals, fitness,
                          population_strategy, reproduction_strategy, callback,
                          stopping_condition, population_initializer,
                          params: dict):
         # Prepare final algorithm
-        if params['lcf_mode'] == 'global':
-            alg_class = evo.sr.bpgp.GlobalLincombsGp
-            # noinspection PyUnboundLocalVariable
-            extra_kwargs = {'global_lcs': global_lcs,
-                            'update_steps': params['bprop_steps'],
-                            'coeff_mut_prob': params['pr_w_m'],
-                            'coeff_mut_sigma': params['sigma_w_m']}
-        else:
-            alg_class = evo.gp.Gp
-            extra_kwargs = {}
-        alg = alg_class(
+        alg = evo.gp.Gp(
             fitness=fitness,
             pop_strategy=population_strategy,
             selection_strategy=evo.TournamentSelectionStrategy(
@@ -919,8 +655,7 @@ class Runner(object):
             stop=stopping_condition,
             generator=rng,
             limits=params['limits'],
-            callback=callback,
-            **extra_kwargs
+            callback=callback
         )
         return alg
 
@@ -937,10 +672,12 @@ class Runner(object):
                 m_fun_fn = output['m_func_templ'].format(
                     output['m_fun'].format(iteration=bsf.iteration))
                 logging.info('Writing matlab function to %s', m_fun_fn)
+                comments = ['Iteration: ' + str(bsf.iteration),
+                            'Fitness: ' + str(bsf.bsf.get_fitness())]
                 with open(m_fun_fn, 'w') as out:
                     print(bsf.bsf.to_matlab(
-                        output['m_fun'].format(iteration=bsf.iteration)),
-                        file=out)
+                        output['m_fun'].format(iteration=bsf.iteration),
+                        comments), file=out)
 
         y_trn = None
         y_tst = None
@@ -952,7 +689,7 @@ class Runner(object):
                 if x_data_tst is not None:
                     y_tst = self.eval_individual(x_data_tst, bsf.bsf)
                 cycle = False
-            except:
+            except BaseException as e:
                 logging.exception('Exception during final evaluation.')
                 del bsf
                 gc.collect()
@@ -984,7 +721,7 @@ class Runner(object):
             np.savetxt(output['y_tst'], y_tst, delimiter=',')
         if output['summary'] is not None:
             with open(output['summary'], 'w') as out:
-                model_str = evo.sr.bpgp.full_model_str(bsf.bsf,
+                model_str = evo.sr.gp.full_model_str(bsf.bsf,
                                                        num_format='repr',
                                                        newline_genes=True)
                 print('model: {}'.format(model_str), file=out)
@@ -1042,29 +779,9 @@ class Runner(object):
             print(output_string)
 
     def eval_individual(self, x, individual):
-        for g in individual.genotype:
-            g.clear_cache()
+        individual.genotype[0].clear_cache()
 
-        if individual.genes_num == 1:
-            outputs = individual.genotype[0].eval(args=x)
-        else:
-            outputs = [g.eval(args=x) for g
-                       in individual.genotype]
-            outputs = evo.utils.column_stack(*outputs)
-
-        intercept = individual.intercept
-        coefficients = individual.coefficients
-        if coefficients is not None:
-            if outputs.ndim == 1 or outputs.ndim == 0:
-                outputs = outputs * coefficients
-            else:
-                outputs = outputs.dot(coefficients)
-        if intercept is not None:
-            outputs = outputs + intercept
-
-        if outputs.size == 1:
-            outputs = np.repeat(outputs, x.shape[0])
-        return outputs
+        return individual.genotype[0].eval(args=x)
 
 
 def r2(y, yhat):
@@ -1086,36 +803,3 @@ def mae(y, yhat):
 def wcae(y, yhat):
     err = y - yhat
     return np.max(np.abs(err))
-
-
-class NodePreparator(object):
-    def __init__(self, weighted, randomize, rng, lb, ub):
-        self.weighted = weighted
-        self.randomize = randomize
-        self.rng = rng
-        self.lb = lb
-        self.ub = ub
-
-    def __call__(self, node: evo.sr.backpropagation.WeightedNode):
-        if not self.weighted:
-            node.tune_bias = False
-            node.tune_weights = False
-
-        if not self.randomize:
-            return node
-
-        if node.tune_bias is True:
-            for i in range(len(node.bias)):
-                node.bias[i] = self.rng.uniform(self.lb, self.ub)
-        elif node.tune_bias:
-            for i in range(len(node.bias)):
-                if node.tune_bias[i]:
-                    node.bias[i] = self.rng.uniform(self.lb, self.ub)
-        if node.tune_weights is True:
-            for i in range(len(node.weights)):
-                node.weights[i] = self.rng.uniform(self.lb, self.ub)
-        elif node.tune_weights:
-            for i in range(len(node.weights)):
-                if node.tune_weights[i]:
-                    node.weights[i] = self.rng.uniform(self.lb, self.ub)
-        return node

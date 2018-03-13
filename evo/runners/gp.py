@@ -583,7 +583,8 @@ class Runner(object):
             train_inputs=x,
             train_output=y,
             error_fitness=evo.sr.ErrorMeasure.R2.worst,
-            handled_errors=[],
+            handled_errors=[OverflowError, ZeroDivisionError,
+                            FloatingPointError],
             fitness_measure=evo.sr.ErrorMeasure.R2
         )
         return fitness

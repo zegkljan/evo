@@ -24,8 +24,7 @@ class RegressionFitness(evo.Fitness):
         self.ssw = numpy.sum(
             (self.train_output - self.train_output.mean()) ** 2)
         self.error_fitness = error_fitness
-        self.errors = tuple([evo.UnevaluableError, ZeroDivisionError,
-                             FloatingPointError] + handled_errors)
+        self.errors = tuple([evo.UnevaluableError] + handled_errors)
         self.stats = stats
         self.fitness_measure = fitness_measure
 

@@ -2,7 +2,9 @@ v0.1.9
 
     * Bugfixes
 
-        *
+        * Shape of testing data is actually logged (training data shape was
+          logged instead).
+        * GlobalLincombGp works with class-based callback objects.
 
     * New Features
 

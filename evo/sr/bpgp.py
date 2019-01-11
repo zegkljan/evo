@@ -743,7 +743,7 @@ class GlobalLincombsGp(evo.gp.Gp):
         GlobalLincombsGp.LOG.debug('Starting iteration %d', self.iterations)
         self.try_stop()
         if self.callback is not None:
-            self.callback(self, evo.gp.Gp.CallbackSituation.iteration_start)
+            self.callback.iteration_start(self)
 
         prev_bsf_fitness = None
         if self.fitness.bsf is not None:
@@ -790,7 +790,7 @@ class GlobalLincombsGp(evo.gp.Gp):
                                   str(self.fitness.get_bsf().bsf),
                                   self.fitness.get_bsf().bsf.get_data())
         if self.callback is not None:
-            self.callback(self, evo.gp.Gp.CallbackSituation.iteration_end)
+            self.callback.iteration_end(self)
         self.iterations += 1
 
     def eval_individual(self, i: evo.Individual):

@@ -257,6 +257,12 @@ class Runner(object):
                     'Sinc,Softplus,Gauss,Pow(2),Pow(3),Pow(4),'
                     'Pow(5),Pow(6)')
         self.parser.add_argument(
+            '--no-fit-genes',
+            help=text(
+                'If specified, the genes will NOT be fitted using a linear '
+                'regression.'),
+            action='store_true')
+        self.parser.add_argument(
             '--crossover-prob',
             help=text(
                 'Probability of crossover. Default is 0.84'),
@@ -657,6 +663,7 @@ class Runner(object):
         params['tournament_size'] = int(round(ns.pop_size * ns.tournament_size))
         assert params['tournament_size'] > 0, 'Effective tournament size is 0.'
         params['elitism'] = int(round(ns.pop_size * ns.elitism))
+        params['fit'] = not ns.no_fit_genes
         params['bprop_steps_min'] = ns.min_backpropagation_steps
         params['bprop_steps'] = ns.backpropagation_steps
         params['backpropagation_mode'] = ns.backpropagation_mode
@@ -712,6 +719,7 @@ class Runner(object):
         logging.info('Population size: %d', params['pop_size'])
         logging.info('Tournament size: %d', params['tournament_size'])
         logging.info('Elitism: %d', params['elitism'])
+        logging.info('Fit genes: %s', params['fit'])
         logging.info('Backpropagation mode: %s', params['backpropagation_mode'])
         logging.info('Backpropagation min. steps: %d',
                      params['bprop_steps_min'])
@@ -804,7 +812,7 @@ class Runner(object):
             updater=evo.sr.backpropagation.IRpropMinus(maximize=True),
             steps=steps,
             min_steps=params['bprop_steps_min'],
-            fit=True,
+            fit=params['fit'],
             synchronize_lincomb_vars=params['lcf_mode'] == 'synced',
             ## stats=stats,
             fitness_measure=evo.sr.ErrorMeasure.R2,

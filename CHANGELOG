@@ -11,6 +11,8 @@ v0.1.9
         * Implemented GP for SR - plain vanilla GP for symbolic regression.
         * BPGP (and GP) can write matlab files for all BSFs found during the
           course of the run.
+        * Fitting of BPGP/MGGP trees can be turned off, allowing to effectively
+          run as ordinary GP but with backpropagation stuff available.
 
     *
 

@@ -394,9 +394,9 @@ class Runner(object):
         if testing_ds is not None:
             testing_x, testing_y = load(testing_ds, dlm, testing_sk, 'Testing')
             logging.info('Testing X data shape (rows, cols): %s',
-                         training_x.shape)
+                         testing_x.shape)
             logging.info('Testing Y data shape (elements,): %s',
-                         training_y.shape)
+                         testing_y.shape)
 
         return training_x, training_y, testing_x, testing_y
 

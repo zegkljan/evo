@@ -14,8 +14,6 @@ v0.1.9
         * Fitting of BPGP/MGGP trees can be turned off, allowing to effectively
           run as ordinary GP but with backpropagation stuff available.
 
-    *
-
 v0.1.8
 
     * New Features

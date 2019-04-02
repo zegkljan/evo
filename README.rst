@@ -85,7 +85,7 @@ Common options
     prints the basic usage and exits
 
 ``--version``
-    prints version and exits (quite useless now)
+    prints version and exits
 
 ``--logconf CONFFILE``
     sets the logging configuration file in yaml format (optional, there is a
@@ -124,6 +124,12 @@ All options are optional unless stated by **REQUIRED**.
     columns except the last one are used as features and the last one is used as
     target.
 
+``--training-data-skiprows n``
+    Determines how many rows at the top of the training data file should be
+    skipped befora loadint the actual data.
+
+    Default is 0.
+
 ``--testing-data file[:x-columns:y-column]``
     Specification of the testing data. The format is identical to the one of
     ``--training-data``. The testing data must have the same number of columns
@@ -135,6 +141,9 @@ All options are optional unless stated by **REQUIRED**.
     and so forth until the individual evaluates or there is no individual left.
     If the testing data is not specified, no testing is done (only training
     measures are reported).
+
+``--testing-data-skiprows n``
+    Same as ``--training-data-skiprows`` but for testing data.
 
 ``--delimiter DELIMITER``
     Field delimiter of the CSV files specified in ``--training-data`` and
@@ -152,6 +161,12 @@ All options are optional unless stated by **REQUIRED**.
     extension).
 
     Default is ``func``.
+
+``--m-fun-each``
+    If specified, a matlab function for each BSF acquired will be written. In
+    this case a ``{iteration}`` placeholder will be replaced by the iteration
+    number of the particular BSF. If not specified, only the last BSF will be
+    written out and no placeholder will be replaced.
 
 ``--output-string-template OUTPUT_STRING_TEMPLATE```
     Template for the string that will be printed to the standard output at the
@@ -256,9 +271,18 @@ All options are optional unless stated by **REQUIRED**.
     * ``Softplus`` - ln(1 + e^x)
     * ``Gauss`` - e^-(x^2)
     * ``BentIdentity`` - 1 / 2 * (sqrt(x + 1) - 1) + x
+    * ``Signum`` - the sign function, returns 1 for positive argument, -1 for
+      negative argument, 0 for zero argument
     * ``Pow(n)`` - x^n (``n`` must be positive integer)
 
     Default is ``Add2,Sub2,Mul2,Sin,Cos,Exp,Sigmoid,Tanh,Sinc,Softplus,Gauss,Pow(2),Pow(3),Pow(4),Pow(5),Pow(6)``.
+
+``--no-fit-genes``
+    If specified, the genes will NOT be fitted using a linear regression. Each
+    gene will have a weight of 1 and the intercept will be 0.
+
+    Allows for setting the algorithm up as ordinary GP (with appropriate
+    ``--max-genes``) but with the backpropagation capabilities available.
 
 ``--crossover-prob CROSSOVER_PROB``
     Probability of crossover.
@@ -386,3 +410,16 @@ All options are optional unless stated by **REQUIRED**.
     Bounds of the range the constants (leaf nodes) are sampled from.
 
     Default is -10 and 10.
+
+``--constants {none,classical,tunable}``
+    Type constant leaf nodes work.
+
+    Type ``none`` means no constant leaf nodes will be available.
+
+    Type ``classical`` means that the constants will be generated randomly at
+    initialization (and subtree mutation) and can be modified via mutation.
+
+    Type ``tunable`` means the values of the constants are subject to
+    gradient-based tuning.
+
+    Default is ``classical``.
